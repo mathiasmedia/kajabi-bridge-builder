@@ -182,6 +182,16 @@ function applyOperation(
         ...op.section,
         hidden: 'false',
       };
+      // Auto-add to content_for_index so Kajabi actually renders the section
+      if (!current.content_for_index) current.content_for_index = [];
+      if (typeof current.content_for_index === 'string') {
+        try {
+          current.content_for_index = JSON.parse(current.content_for_index.replace(/'/g, '"'));
+        } catch { current.content_for_index = []; }
+      }
+      if (Array.isArray(current.content_for_index) && !current.content_for_index.includes(op.sectionId)) {
+        current.content_for_index.push(op.sectionId);
+      }
       break;
 
     case 'addBlock':
