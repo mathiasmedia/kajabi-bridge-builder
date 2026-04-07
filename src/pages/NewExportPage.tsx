@@ -1,10 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, FolderOpen, Upload, FileArchive } from 'lucide-react';
+import { ArrowRight, FolderOpen, Upload, FileArchive, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { useExportStore } from '@/store/useExportStore';
+import { getProjectBundle, hasProjectBundle } from '@/lib/project-bundles';
+import type { ExportProject } from '@/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useExportStore } from '@/store/useExportStore';
@@ -43,9 +49,18 @@ export default function NewExportPage() {
 
     createExportProject(project);
     
+    // Load base theme
     const theme = BASE_THEMES.find(t => t.id === selectedTheme);
     if (theme) {
       await loadBaseTheme(theme.file);
+    }
+
+    // Load source project files and extract design
+    const bundle = getProjectBundle(selectedSource);
+    if (bundle) {
+      setSourceFiles(bundle.files);
+      // Run extraction
+      useExportStore.getState().extractDesign();
     }
 
     navigate('/extract');
