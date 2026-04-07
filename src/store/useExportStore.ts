@@ -34,80 +34,6 @@ interface ExportStore {
   setLoading: (loading: boolean, message?: string) => void;
 }
 
-function isPlainObject(value: unknown): value is Record<string, any> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function hasCompleteAddSection(op: TransformationOperation): boolean {
-  if (op.type !== 'addSection') return false;
-
-  return Boolean(
-    op.sectionId &&
-    isPlainObject(op.section) &&
-    typeof op.section.type === 'string' &&
-    op.section.type.trim().length > 0 &&
-    isPlainObject(op.section.settings) &&
-    Array.isArray(op.section.block_order) &&
-    isPlainObject(op.section.blocks)
-  );
-}
-
-function parseContentForValue(value: unknown): string[] | null {
-  if (Array.isArray(value)) {
-    return value.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
-  }
-
-  if (typeof value !== 'string') return null;
-
-  try {
-    const parsed = JSON.parse(value.replace(/'/g, '"'));
-    if (Array.isArray(parsed)) {
-      return parsed.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
-function aiPlanNeedsFallback(
-  operations: TransformationOperation[],
-  baseTheme: KajabiThemeData,
-  page: string,
-): boolean {
-  const contentKey = page === 'index' ? 'content_for_index' : `content_for_${page}`;
-  const existingContentSectionIds = new Set(getContentForPage(baseTheme, page).filter(Boolean));
-  const addedSectionIds = new Set<string>();
-
-  let hasInvalidAddSection = false;
-  let hiddenExistingContentSections = 0;
-
-  for (const op of operations) {
-    if (op.type === 'addSection') {
-      if (hasCompleteAddSection(op)) {
-        addedSectionIds.add(op.sectionId);
-      } else {
-        hasInvalidAddSection = true;
-      }
-    }
-
-    if (op.type === 'hideSection' && existingContentSectionIds.has(op.sectionId)) {
-      hiddenExistingContentSections += 1;
-    }
-  }
-
-  const hasBrokenContentForUpdate = operations.some((op) => {
-    if (op.type !== 'updateGlobalSetting' || op.key !== contentKey) return false;
-
-    const ids = parseContentForValue(op.value);
-    if (!ids?.length) return true;
-
-    return ids.some((id) => !existingContentSectionIds.has(id) && !addedSectionIds.has(id));
-  });
-
-  return hasInvalidAddSection || hasBrokenContentForUpdate || (hiddenExistingContentSections > 0 && addedSectionIds.size === 0);
-}
 
 export const useExportStore = create<ExportStore>((set, get) => ({
   currentProject: null,
@@ -180,16 +106,15 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       set({ error: 'Missing required data to build AI plan' });
       return;
     }
-    set({ isLoading: true, loadingMessage: 'AI is analyzing your project and generating transformations...' });
+
     try {
-      // Build a compact theme structure for the AI
+      // Build compact theme structure
       const sections = getThemeSections(baseTheme);
       const contentForIndex = getContentForPage(baseTheme, 'index');
       const themeStructure: Record<string, any> = {
         content_for_index: contentForIndex,
         sections: {} as Record<string, any>,
       };
-      // Include header, footer, and content sections
       for (const [id, section] of Object.entries(sections)) {
         const s = section as any;
         themeStructure.sections[id] = {
@@ -206,62 +131,101 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         };
       }
 
-      // Extract available section types from theme liquid files
       const availableSectionTypes = Object.keys(baseTheme.files)
         .filter(p => p.startsWith('sections/') && p.endsWith('.liquid'))
         .map(p => p.replace('sections/', '').replace('.liquid', ''));
 
-      const { data, error } = await supabase.functions.invoke('ai-transform', {
-        body: {
-          sourceFiles: {
-            indexCss: sourceFiles.indexCss,
-            tailwindConfig: sourceFiles.tailwindConfig,
-            components: sourceFiles.components,
-            pages: sourceFiles.pages,
-          },
-          extractedDesign,
-          themeStructure,
-          availableSectionTypes,
+      const sharedBody = {
+        sourceFiles: {
+          indexCss: sourceFiles.indexCss,
+          tailwindConfig: sourceFiles.tailwindConfig,
+          components: sourceFiles.components,
+          pages: sourceFiles.pages,
         },
+        extractedDesign,
+        themeStructure,
+        availableSectionTypes,
+      };
+
+      // ── Step 1: Globals (header, footer, hero, CSS) ──
+      const nonHeroSections = extractedDesign.sections.filter(s => s.type !== 'hero');
+      const totalSteps = 1 + nonHeroSections.length;
+
+      set({ isLoading: true, loadingMessage: `Step 1/${totalSteps}: Generating global styles, header, footer & hero...` });
+
+      const { data: globalsData, error: globalsError } = await supabase.functions.invoke('ai-transform', {
+        body: { ...sharedBody, step: 'globals' },
       });
 
-      if (error) throw new Error(error.message || 'AI transform failed');
-      if (data?.error) throw new Error(data.error);
+      if (globalsError) throw new Error(globalsError.message || 'Globals step failed');
+      if (globalsData?.error) throw new Error(globalsData.error);
 
       const operations: TransformationOperation[] = [];
 
-      // Add AI-generated operations
-      if (Array.isArray(data.operations)) {
-        for (const op of data.operations) {
+      if (Array.isArray(globalsData.operations)) {
+        for (const op of globalsData.operations) {
           operations.push(op as TransformationOperation);
         }
       }
 
-      // Add AI-generated CSS as override
-      if (data.cssOverrides && typeof data.cssOverrides === 'string') {
+      if (globalsData.cssOverrides && typeof globalsData.cssOverrides === 'string') {
         operations.push({
           type: 'addCssOverride',
-          css: data.cssOverrides,
+          css: globalsData.cssOverrides,
           label: 'AI-generated CSS overrides',
         });
       }
 
-      // Log warnings about stripped operations
-      const strippedCount = (data.operations?.length || 0) - operations.length;
-      if (strippedCount > 0) {
-        console.warn(`Stripped ${strippedCount} invalid operations from AI response`);
+      // ── Step 2+: One call per non-hero section ──
+      for (let i = 0; i < nonHeroSections.length; i++) {
+        const section = nonHeroSections[i];
+        const stepNum = i + 2;
+        set({
+          loadingMessage: `Step ${stepNum}/${totalSteps}: Generating "${section.heading || section.type}" section...`,
+        });
+
+        const { data: sectionData, error: sectionError } = await supabase.functions.invoke('ai-transform', {
+          body: {
+            ...sharedBody,
+            step: 'section',
+            sectionToGenerate: section,
+          },
+        });
+
+        if (sectionError) {
+          console.warn(`Section "${section.type}" failed:`, sectionError.message);
+          continue; // Skip failed sections, don't abort
+        }
+        if (sectionData?.error) {
+          console.warn(`Section "${section.type}" returned error:`, sectionData.error);
+          continue;
+        }
+
+        if (Array.isArray(sectionData?.operations)) {
+          for (const op of sectionData.operations) {
+            operations.push(op as TransformationOperation);
+          }
+        }
       }
 
-      const hasAddedSections = operations.some((op) => op.type === 'addSection');
-      const hasIncompleteAiPlan = aiPlanNeedsFallback(operations, baseTheme, currentProject.page)
-        || (extractedDesign.sections.some((section) => section.type !== 'hero') && !hasAddedSections);
+      // ── Build content_for_index with new section IDs ──
+      const addedSectionIds = operations
+        .filter((op): op is Extract<TransformationOperation, { type: 'addSection' }> => op.type === 'addSection')
+        .map(op => op.sectionId);
+
+      if (addedSectionIds.length > 0) {
+        const existingContentIds = getContentForPage(baseTheme, currentProject.page).filter(Boolean);
+        const newContentIds = [...existingContentIds, ...addedSectionIds];
+        operations.push({
+          type: 'updateGlobalSetting',
+          key: currentProject.page === 'index' ? 'content_for_index' : `content_for_${currentProject.page}`,
+          value: newContentIds,
+          label: 'Update page content order with new sections',
+        });
+      }
 
       if (operations.length === 0) {
-        throw new Error('AI returned no valid operations. Please try again.');
-      }
-
-      if (hasIncompleteAiPlan) {
-        throw new Error('AI returned an incomplete plan with only the hero or broken section references. Please try again.');
+        throw new Error('AI returned no valid operations across all steps. Please try again.');
       }
 
       const plan: TransformationPlan = {

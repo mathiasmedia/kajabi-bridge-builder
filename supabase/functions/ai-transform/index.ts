@@ -5,19 +5,13 @@ const corsHeaders = {
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+// ── Types ──────────────────────────────────────────────────────────────
+
 type SourceFiles = {
   indexCss?: string;
   tailwindConfig?: string;
   components?: Record<string, string>;
   pages?: Record<string, string>;
-};
-
-type ExtractedSection = {
-  type?: string;
-  heading?: string;
-  body?: string;
-  ctaText?: string;
-  items?: Array<{ heading?: string; body?: string }>;
 };
 
 type ThemeStructure = {
@@ -31,15 +25,7 @@ type TransformPayload = {
   cssOverrides?: string;
 };
 
-type PlanAnalysis = {
-  needsRepair: boolean;
-  renderableSectionIds: string[];
-  missingContentSectionIds: string[];
-  addSectionCount: number;
-  expectedSectionCount: number;
-  hiddenExistingContentCount: number;
-  reason: string;
-};
+// ── Entry ──────────────────────────────────────────────────────────────
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -50,70 +36,16 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const {
-      sourceFiles = {},
-      extractedDesign = {},
-      themeStructure = {},
-      availableSectionTypes = [],
-    } = await req.json();
+    const body = await req.json();
+    const step: string = body.step || "globals"; // "globals" | "section"
 
-    const expectedSections = getExpectedSections(extractedDesign?.sections ?? []);
-    const sectionTypesList = (availableSectionTypes || []).join(", ");
-
-    const baseUserPrompt = buildUserPrompt(
-      sourceFiles,
-      extractedDesign,
-      themeStructure,
-      sectionTypesList,
-      expectedSections,
-    );
-
-    const systemPrompt = buildSystemPrompt(sectionTypesList, expectedSections);
-
-    // Try primary model, fall back on MALFORMED_FUNCTION_CALL or empty response
-    const models = ["google/gemini-2.5-flash", "openai/gpt-5-mini"];
-    let parsed: Required<TransformPayload> | null = null;
-    let analysis: PlanAnalysis | null = null;
-
-    for (const model of models) {
-      try {
-        const result = await requestTransform({
-          apiKey: LOVABLE_API_KEY,
-          model,
-          systemPrompt,
-          userPrompt: baseUserPrompt,
-          maxTokens: 16000,
-        });
-
-        console.log(`ai-transform [${model}] finish_reason=${result.finishReason ?? "unknown"}`);
-
-        parsed = normalizeTransformPayload(result.parsed, availableSectionTypes);
-        analysis = analyzePlan(parsed.operations ?? [], themeStructure, expectedSections);
-
-        if (!shouldRepairPlan(result.finishReason, analysis)) {
-          break; // Good plan, use it
-        }
-
-        console.warn(`ai-transform [${model}] plan incomplete, trying next model`, JSON.stringify(analysis));
-        // Continue to next model
-      } catch (err) {
-        console.warn(`ai-transform [${model}] failed: ${err instanceof Error ? err.message : err}`);
-        // Continue to next model
-      }
+    if (step === "globals") {
+      return await handleGlobalsStep(LOVABLE_API_KEY, body);
+    } else if (step === "section") {
+      return await handleSectionStep(LOVABLE_API_KEY, body);
+    } else {
+      return jsonResponse({ error: `Unknown step: ${step}` }, 400);
     }
-
-    if (!parsed || !analysis || analysis.needsRepair) {
-      console.error("ai-transform all models failed", JSON.stringify(analysis));
-      return jsonResponse(
-        {
-          error: "AI was unable to produce a complete transformation plan. Please retry.",
-          details: analysis,
-        },
-        500,
-      );
-    }
-
-    return jsonResponse(parsed);
   } catch (e) {
     console.error("ai-transform error:", e);
     return jsonResponse(
@@ -122,6 +54,235 @@ serve(async (req) => {
     );
   }
 });
+
+// ── Step 1: Globals (header, footer, colors, fonts, hero updates, CSS) ──
+
+async function handleGlobalsStep(apiKey: string, body: any) {
+  const {
+    sourceFiles = {},
+    extractedDesign = {},
+    themeStructure = {},
+    availableSectionTypes = [],
+  } = body;
+
+  const sectionTypesList = availableSectionTypes.join(", ");
+
+  const systemPrompt = `You are an expert web-to-Kajabi theme transformer.
+
+You receive source React/Tailwind files, extracted design tokens, and the Kajabi theme structure.
+In THIS step you handle ONLY: global settings (colors, fonts), header updates, footer updates, hero section updates, and CSS overrides.
+Do NOT add new sections in this step. Do NOT output addSection operations.
+
+OPERATION TYPES (allowed in this step):
+- updateGlobalSetting: { type, key, value, label }
+- updateSectionSetting: { type, sectionId, key, value, label }
+- updateBlockSetting: { type, sectionId, blockId, key, value, label }
+- replaceText: { type, sectionId, blockId, key:"text", value:"<html>", label }
+- hideSection: { type, sectionId }
+- showSection: { type, sectionId }
+- addCssOverride: { type, css, label }
+
+ID FORMAT: 13-digit numeric-only strings.
+DATA FORMAT:
+- padding_desktop/padding_mobile must be objects, not strings.
+- Do not emit updateNavigation operations.
+
+CSS RULES:
+- Put all global CSS in cssOverrides (fonts @import, color overrides, typography, spacing, buttons, cards).
+- Match the source design closely.
+- Use !important when needed.
+
+CONTENT RULES:
+- Use actual source text, no placeholders.
+- No external image URLs.
+
+Focus on making header, footer, hero, and global styling match the source site.`;
+
+  const userPrompt = `## Source design system
+### index.css
+\`\`\`css
+${trimText(sourceFiles.indexCss, 1800)}
+\`\`\`
+
+### tailwind.config.ts
+\`\`\`ts
+${trimText(sourceFiles.tailwindConfig, 800)}
+\`\`\`
+
+## Source page/component snippets
+${buildRelevantSourceContext(sourceFiles)}
+
+## Extracted design summary
+${JSON.stringify({
+    headingFont: extractedDesign?.headingFont,
+    bodyFont: extractedDesign?.bodyFont,
+    colors: extractedDesign?.colors,
+    header: extractedDesign?.header,
+    hero: extractedDesign?.hero,
+    footer: extractedDesign?.footer,
+    buttonStyle: extractedDesign?.buttonStyle,
+  }, null, 2)}
+
+## Kajabi theme structure
+${JSON.stringify(themeStructure, null, 2)}
+
+Return transformation operations for global settings, header, footer, hero, and CSS overrides.
+Do NOT include any addSection operations.`;
+
+  const result = await requestTransform({
+    apiKey,
+    model: "google/gemini-2.5-flash",
+    systemPrompt,
+    userPrompt,
+    maxTokens: 8000,
+  });
+
+  console.log(`ai-transform [globals] finish_reason=${result.finishReason ?? "unknown"}`);
+
+  const parsed = normalizeTransformPayload(result.parsed, availableSectionTypes);
+
+  // Strip any addSection ops that snuck through
+  parsed.operations = parsed.operations.filter((op: any) => op.type !== "addSection");
+
+  if (parsed.operations.length === 0 && !parsed.cssOverrides) {
+    return jsonResponse({ error: "AI returned no valid global operations. Please retry." }, 500);
+  }
+
+  return jsonResponse({
+    operations: parsed.operations,
+    cssOverrides: parsed.cssOverrides,
+  });
+}
+
+// ── Step 2: Single section generation ──────────────────────────────────
+
+async function handleSectionStep(apiKey: string, body: any) {
+  const {
+    sourceFiles = {},
+    extractedDesign = {},
+    themeStructure = {},
+    availableSectionTypes = [],
+    sectionToGenerate, // The extracted section to create
+    existingOperations = [], // Operations from globals step + previous sections
+  } = body;
+
+  if (!sectionToGenerate) {
+    return jsonResponse({ error: "sectionToGenerate is required for section step" }, 400);
+  }
+
+  const sectionTypesList = availableSectionTypes.join(", ");
+
+  // Find source component content relevant to this section
+  const sectionContext = findSectionSourceContext(sourceFiles, sectionToGenerate);
+
+  const systemPrompt = `You are an expert web-to-Kajabi theme transformer.
+
+In THIS step you create exactly ONE new Kajabi section that matches a specific source section.
+You MUST output exactly ONE addSection operation.
+
+OPERATION TYPES (allowed in this step):
+- addSection: { type, sectionId, section:{type,name,settings,block_order,blocks}, label }
+
+COMPLETE addSection EXAMPLE:
+{
+  "type": "addSection",
+  "sectionId": "1718825317433",
+  "label": "Stats Section",
+  "section": {
+    "type": "text-columns",
+    "name": "Stats",
+    "settings": {
+      "background_color": "#0b1214",
+      "text_color": "#8a9ba8",
+      "heading_color": "#e0e8e4",
+      "padding_desktop": {"top":"80","bottom":"80"},
+      "padding_mobile": {"top":"48","bottom":"48"}
+    },
+    "block_order": ["1718825317501","1718825317502"],
+    "blocks": {
+      "1718825317501": {
+        "type": "text_column",
+        "settings": {"heading":"2,400+","text":"<p>Graduates Certified</p>","text_align":"center"}
+      },
+      "1718825317502": {
+        "type": "text_column",
+        "settings": {"heading":"27","text":"<p>Years Teaching</p>","text_align":"center"}
+      }
+    }
+  }
+}
+
+SECTION TYPE CONSTRAINT:
+addSection type MUST be one of: ${sectionTypesList}
+Map source content to the closest available type.
+
+ID FORMAT: Section IDs and Block IDs must be 13-digit numeric-only strings.
+DATA FORMAT: padding_desktop/padding_mobile must be objects, not strings.
+
+CONTENT RULES:
+- Use actual source text from the section, no placeholders.
+- No external image URLs.
+- Use rich HTML for text blocks.
+- Include ALL items/blocks from the source section.
+
+The section must have complete blocks with real content.`;
+
+  const userPrompt = `## Source section to recreate
+${JSON.stringify(sectionToGenerate, null, 2)}
+
+## Relevant source component code
+${sectionContext}
+
+## Design tokens (for color/font matching)
+${JSON.stringify({
+    headingFont: extractedDesign?.headingFont,
+    bodyFont: extractedDesign?.bodyFont,
+    colors: extractedDesign?.colors?.slice(0, 6),
+    buttonStyle: extractedDesign?.buttonStyle,
+  }, null, 2)}
+
+## Available section types
+${sectionTypesList}
+
+## Current theme sections (for reference)
+${JSON.stringify(Object.keys(themeStructure.sections || {}), null, 2)}
+
+Create exactly ONE addSection operation for this section. Include all content items as blocks.`;
+
+  const models = ["google/gemini-2.5-flash", "openai/gpt-5-mini"];
+  let lastError = "";
+
+  for (const model of models) {
+    try {
+      const result = await requestTransform({
+        apiKey,
+        model,
+        systemPrompt,
+        userPrompt,
+        maxTokens: 8000,
+      });
+
+      console.log(`ai-transform [section:${sectionToGenerate.type}] [${model}] finish_reason=${result.finishReason ?? "unknown"}`);
+
+      const parsed = normalizeTransformPayload(result.parsed, availableSectionTypes);
+      const addSectionOps = parsed.operations.filter((op: any) => op.type === "addSection");
+
+      if (addSectionOps.length > 0) {
+        return jsonResponse({ operations: addSectionOps });
+      }
+
+      lastError = "No valid addSection operation produced";
+      console.warn(`ai-transform [section] [${model}] ${lastError}`);
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      console.warn(`ai-transform [section] [${model}] failed: ${lastError}`);
+    }
+  }
+
+  return jsonResponse({ error: `Failed to generate section: ${lastError}` }, 500);
+}
+
+// ── Shared utilities ───────────────────────────────────────────────────
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -162,7 +323,7 @@ async function requestTransform({
           type: "function",
           function: {
             name: "apply_transformations",
-            description: "Apply Kajabi theme transformations with operations and CSS overrides",
+            description: "Apply Kajabi theme transformations",
             parameters: {
               type: "object",
               properties: {
@@ -203,12 +364,8 @@ async function requestTransform({
   if (!response.ok) {
     const errText = await response.text();
     console.error("AI gateway error:", response.status, errText);
-    if (response.status === 429) {
-      throw new Error("Rate limited, please try again shortly.");
-    }
-    if (response.status === 402) {
-      throw new Error("Credits exhausted. Add funds in Settings > Workspace > Usage.");
-    }
+    if (response.status === 429) throw new Error("Rate limited, please try again shortly.");
+    if (response.status === 402) throw new Error("Credits exhausted. Add funds in Settings > Workspace > Usage.");
     throw new Error(`AI gateway returned ${response.status}: ${errText}`);
   }
 
@@ -229,18 +386,13 @@ function parseAiResponse(aiResult: any): TransformPayload {
       return extractJson(toolCall.function.arguments);
     } catch {
       console.error("Failed to parse tool call args:", toolCall.function.arguments.slice(0, 500));
-      // Fall through to content parsing
     }
   }
 
   let content = aiResult.choices?.[0]?.message?.content || "";
-
-  if (!content && toolCall?.function?.arguments) {
-    content = toolCall.function.arguments;
-  }
-
+  if (!content && toolCall?.function?.arguments) content = toolCall.function.arguments;
   if (!content || content.trim().length === 0) {
-    console.error("AI returned empty response. Full result:", JSON.stringify(aiResult).slice(0, 1000));
+    console.error("AI returned empty response:", JSON.stringify(aiResult).slice(0, 1000));
     throw new Error("AI returned an empty response. Please retry.");
   }
 
@@ -248,39 +400,23 @@ function parseAiResponse(aiResult: any): TransformPayload {
 }
 
 function extractJson(raw: string): TransformPayload {
-  // Strip markdown fences
-  let cleaned = raw
-    .replace(/```json\s*/gi, "")
-    .replace(/```\s*/g, "")
-    .trim();
+  let cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
 
-  // Try direct parse first
-  try {
-    return JSON.parse(cleaned);
-  } catch { /* continue */ }
+  try { return JSON.parse(cleaned); } catch { /* continue */ }
 
-  // Find JSON object boundaries
   const jsonStart = cleaned.indexOf("{");
   const jsonEnd = cleaned.lastIndexOf("}");
-
   if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
-    console.error("No JSON object found in AI response:", cleaned.slice(0, 500));
     throw new Error("AI returned invalid JSON — no object found");
   }
 
-  cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
-
-  // Fix common issues
-  cleaned = cleaned
+  cleaned = cleaned.substring(jsonStart, jsonEnd + 1)
     .replace(/,\s*}/g, "}")
     .replace(/,\s*]/g, "]")
     .replace(/[\x00-\x1F\x7F]/g, (ch) => ch === "\n" || ch === "\r" || ch === "\t" ? ch : "");
 
-  try {
-    return JSON.parse(cleaned);
-  } catch { /* continue */ }
+  try { return JSON.parse(cleaned); } catch { /* continue */ }
 
-  // Repair unbalanced braces/brackets
   let braces = 0, brackets = 0;
   for (const char of cleaned) {
     if (char === "{") braces++;
@@ -291,10 +427,7 @@ function extractJson(raw: string): TransformPayload {
   while (brackets > 0) { cleaned += "]"; brackets--; }
   while (braces > 0) { cleaned += "}"; braces--; }
 
-  try {
-    return JSON.parse(cleaned);
-  } catch (e) {
-    console.error("Failed to parse AI JSON even after repair:", cleaned.slice(0, 500));
+  try { return JSON.parse(cleaned); } catch (e) {
     throw new Error(`AI returned invalid JSON: ${(e as Error).message}`);
   }
 }
@@ -307,42 +440,23 @@ function normalizeTransformPayload(parsed: TransformPayload, availableSectionTyp
   const normalizedOperations = operations.filter((op: any) => {
     if (!op || typeof op.type !== "string") return false;
 
-    if (op.type === "updateNavigation") {
-      console.warn("Stripped updateNavigation op (link_lists incompatible)");
-      return false;
-    }
+    if (op.type === "updateNavigation") return false;
 
     if (op.type === "updateGlobalSetting" && typeof op.key === "string") {
-      if (op.key.startsWith("content_for_")) {
-        op.value = normalizeIdArray(op.value);
-      }
-
-      if (op.key === "block_order") {
-        op.value = normalizeIdArray(op.value);
-      }
+      if (op.key.startsWith("content_for_")) op.value = normalizeIdArray(op.value);
+      if (op.key === "block_order") op.value = normalizeIdArray(op.value);
     }
 
     if (op.type === "addSection") {
-      if (!/^\d{13}$/.test(String(op.sectionId || ""))) {
-        op.sectionId = createNumericId();
-      }
-
+      if (!/^\d{13}$/.test(String(op.sectionId || ""))) op.sectionId = createNumericId();
       op.section = remapSectionBlockIds(op.section);
 
-      if (!hasCompleteSection(op.section)) {
-        console.warn("Stripped incomplete addSection op");
-        return false;
-      }
-
-      if (validTypes.size > 0 && !validTypes.has(op.section.type)) {
-        console.warn(`Stripped addSection with invalid type: ${op.section.type}`);
-        return false;
-      }
+      if (!hasCompleteSection(op.section)) return false;
+      if (validTypes.size > 0 && !validTypes.has(op.section.type)) return false;
 
       op.section.block_order = Array.isArray(op.section.block_order)
         ? op.section.block_order.map((id: unknown) => String(id))
         : Object.keys(op.section.blocks || {});
-
       op.section.blocks = isPlainObject(op.section.blocks) ? op.section.blocks : {};
 
       for (const blockId of Object.keys(op.section.blocks)) {
@@ -353,22 +467,12 @@ function normalizeTransformPayload(parsed: TransformPayload, availableSectionTyp
       }
 
       op.section.block_order = op.section.block_order.filter((id: string) => id in op.section.blocks);
-
-      if (op.section.block_order.length === 0 || Object.keys(op.section.blocks).length === 0) {
-        console.warn("Stripped addSection with empty block definitions");
-        return false;
-      }
+      if (op.section.block_order.length === 0) return false;
     }
 
     if (op.type === "addBlock") {
-      if (!/^\d{13}$/.test(String(op.blockId || ""))) {
-        op.blockId = createNumericId();
-      }
-
-      if (!isPlainObject(op.block) || typeof op.block.type !== "string" || !isPlainObject(op.block.settings)) {
-        console.warn("Stripped incomplete addBlock op");
-        return false;
-      }
+      if (!/^\d{13}$/.test(String(op.blockId || ""))) op.blockId = createNumericId();
+      if (!isPlainObject(op.block) || typeof op.block.type !== "string" || !isPlainObject(op.block.settings)) return false;
     }
 
     return true;
@@ -377,244 +481,33 @@ function normalizeTransformPayload(parsed: TransformPayload, availableSectionTyp
   return { operations: normalizedOperations, cssOverrides };
 }
 
-function analyzePlan(
-  operations: any[],
-  themeStructure: ThemeStructure,
-  expectedSections: ExtractedSection[],
-): PlanAnalysis {
-  const existingSections = isPlainObject(themeStructure.sections) ? structuredClone(themeStructure.sections) : {};
-  const originalContentIds = normalizeIdArray(themeStructure.content_for_index);
-  let contentIds = [...originalContentIds];
-  let hiddenExistingContentCount = 0;
+function findSectionSourceContext(sourceFiles: SourceFiles, section: any): string {
+  const sectionType = (section.type || "").toLowerCase();
+  const sectionHeading = (section.heading || "").toLowerCase();
+  const keywords = [sectionType, sectionHeading].filter(Boolean);
 
-  for (const op of operations) {
-    if (!op || typeof op.type !== "string") continue;
-
-    if (op.type === "hideSection" && originalContentIds.includes(op.sectionId)) {
-      hiddenExistingContentCount += 1;
-      if (existingSections[op.sectionId]) {
-        existingSections[op.sectionId].hidden = "true";
-      }
-    }
-
-    if (op.type === "showSection" && existingSections[op.sectionId]) {
-      existingSections[op.sectionId].hidden = "false";
-    }
-
-    if (op.type === "addSection" && hasCompleteSection(op.section)) {
-      existingSections[op.sectionId] = {
-        ...op.section,
-        hidden: "false",
-      };
-      if (!contentIds.includes(op.sectionId)) {
-        contentIds.push(op.sectionId);
-      }
-    }
-
-    if (op.type === "updateGlobalSetting" && op.key === "content_for_index") {
-      contentIds = normalizeIdArray(op.value);
-    }
-  }
-
-  const missingContentSectionIds = contentIds.filter((id) => !existingSections[id]);
-  const renderableSectionIds = contentIds.filter((id) => {
-    const section = existingSections[id];
-    return section && String(section.hidden ?? "false") !== "true";
-  });
-
-  const addSectionCount = operations.filter((op) => op?.type === "addSection").length;
-  const heroOnly = expectedSections.length > 0 && renderableSectionIds.length <= 1;
-  const noNewSections = expectedSections.length > 0 && addSectionCount === 0 && hiddenExistingContentCount > 0;
-  const brokenReferences = missingContentSectionIds.length > 0;
-
-  return {
-    needsRepair: heroOnly || noNewSections || brokenReferences,
-    renderableSectionIds,
-    missingContentSectionIds,
-    addSectionCount,
-    expectedSectionCount: expectedSections.length,
-    hiddenExistingContentCount,
-    reason: brokenReferences
-      ? "content_for_index references sections that were never defined"
-      : heroOnly
-        ? "plan only renders the hero section"
-        : noNewSections
-          ? "plan hides content sections without adding replacements"
-          : "ok",
+  const allFiles = {
+    ...sourceFiles.components,
+    ...sourceFiles.pages,
   };
-}
 
-function shouldRepairPlan(finishReason: string | null, analysis: PlanAnalysis) {
-  return finishReason === "length" || finishReason === "max_tokens" || analysis.needsRepair;
-}
-
-function buildUserPrompt(
-  sourceFiles: SourceFiles,
-  extractedDesign: any,
-  themeStructure: ThemeStructure,
-  sectionTypesList: string,
-  expectedSections: ExtractedSection[],
-) {
-  return `## Source design system
-### index.css
-\`\`\`css
-${trimText(sourceFiles.indexCss, 1800)}
-\`\`\`
-
-### tailwind.config.ts
-\`\`\`ts
-${trimText(sourceFiles.tailwindConfig, 800)}
-\`\`\`
-
-## Source page/component snippets
-${buildRelevantSourceContext(sourceFiles)}
-
-## Extracted design summary
-${JSON.stringify({
-  headingFont: extractedDesign?.headingFont,
-  bodyFont: extractedDesign?.bodyFont,
-  colors: extractedDesign?.colors,
-  header: extractedDesign?.header,
-  hero: extractedDesign?.hero,
-  sections: extractedDesign?.sections,
-  footer: extractedDesign?.footer,
-  assets: extractedDesign?.assets,
-}, null, 2)}
-
-## Required non-hero content sections
-${JSON.stringify(expectedSections, null, 2)}
-
-## Kajabi theme structure
-${JSON.stringify(themeStructure, null, 2)}
-
-## Available section types
-${sectionTypesList}
-
-Return transformation operations and cssOverrides that make the Kajabi theme match the source closely.
-Every non-hero section in the extracted design must be rendered in the final page.
-Do not reference a new section ID in content_for_index unless you also define it with addSection.`;
-}
-
-function buildRepairUserPrompt(
-  baseUserPrompt: string,
-  partialPlan: Required<TransformPayload>,
-  analysis: PlanAnalysis,
-  expectedSections: ExtractedSection[],
-) {
-  return `${baseUserPrompt}
-
-## Previous attempt failed
-- Reason: ${analysis.reason}
-- Renderable section IDs: ${JSON.stringify(analysis.renderableSectionIds)}
-- Missing section IDs: ${JSON.stringify(analysis.missingContentSectionIds)}
-- addSection count: ${analysis.addSectionCount}
-- Expected additional sections: ${analysis.expectedSectionCount}
-
-## Sections that still must exist after the hero
-${JSON.stringify(expectedSections, null, 2)}
-
-## Previous partial operations
-${JSON.stringify(partialPlan.operations.slice(0, 40), null, 2)}
-
-Return a FULL replacement plan, not a patch.
-Your new response must include all required addSection operations before content_for_index references those IDs.`;
-}
-
-function buildSystemPrompt(sectionTypesList: string, expectedSections: ExtractedSection[]) {
-  return `You are an expert web-to-Kajabi theme transformer.
-
-You receive source React/Tailwind files, extracted design tokens, the Kajabi theme structure, and available section types.
-You output transformation operations and CSS overrides via the apply_transformations tool call.
-
-OPERATION TYPES:
-- updateGlobalSetting: { type, key, value, label }
-- updateSectionSetting: { type, sectionId, key, value, label }
-- updateBlockSetting: { type, sectionId, blockId, key, value, label }
-- replaceText: { type, sectionId, blockId, key:"text", value:"<html>", label }
-- hideSection: { type, sectionId }
-- addSection: { type, sectionId, section:{type,name,settings,block_order,blocks}, label }
-- addBlock: { type, sectionId, blockId, block:{type,settings}, label }
-- addCssOverride: { type, css, label }
-
-CRITICAL OUTPUT RULES:
-- Return ONE complete plan only.
-- Never return a partial plan.
-- Never output content_for_index IDs unless those sections already exist in the theme or are defined in addSection operations in the same response.
-- The final page must render hero + ${expectedSections.length} additional sections from the source design.
-- If the source contains stats, programs, testimonials, and CTA, all of them must appear in the final plan.
-
-COMPLETE addSection EXAMPLE:
-{
-  "type": "addSection",
-  "sectionId": "1718825317433",
-  "label": "Stats Section",
-  "section": {
-    "type": "text-columns",
-    "name": "Stats",
-    "settings": {
-      "background_color": "#0b1214",
-      "text_color": "#8a9ba8",
-      "heading_color": "#e0e8e4",
-      "padding_desktop": {"top":"80","bottom":"80"},
-      "padding_mobile": {"top":"48","bottom":"48"}
-    },
-    "block_order": ["1718825317501","1718825317502"],
-    "blocks": {
-      "1718825317501": {
-        "type": "text_column",
-        "settings": {"heading":"2,400+","text":"<p>Graduates Certified</p>","text_align":"center"}
-      },
-      "1718825317502": {
-        "type": "text_column",
-        "settings": {"heading":"27","text":"<p>Years Teaching</p>","text_align":"center"}
-      }
+  const snippets: string[] = [];
+  for (const [path, content] of Object.entries(allFiles || {})) {
+    const lower = path.toLowerCase() + " " + (content || "").toLowerCase();
+    if (keywords.some(kw => kw && lower.includes(kw))) {
+      snippets.push(`### ${path}\n\`\`\`tsx\n${trimText(stripImports(content), 1200)}\n\`\`\``);
     }
   }
-}
 
-ID FORMAT:
-- Section IDs: 13-digit numeric-only strings.
-- Block IDs: 13-digit numeric-only strings.
+  if (snippets.length === 0) {
+    // Fallback: include first page
+    const pages = Object.entries(sourceFiles.pages || {}).slice(0, 1);
+    for (const [path, content] of pages) {
+      snippets.push(`### ${path}\n\`\`\`tsx\n${trimText(stripImports(content), 1200)}\n\`\`\``);
+    }
+  }
 
-DATA FORMAT:
-- content_for_index must be a real JSON array.
-- padding_desktop/padding_mobile must be objects, not strings.
-- Do not emit updateNavigation operations.
-
-SECTION TYPE CONSTRAINT:
-addSection type MUST be one of: ${sectionTypesList}
-Map source content to the closest available type.
-
-CONTENT RULES:
-- Use actual source text.
-- No placeholder copy.
-- No external image URLs.
-- Use rich HTML for text blocks.
-
-CSS RULES:
-- Put global CSS in cssOverrides.
-- Match typography, spacing, section backgrounds, CTA, testimonial cards, and buttons.
-- Use !important on all overrides when needed.
-
-GOAL: the exported Kajabi theme must visually and structurally match the source site, not just the hero.`;
-}
-
-function buildRepairSystemPrompt(sectionTypesList: string, expectedSections: ExtractedSection[], analysis: PlanAnalysis) {
-  return `You are repairing an incomplete Kajabi transformation plan.
-
-The previous plan failed because: ${analysis.reason}.
-It rendered ${analysis.renderableSectionIds.length} content sections, but the source requires hero + ${expectedSections.length} additional sections.
-
-You must return a COMPLETE replacement plan with operations and cssOverrides.
-
-Repair rules:
-- Define every new section with addSection before referencing its ID in content_for_index.
-- Do not hide existing content sections unless replacements are present.
-- Ensure content_for_index renders multiple sections, not hero-only.
-- Use only allowed section types: ${sectionTypesList}.
-- Do not use external image URLs.
-- Keep IDs 13-digit numeric strings.
-- Return only the tool call payload.`;
+  return snippets.join("\n\n") || "No matching source code found.";
 }
 
 function buildRelevantSourceContext(sourceFiles: SourceFiles) {
@@ -627,7 +520,6 @@ function buildRelevantSourceContext(sourceFiles: SourceFiles) {
   for (const [path, content] of [...pages, ...components]) {
     snippets.push(`### ${path}\n\`\`\`tsx\n${trimText(stripImports(content), 1400)}\n\`\`\``);
   }
-
   return snippets.join("\n\n");
 }
 
@@ -642,13 +534,6 @@ function prioritizeFile(path: string) {
   return 10;
 }
 
-function getExpectedSections(sections: ExtractedSection[]) {
-  return (Array.isArray(sections) ? sections : []).filter((section) => {
-    const heading = (section.heading || "").toLowerCase();
-    return section.type !== "hero" && !heading.includes("footer");
-  });
-}
-
 function trimText(value: unknown, maxLength: number) {
   if (typeof value !== "string" || !value.trim()) return "N/A";
   return value.length <= maxLength ? value : `${value.slice(0, maxLength)}\n...`;
@@ -659,19 +544,11 @@ function stripImports(value: string) {
 }
 
 function normalizeIdArray(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item).trim())
-      .filter(Boolean);
-  }
-
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
   if (typeof value !== "string") return [];
-
   try {
     const parsed = JSON.parse(value.replace(/'/g, '"'));
-    return Array.isArray(parsed)
-      ? parsed.map((item) => String(item).trim()).filter(Boolean)
-      : [];
+    return Array.isArray(parsed) ? parsed.map((item) => String(item).trim()).filter(Boolean) : [];
   } catch {
     return Array.from(value.matchAll(/[A-Za-z0-9_-]+/g), (match) => match[0]).filter(Boolean);
   }
@@ -683,7 +560,6 @@ function createNumericId() {
 
 function remapSectionBlockIds(section: any) {
   if (!isPlainObject(section) || !isPlainObject(section.blocks)) return section;
-
   const remappedBlocks: Record<string, any> = {};
   const order = Array.isArray(section.block_order) ? section.block_order : Object.keys(section.blocks);
   const idMap = new Map<string, string>();
@@ -695,7 +571,6 @@ function remapSectionBlockIds(section: any) {
       idMap.set(rawId, nextId);
     }
   }
-
   for (const [rawId, block] of Object.entries(section.blocks)) {
     if (idMap.has(rawId)) continue;
     const nextId = /^\d{13}$/.test(rawId) ? rawId : createNumericId();
@@ -715,10 +590,10 @@ function isPlainObject(value: unknown): value is Record<string, any> {
 function hasCompleteSection(section: any) {
   return Boolean(
     isPlainObject(section) &&
-      typeof section.type === "string" &&
-      section.type.trim().length > 0 &&
-      isPlainObject(section.settings) &&
-      Array.isArray(section.block_order) &&
-      isPlainObject(section.blocks),
+    typeof section.type === "string" &&
+    section.type.trim().length > 0 &&
+    isPlainObject(section.settings) &&
+    Array.isArray(section.block_order) &&
+    isPlainObject(section.blocks),
   );
 }
