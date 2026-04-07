@@ -99,6 +99,25 @@ function applyOperation(
       addCss(op.css);
       break;
 
+    case 'addSection':
+      if (!current.sections) current.sections = {};
+      current.sections[op.sectionId] = {
+        ...op.section,
+        hidden: 'false',
+      };
+      break;
+
+    case 'addBlock':
+      if (sections[op.sectionId]) {
+        if (!sections[op.sectionId].blocks) sections[op.sectionId].blocks = {};
+        sections[op.sectionId].blocks[op.blockId] = op.block;
+        if (!sections[op.sectionId].block_order) sections[op.sectionId].block_order = [];
+        if (!sections[op.sectionId].block_order.includes(op.blockId)) {
+          sections[op.sectionId].block_order.push(op.blockId);
+        }
+      }
+      break;
+
     case 'replaceLogo':
     case 'replaceImage':
     case 'moveSection':
@@ -123,6 +142,8 @@ export function generateChangeSummary(plan: TransformationPlan): string[] {
       case 'replaceImage': return `Replace image: ${op.fileName}`;
       case 'moveSection': return `Move section ${op.sectionId}`;
       case 'addAsset': return `Add asset: ${op.fileName}`;
+      case 'addSection': return `Add section: ${op.label}`;
+      case 'addBlock': return `Add block: ${op.label}`;
       default: return 'Unknown operation';
     }
   });

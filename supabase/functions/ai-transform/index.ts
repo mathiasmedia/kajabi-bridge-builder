@@ -42,6 +42,10 @@ Operation types you can emit:
 - { type: "replaceText", sectionId: string, blockId: string, key: string, value: string, label: string }
 - { type: "hideSection", sectionId: string }
 - { type: "updateNavigation", menuId: string, links: Array<{name: string, url: string}> }
+- { type: "addSection", sectionId: string, section: { type: string, name: string, settings: object, block_order: string[], blocks: object }, label: string }
+- { type: "addBlock", sectionId: string, blockId: string, block: { type: string, settings: object }, label: string }
+
+You SHOULD create new sections and blocks to fully replicate the source design. Don't just update existing sections — add new ones as needed. Generate unique IDs for new sections (e.g. "custom_hero_abc123") and blocks (e.g. "block_text_abc123"). Add sections to content_for_index by emitting an updateGlobalSetting with key "content_for_index" and the full ordered array of section IDs.
 
 Respond ONLY with valid JSON, no markdown fences.`;
 
