@@ -222,21 +222,76 @@ function parseAiResponse(aiResult: any): TransformPayload {
 
   if (toolCall?.function?.arguments) {
     try {
-      return JSON.parse(toolCall.function.arguments);
+      return extractJson(toolCall.function.arguments);
     } catch {
       console.error("Failed to parse tool call args:", toolCall.function.arguments.slice(0, 500));
-      throw new Error("AI returned invalid tool call JSON");
+      // Fall through to content parsing
     }
   }
 
   let content = aiResult.choices?.[0]?.message?.content || "";
-  content = content.replace(/^```(?:json)?\s*/m, "").replace(/\s*```$/m, "").trim();
+
+  if (!content && toolCall?.function?.arguments) {
+    content = toolCall.function.arguments;
+  }
+
+  if (!content || content.trim().length === 0) {
+    console.error("AI returned empty response. Full result:", JSON.stringify(aiResult).slice(0, 1000));
+    throw new Error("AI returned an empty response. Please retry.");
+  }
+
+  return extractJson(content);
+}
+
+function extractJson(raw: string): TransformPayload {
+  // Strip markdown fences
+  let cleaned = raw
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
+
+  // Try direct parse first
+  try {
+    return JSON.parse(cleaned);
+  } catch { /* continue */ }
+
+  // Find JSON object boundaries
+  const jsonStart = cleaned.indexOf("{");
+  const jsonEnd = cleaned.lastIndexOf("}");
+
+  if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
+    console.error("No JSON object found in AI response:", cleaned.slice(0, 500));
+    throw new Error("AI returned invalid JSON — no object found");
+  }
+
+  cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
+
+  // Fix common issues
+  cleaned = cleaned
+    .replace(/,\s*}/g, "}")
+    .replace(/,\s*]/g, "]")
+    .replace(/[\x00-\x1F\x7F]/g, (ch) => ch === "\n" || ch === "\r" || ch === "\t" ? ch : "");
 
   try {
-    return JSON.parse(content);
-  } catch {
-    console.error("Failed to parse AI response:", content.slice(0, 500));
-    throw new Error("AI returned invalid JSON");
+    return JSON.parse(cleaned);
+  } catch { /* continue */ }
+
+  // Repair unbalanced braces/brackets
+  let braces = 0, brackets = 0;
+  for (const char of cleaned) {
+    if (char === "{") braces++;
+    if (char === "}") braces--;
+    if (char === "[") brackets++;
+    if (char === "]") brackets--;
+  }
+  while (brackets > 0) { cleaned += "]"; brackets--; }
+  while (braces > 0) { cleaned += "}"; braces--; }
+
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("Failed to parse AI JSON even after repair:", cleaned.slice(0, 500));
+    throw new Error(`AI returned invalid JSON: ${(e as Error).message}`);
   }
 }
 
