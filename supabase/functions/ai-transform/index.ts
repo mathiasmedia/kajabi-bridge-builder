@@ -216,15 +216,30 @@ Generate the transformation operations and CSS overrides to make this Kajabi the
       }
     }
 
-    // Validate: strip addSection ops with invalid types
+    // Validate operations
     const validTypes = new Set(availableSectionTypes || []);
     if (parsed.operations && Array.isArray(parsed.operations)) {
       parsed.operations = parsed.operations.filter((op: any) => {
+        // Strip updateNavigation (link_lists not supported)
+        if (op.type === "updateNavigation") {
+          console.warn("Stripped updateNavigation op (link_lists incompatible)");
+          return false;
+        }
+        // Strip addSection with invalid types
         if (op.type === "addSection" && op.section?.type && validTypes.size > 0) {
           if (!validTypes.has(op.section.type)) {
             console.warn(`Stripped addSection with invalid type: ${op.section.type}`);
             return false;
           }
+        }
+        // Fix non-numeric section IDs for addSection
+        if (op.type === "addSection" && op.sectionId && !/^\d+$/.test(op.sectionId)) {
+          op.sectionId = String(Math.floor(1000000000000 + Math.random() * 9000000000000));
+          console.warn(`Replaced non-numeric sectionId with: ${op.sectionId}`);
+        }
+        // Fix non-numeric block IDs for addBlock
+        if (op.type === "addBlock" && op.blockId && !/^\d+$/.test(op.blockId)) {
+          op.blockId = String(Math.floor(1000000000000 + Math.random() * 9000000000000));
         }
         return true;
       });
