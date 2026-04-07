@@ -131,6 +131,11 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         };
       }
 
+      // Extract available section types from theme liquid files
+      const availableSectionTypes = Object.keys(baseTheme.files)
+        .filter(p => p.startsWith('sections/') && p.endsWith('.liquid'))
+        .map(p => p.replace('sections/', '').replace('.liquid', ''));
+
       const { data, error } = await supabase.functions.invoke('ai-transform', {
         body: {
           sourceFiles: {
@@ -141,6 +146,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
           },
           extractedDesign,
           themeStructure,
+          availableSectionTypes,
         },
       });
 
