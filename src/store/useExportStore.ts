@@ -252,8 +252,16 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         console.warn(`Stripped ${strippedCount} invalid operations from AI response`);
       }
 
+      const hasAddedSections = operations.some((op) => op.type === 'addSection');
+      const hasIncompleteAiPlan = aiPlanNeedsFallback(operations, baseTheme, currentProject.page)
+        || (extractedDesign.sections.some((section) => section.type !== 'hero') && !hasAddedSections);
+
       if (operations.length === 0) {
         throw new Error('AI returned no valid operations. Please try again.');
+      }
+
+      if (hasIncompleteAiPlan) {
+        throw new Error('AI returned an incomplete plan with only the hero or broken section references. Please try again.');
       }
 
       const plan: TransformationPlan = {
