@@ -153,40 +153,52 @@ function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
 }
 
 function extractHero(files: SourceProjectFiles): ExtractedDesign['hero'] | undefined {
-  // Look for hero sections in the index page or hero components
-  const indexPage = files.indexPage || files.pages['src/pages/Index.tsx'] || '';
+  // Check hero components first
+  for (const [path, content] of Object.entries(files.components)) {
+    if (path.toLowerCase().includes('hero')) {
+      // Extract text content from JSX, handling expressions like {"text"}
+      const h1Match = content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
+      const pMatch = content.match(/<p[^>]*>([\s\S]{10,}?)<\/p>/);
+      const btnMatch = content.match(/(?:Button|button)[^>]*>([^<]+)</);
+      
+      // Clean JSX text: remove tags, expressions, extra whitespace
+      const cleanJsx = (text: string) => text
+        .replace(/<[^>]+>/g, '')
+        .replace(/\{["']\s*["']\}/g, ' ')
+        .replace(/\{[^}]*\}/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      const heading = h1Match ? cleanJsx(h1Match[1]) : undefined;
+      const subheading = pMatch ? cleanJsx(pMatch[1]) : undefined;
+      
+      if (heading || subheading) {
+        return {
+          heading: heading || 'Welcome',
+          subheading: subheading,
+          ctaText: btnMatch?.[1]?.trim(),
+          ctaUrl: '/',
+        };
+      }
+    }
+  }
   
-  // Try to extract heading text
+  // Fallback: check index page directly
+  const indexPage = files.indexPage || files.pages['src/pages/Index.tsx'] || '';
   const h1Match = indexPage.match(/<h1[^>]*>([^<]+)</);
   const pMatch = indexPage.match(/<p[^>]*>([^<]{10,})/);
   const btnMatch = indexPage.match(/(?:Button|button|CTA)[^>]*>([^<]+)</);
   
-  if (!h1Match && !pMatch) {
-    // Check hero components
-    for (const [path, content] of Object.entries(files.components)) {
-      if (path.toLowerCase().includes('hero')) {
-        const h1 = content.match(/<h1[^>]*>([^<]+)</);
-        const p = content.match(/<p[^>]*>([^<]{10,})/);
-        const btn = content.match(/(?:Button|button)[^>]*>([^<]+)</);
-        if (h1 || p) {
-          return {
-            heading: h1?.[1] || 'Welcome',
-            subheading: p?.[1],
-            ctaText: btn?.[1],
-            ctaUrl: '/',
-          };
-        }
-      }
-    }
-    return undefined;
+  if (h1Match || pMatch) {
+    return {
+      heading: h1Match?.[1]?.trim() || 'Welcome',
+      subheading: pMatch?.[1]?.trim(),
+      ctaText: btnMatch?.[1]?.trim(),
+      ctaUrl: '/',
+    };
   }
   
-  return {
-    heading: h1Match?.[1] || 'Welcome',
-    subheading: pMatch?.[1],
-    ctaText: btnMatch?.[1],
-    ctaUrl: '/',
-  };
+  return undefined;
 }
 
 function extractSections(files: SourceProjectFiles): ExtractedSection[] {
