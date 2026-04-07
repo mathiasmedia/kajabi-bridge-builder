@@ -339,7 +339,7 @@ async function requestTransform({
                       value: {},
                       label: { type: "string" },
                       menuId: { type: "string" },
-                      links: { type: "array" },
+                      links: { type: "array", items: { type: "object", properties: { name: { type: "string" }, url: { type: "string" } }, required: ["name", "url"] } },
                       section: { type: "object" },
                       block: { type: "object" },
                       css: { type: "string" },
