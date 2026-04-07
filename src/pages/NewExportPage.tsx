@@ -18,7 +18,7 @@ const BASE_THEMES = [
 
 export default function NewExportPage() {
   const navigate = useNavigate();
-  const { workspaceProjects, createExportProject, loadBaseTheme, setLoading } = useExportStore();
+  const { workspaceProjects, createExportProject, loadBaseTheme, setSourceFiles } = useExportStore();
   
   const [projectName, setProjectName] = useState('');
   const [selectedSource, setSelectedSource] = useState('');
