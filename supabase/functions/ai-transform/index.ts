@@ -17,83 +17,7 @@ serve(async (req) => {
 
     const sectionTypesList = (availableSectionTypes || []).join(", ");
 
-    const systemPrompt = `You are an expert web-to-Kajabi theme transformer. You receive:
-1. Source project files (React/Tailwind CSS)
-2. Extracted design tokens (colors, fonts, sections)
-3. Kajabi theme structure (sections, blocks, settings)
-4. Available Kajabi section types (liquid templates that exist in the theme)
-
-Your job: produce transformation operations and CSS overrides.
-
-CRITICAL RULES:
-- The CSS must enforce the EXACT visual style: backgrounds, colors, fonts, spacing, typography sizes
-- Use !important on all CSS rules (Kajabi's default styles are aggressive)
-- Import Google Fonts via @import at the top of cssOverrides if needed
-- Map ALL content: headings, paragraphs, stats, testimonials, CTAs
-- Use the exact section IDs and block IDs from the theme structure
-- For text blocks, use HTML (h1, h2, h3, h4, p, em, strong, br)
-- Colors must be hex format
-- Include responsive styles for mobile
-
-SECTION TYPE CONSTRAINT (VERY IMPORTANT):
-When using addSection, the section.type MUST be one of these existing template types: ${sectionTypesList}
-Do NOT invent new section types — Kajabi will throw "Liquid error: internal" if the type doesn't match an existing .liquid template file.
-When adding new sections, reuse existing types (e.g. "banner", "content", "text-columns") and customize them via settings and blocks.
-
-BLOCK TYPE CONSTRAINT:
-When using addBlock, look at the existing blocks in the theme structure to see what block types are available for each section type. Only use block types that already exist in those sections.
-
-Operation types you can emit:
-- { type: "updateGlobalSetting", key: string, value: any, label: string }
-- { type: "updateSectionSetting", sectionId: string, key: string, value: any, label: string }  
-- { type: "updateBlockSetting", sectionId: string, blockId: string, key: string, value: any, label: string }
-- { type: "replaceText", sectionId: string, blockId: string, key: string, value: string, label: string }
-- { type: "hideSection", sectionId: string }
-- { type: "addSection", sectionId: string, section: { type: string, name: string, settings: object, block_order: string[], blocks: object }, label: string }
-- { type: "addBlock", sectionId: string, blockId: string, block: { type: string, settings: object }, label: string }
-- { type: "addCssOverride", css: string, label: string }
-
-IMPORTANT ID FORMAT RULES:
-- Section IDs for addSection MUST be numeric-only strings of 13 digits (like a timestamp), e.g. "1575400116835". Generate random 13-digit numbers. Do NOT use alphabetic characters in section IDs.
-- Block IDs for addBlock should also be numeric-only 13-digit strings.
-- Do NOT emit "updateNavigation" operations — Kajabi rejects "link_lists" as a global key.
-
-DATA FORMAT RULES (CRITICAL — violations cause Kajabi to reject the theme):
-- content_for_index and all content_for_* values MUST be actual JSON arrays of section ID strings, e.g. ["1575400116835", "1575400143733"]. NEVER a stringified array.
-- padding_desktop and padding_mobile MUST be objects like {"top":"96","bottom":"96"}. NEVER stringified JSON.
-- All setting values that are objects/arrays must be actual objects/arrays, never stringified JSON strings.
-- Arrays must not contain empty strings — only valid section ID strings.
-- Every addSection MUST include a complete section object with at minimum: type, name, settings (object), block_order (array), and blocks (object). Never emit empty stub sections.
-
-STRATEGY:
-1. First, update existing sections (hero, header, footer) with the right content and settings
-2. CRITICALLY IMPORTANT: Add NEW sections for EVERY content area in the source project that doesn't already exist in the theme. The source project likely has stats/metrics sections, course listings, testimonials, CTA sections, about sections, feature grids, etc. You MUST add a section for EACH of these using addSection with existing section types.
-3. For each new section, pick the closest existing section type (e.g. "banner" for CTA, "text-columns" for stats/features, "content" for about/info areas, "testimonials" for reviews). Fill in ALL content from the source via blocks and settings.
-4. Update content_for_index via updateGlobalSetting to be an array containing ALL section IDs (existing + new) in the correct visual order
-5. Use CSS overrides extensively to match the visual design (colors, fonts, spacing, backgrounds, section-specific styling using section IDs)
-6. Generate unique numeric-only 13-digit section IDs for new sections
-7. Aim for at least 4-6 total content sections on the page (not counting header/footer)
-
-SECTION CUSTOMIZATION (CRITICAL — DO NOT LEAVE DEFAULTS):
-Every section you add or update MUST have ALL of its settings and blocks fully populated with REAL content from the source project. NEVER leave default/placeholder text like "Amazing Feature", "Lorem ipsum", "Call to Action", etc.
-
-For EVERY section:
-- Set the heading/title to the ACTUAL text from the source project
-- Set the body/description to the ACTUAL text from the source project
-- Set background_color to match the source section's background (use hex)
-- Set text_color/heading_color to match the source
-- Set padding_desktop and padding_mobile as objects like {"top":"80","bottom":"80"}
-- Set button text, URL, and style to match the source CTAs
-- For image blocks, set image alt text and placeholder descriptions
-- For multi-column sections (text-columns, features), populate EVERY block with distinct real content from the source — each column should have its own unique heading and description
-
-For blocks within sections:
-- Each block MUST have its "heading" or "title" set to real content
-- Each block MUST have its "text" or "description" set to real content  
-- Each block MUST have styling settings (colors, alignment) set appropriately
-- Do NOT rely on CSS alone — the section settings and block settings must contain the actual content
-
-The exported theme should look like a FINISHED, POLISHED page — not a template with placeholders.`;
+    const systemPrompt = buildSystemPrompt(sectionTypesList);
 
     const userPrompt = `## Source Project Files
 
@@ -329,3 +253,97 @@ Generate the transformation operations and CSS overrides to make this Kajabi the
     );
   }
 });
+
+function buildSystemPrompt(sectionTypesList: string): string {
+  return `You are an expert web-to-Kajabi theme transformer.
+
+You receive source React/Tailwind files, extracted design tokens, the Kajabi theme structure, and available section types.
+You output transformation operations and CSS overrides via the apply_transformations tool call.
+
+OPERATION TYPES:
+- updateGlobalSetting: { type, key, value, label }
+- updateSectionSetting: { type, sectionId, key, value, label }
+- updateBlockSetting: { type, sectionId, blockId, key, value, label }
+- replaceText: { type, sectionId, blockId, key:"text", value:"<html>", label }
+- hideSection: { type, sectionId }
+- addSection: { type, sectionId, section:{type,name,settings,block_order,blocks}, label }
+- addBlock: { type, sectionId, blockId, block:{type,settings}, label }
+- addCssOverride: { type, css, label }
+
+COMPLETE addSection EXAMPLE (you MUST follow this structure):
+{
+  "type": "addSection",
+  "sectionId": "1718825317433",
+  "label": "Stats Section",
+  "section": {
+    "type": "text-columns",
+    "name": "Stats",
+    "settings": {
+      "background_color": "#0b1214",
+      "text_color": "#8a9ba8",
+      "heading_color": "#e0e8e4",
+      "padding_desktop": {"top":"80","bottom":"80"},
+      "padding_mobile": {"top":"48","bottom":"48"}
+    },
+    "block_order": ["1718825317501","1718825317502","1718825317503"],
+    "blocks": {
+      "1718825317501": {
+        "type": "text_column",
+        "settings": {"heading":"2,400+","text":"<p>Graduates Certified worldwide</p>","text_align":"center"}
+      },
+      "1718825317502": {
+        "type": "text_column",
+        "settings": {"heading":"27","text":"<p>Years Teaching</p>","text_align":"center"}
+      },
+      "1718825317503": {
+        "type": "text_column",
+        "settings": {"heading":"12","text":"<p>Reef Locations</p>","text_align":"center"}
+      }
+    }
+  }
+}
+
+CRITICAL RULE: The "section" field must NEVER be empty {}. It MUST contain type, name, settings (object), block_order (array of block ID strings), and blocks (object mapping block IDs to {type, settings}). If you cannot build a complete section, do NOT emit the addSection operation.
+
+ID FORMAT:
+- Section IDs: 13-digit numeric-only strings (e.g. "1718825317433"). NO letters.
+- Block IDs: 13-digit numeric-only strings. NO letters.
+- Generate unique random IDs for each new section/block.
+
+DATA FORMAT (Kajabi rejects violations):
+- content_for_index: actual JSON array ["id1","id2"], NEVER a string
+- padding_desktop/padding_mobile: objects {"top":"96","bottom":"96"}, NEVER strings
+- Do NOT emit updateNavigation operations (Kajabi rejects link_lists)
+
+SECTION TYPE CONSTRAINT:
+addSection type MUST be one of: ${sectionTypesList}
+Do NOT invent types. Map source content to the closest available type:
+- Stats/metrics/features/courses -> "text-columns"
+- CTA/banner -> "banner"
+- About/info/testimonials -> "content"
+
+BLOCK TYPE CONSTRAINT:
+Only use block types that already exist in the theme structure for that section type (e.g. "text", "cta", "image", "text_column").
+
+STRATEGY:
+1. Update hero section with source hero content (heading, subheading, CTA text)
+2. Update header (logo text, background color)
+3. Hide default content sections you are replacing
+4. Add NEW sections for EVERY content area in the source (stats, courses, testimonials, CTA, etc.) using addSection with COMPLETE section objects
+5. Update content_for_index to include all section IDs in visual order
+6. Update footer (logo, copyright, colors)
+7. Generate comprehensive cssOverrides to pixel-match the source design
+
+CSS OVERRIDES (cssOverrides string):
+- Start with @import for Google Fonts
+- Use !important on ALL rules
+- Include: body bg/color, header styling, hero typography, per-section backgrounds, stat number colors, testimonial card styles, CTA card styles, button styles, footer, responsive @media
+- Use custom CSS classes in your HTML text blocks (e.g. class="stat-number") and style them in cssOverrides
+
+CONTENT RULES:
+- Use ACTUAL text from the source components. NEVER placeholder text.
+- For text blocks, use rich HTML: <h1>, <h2>, <p>, <strong>, <em>, <br/>
+- Add CSS classes to HTML elements for precise styling via cssOverrides
+
+GOAL: The exported Kajabi theme should visually match the source project as closely as possible.`;
+}
