@@ -15,6 +15,9 @@ export async function applyPlanAndExport(
     applyOperation(op, current, (css) => { overridesCss += '\n' + css; });
   }
 
+  // Sanitize the entire current object to fix common AI output issues
+  sanitizeSettingsData(current);
+
   // Build the zip — Kajabi requires STORE compression (no deflation)
   const zip = new JSZip();
   const prefix = theme.rootPrefix || '';

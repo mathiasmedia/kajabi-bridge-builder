@@ -56,7 +56,14 @@ Operation types you can emit:
 IMPORTANT ID FORMAT RULES:
 - Section IDs for addSection MUST be numeric-only strings of 13 digits (like a timestamp), e.g. "1575400116835". Generate random 13-digit numbers. Do NOT use alphabetic characters in section IDs.
 - Block IDs for addBlock should also be numeric-only 13-digit strings.
-- Do NOT use "updateNavigation" — Kajabi does not accept "link_lists" as a global key. Instead, use CSS and section settings to style navigation.
+- Do NOT emit "updateNavigation" operations — Kajabi rejects "link_lists" as a global key.
+
+DATA FORMAT RULES (CRITICAL — violations cause Kajabi to reject the theme):
+- content_for_index and all content_for_* values MUST be actual JSON arrays of section ID strings, e.g. ["1575400116835", "1575400143733"]. NEVER a stringified array.
+- padding_desktop and padding_mobile MUST be objects like {"top":"96","bottom":"96"}. NEVER stringified JSON.
+- All setting values that are objects/arrays must be actual objects/arrays, never stringified JSON strings.
+- Arrays must not contain empty strings — only valid section ID strings.
+- Every addSection MUST include a complete section object with at minimum: type, name, settings (object), block_order (array), and blocks (object). Never emit empty stub sections.
 
 STRATEGY:
 1. First, update existing sections with the right content and settings
