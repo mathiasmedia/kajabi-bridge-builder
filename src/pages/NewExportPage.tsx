@@ -11,10 +11,6 @@ import { Badge } from '@/components/ui/badge';
 import { useExportStore } from '@/store/useExportStore';
 import { getProjectBundle, hasProjectBundle } from '@/lib/project-bundles';
 import type { ExportProject } from '@/types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { useExportStore } from '@/store/useExportStore';
-import type { ExportProject } from '@/types';
 
 const BASE_THEMES = [
   { id: 'streamlined-home', name: 'Streamlined Home', file: '/base-themes/streamlined-home.zip' },
