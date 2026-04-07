@@ -448,10 +448,25 @@ function normalizeTransformPayload(parsed: TransformPayload, availableSectionTyp
 
     if (op.type === "addSection") {
       if (!/^\d{13}$/.test(String(op.sectionId || ""))) op.sectionId = createNumericId();
+
+      // Auto-fix missing section structure before validation
+      if (isPlainObject(op.section)) {
+        if (!isPlainObject(op.section.settings)) op.section.settings = {};
+        if (!isPlainObject(op.section.blocks)) op.section.blocks = {};
+        if (!Array.isArray(op.section.block_order)) op.section.block_order = Object.keys(op.section.blocks);
+      }
+
       op.section = remapSectionBlockIds(op.section);
 
-      if (!hasCompleteSection(op.section)) return false;
-      if (validTypes.size > 0 && !validTypes.has(op.section.type)) return false;
+      if (!isPlainObject(op.section) || typeof op.section?.type !== "string" || !op.section.type.trim()) {
+        console.warn("addSection rejected: missing section object or type", JSON.stringify(op.section).slice(0, 300));
+        return false;
+      }
+
+      if (validTypes.size > 0 && !validTypes.has(op.section.type)) {
+        console.warn(`addSection rejected: type "${op.section.type}" not in available types [${[...validTypes].join(", ")}]`);
+        return false;
+      }
 
       op.section.block_order = Array.isArray(op.section.block_order)
         ? op.section.block_order.map((id: unknown) => String(id))
@@ -460,13 +475,19 @@ function normalizeTransformPayload(parsed: TransformPayload, availableSectionTyp
 
       for (const blockId of Object.keys(op.section.blocks)) {
         const block = op.section.blocks[blockId];
-        if (!isPlainObject(block) || typeof block.type !== "string" || !isPlainObject(block.settings)) {
+        if (!isPlainObject(block) || typeof block.type !== "string") {
+          console.warn(`addSection: removing invalid block ${blockId}`);
           delete op.section.blocks[blockId];
+        } else if (!isPlainObject(block.settings)) {
+          block.settings = {};
         }
       }
 
       op.section.block_order = op.section.block_order.filter((id: string) => id in op.section.blocks);
-      if (op.section.block_order.length === 0) return false;
+      if (op.section.block_order.length === 0) {
+        console.warn("addSection rejected: no valid blocks remain", JSON.stringify(op.section).slice(0, 300));
+        return false;
+      }
     }
 
     if (op.type === "addBlock") {
