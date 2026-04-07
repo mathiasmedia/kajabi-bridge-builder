@@ -13,27 +13,35 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const { sourceFiles, extractedDesign, themeStructure } = await req.json();
+    const { sourceFiles, extractedDesign, themeStructure, availableSectionTypes } = await req.json();
 
-    // Build a comprehensive prompt with all source data
+    const sectionTypesList = (availableSectionTypes || []).join(", ");
+
     const systemPrompt = `You are an expert web-to-Kajabi theme transformer. You receive:
 1. Source project files (React/Tailwind CSS)
 2. Extracted design tokens (colors, fonts, sections)
 3. Kajabi theme structure (sections, blocks, settings)
+4. Available Kajabi section types (liquid templates that exist in the theme)
 
-Your job: produce a JSON object with two keys:
-- "operations": array of Kajabi transformation operations
-- "cssOverrides": a single CSS string that makes the Kajabi theme visually match the source
+Your job: produce transformation operations and CSS overrides.
 
 CRITICAL RULES:
 - The CSS must enforce the EXACT visual style: backgrounds, colors, fonts, spacing, typography sizes
 - Use !important on all CSS rules (Kajabi's default styles are aggressive)
-- Import Google Fonts via @import at the top of cssOverrides
+- Import Google Fonts via @import at the top of cssOverrides if needed
 - Map ALL content: headings, paragraphs, stats, testimonials, CTAs
 - Use the exact section IDs and block IDs from the theme structure
 - For text blocks, use HTML (h1, h2, h3, h4, p, em, strong, br)
 - Colors must be hex format
 - Include responsive styles for mobile
+
+SECTION TYPE CONSTRAINT (VERY IMPORTANT):
+When using addSection, the section.type MUST be one of these existing template types: ${sectionTypesList}
+Do NOT invent new section types — Kajabi will throw "Liquid error: internal" if the type doesn't match an existing .liquid template file.
+When adding new sections, reuse existing types (e.g. "banner", "content", "text-columns") and customize them via settings and blocks.
+
+BLOCK TYPE CONSTRAINT:
+When using addBlock, look at the existing blocks in the theme structure to see what block types are available for each section type. Only use block types that already exist in those sections.
 
 Operation types you can emit:
 - { type: "updateGlobalSetting", key: string, value: any, label: string }
@@ -44,10 +52,14 @@ Operation types you can emit:
 - { type: "updateNavigation", menuId: string, links: Array<{name: string, url: string}> }
 - { type: "addSection", sectionId: string, section: { type: string, name: string, settings: object, block_order: string[], blocks: object }, label: string }
 - { type: "addBlock", sectionId: string, blockId: string, block: { type: string, settings: object }, label: string }
+- { type: "addCssOverride", css: string, label: string }
 
-You SHOULD create new sections and blocks to fully replicate the source design. Don't just update existing sections — add new ones as needed. Generate unique IDs for new sections (e.g. "custom_hero_abc123") and blocks (e.g. "block_text_abc123"). Add sections to content_for_index by emitting an updateGlobalSetting with key "content_for_index" and the full ordered array of section IDs.
-
-Respond ONLY with valid JSON, no markdown fences.`;
+STRATEGY:
+1. First, update existing sections with the right content and settings
+2. Add new sections using ONLY existing section types to replicate missing content areas
+3. Update content_for_index via updateGlobalSetting to include all sections in the right order
+4. Use CSS overrides extensively to match the visual design (colors, fonts, spacing, backgrounds)
+5. Generate unique section IDs for new sections (e.g. "custom_hero_1234") but use existing types`;
 
     const userPrompt = `## Source Project Files
 
@@ -81,20 +93,22 @@ ${Object.entries(sourceFiles.pages || {})
 - Footer: ${JSON.stringify(extractedDesign.footer)}
 - Button style: ${JSON.stringify(extractedDesign.buttonStyle)}
 
+## Available Section Types (existing .liquid templates)
+${sectionTypesList}
+
 ## Kajabi Theme Structure (settings_data.json > current)
-The theme has these sections with their blocks:
 \`\`\`json
 ${JSON.stringify(themeStructure, null, 2)}
 \`\`\`
 
-Generate the transformation operations and CSS overrides to make this Kajabi theme look as close as possible to the source Lovable project. Pay special attention to:
-1. Dark background colors matching exactly
-2. Teal/green accent colors
+Generate the transformation operations and CSS overrides to make this Kajabi theme look as close as possible to the source project. Pay special attention to:
+1. Background colors matching exactly
+2. Accent colors
 3. Typography (font families, sizes, weights, letter-spacing)
 4. Section content (hero text, stats, courses, testimonials, CTA)
 5. Navigation links
 6. Footer styling
-7. Button styling (rounded, teal background, dark text)
+7. Button styling
 8. Spacing and layout proportions`;
 
     const response = await fetch(
@@ -173,7 +187,6 @@ Generate the transformation operations and CSS overrides to make this Kajabi the
     const aiResult = await response.json();
     
     let parsed;
-    // Try tool call response first
     const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
     if (toolCall?.function?.arguments) {
       try {
@@ -186,7 +199,6 @@ Generate the transformation operations and CSS overrides to make this Kajabi the
         );
       }
     } else {
-      // Fallback: parse content as JSON
       let content = aiResult.choices?.[0]?.message?.content || "";
       content = content.replace(/^```(?:json)?\s*/m, "").replace(/\s*```$/m, "").trim();
       try {
@@ -198,6 +210,20 @@ Generate the transformation operations and CSS overrides to make this Kajabi the
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+    }
+
+    // Validate: strip addSection ops with invalid types
+    const validTypes = new Set(availableSectionTypes || []);
+    if (parsed.operations && Array.isArray(parsed.operations)) {
+      parsed.operations = parsed.operations.filter((op: any) => {
+        if (op.type === "addSection" && op.section?.type && validTypes.size > 0) {
+          if (!validTypes.has(op.section.type)) {
+            console.warn(`Stripped addSection with invalid type: ${op.section.type}`);
+            return false;
+          }
+        }
+        return true;
+      });
     }
 
     return new Response(JSON.stringify(parsed), {
