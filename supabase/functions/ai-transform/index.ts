@@ -264,7 +264,11 @@ Create exactly ONE addSection operation for this section. Include all content it
 
       console.log(`ai-transform [section:${sectionToGenerate.type}] [${model}] finish_reason=${result.finishReason ?? "unknown"}`);
 
-      const parsed = normalizeTransformPayload(result.parsed, availableSectionTypes);
+      const parsed = normalizeTransformPayload(
+        result.parsed,
+        availableSectionTypes,
+        typeof sectionToGenerate?.type === "string" ? sectionToGenerate.type : "",
+      );
       const addSectionOps = parsed.operations.filter((op: any) => op.type === "addSection");
 
       if (addSectionOps.length > 0) {
@@ -272,7 +276,10 @@ Create exactly ONE addSection operation for this section. Include all content it
       }
 
       lastError = "No valid addSection operation produced";
-      console.warn(`ai-transform [section] [${model}] ${lastError}`);
+      console.warn(
+        `ai-transform [section] [${model}] ${lastError}`,
+        JSON.stringify(result.parsed).slice(0, 800),
+      );
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
       console.warn(`ai-transform [section] [${model}] failed: ${lastError}`);
@@ -431,7 +438,11 @@ function extractJson(raw: string): TransformPayload {
   }
 }
 
-function normalizeTransformPayload(parsed: TransformPayload, availableSectionTypes: string[]): Required<TransformPayload> {
+function normalizeTransformPayload(
+  parsed: TransformPayload,
+  availableSectionTypes: string[],
+  preferredSectionType = "",
+): Required<TransformPayload> {
   const validTypes = new Set(availableSectionTypes || []);
   const operations = Array.isArray(parsed?.operations) ? parsed.operations : [];
   const cssOverrides = typeof parsed?.cssOverrides === "string" ? parsed.cssOverrides : "";
@@ -449,11 +460,9 @@ function normalizeTransformPayload(parsed: TransformPayload, availableSectionTyp
     if (op.type === "addSection") {
       if (!/^\d{13}$/.test(String(op.sectionId || ""))) op.sectionId = createNumericId();
 
-      // Auto-fix missing section structure before validation
       if (isPlainObject(op.section)) {
         if (!isPlainObject(op.section.settings)) op.section.settings = {};
-        if (!isPlainObject(op.section.blocks)) op.section.blocks = {};
-        if (!Array.isArray(op.section.block_order)) op.section.block_order = Object.keys(op.section.blocks);
+        normalizeSectionBlocks(op.section);
       }
 
       op.section = remapSectionBlockIds(op.section);
@@ -461,6 +470,12 @@ function normalizeTransformPayload(parsed: TransformPayload, availableSectionTyp
       if (!isPlainObject(op.section) || typeof op.section?.type !== "string" || !op.section.type.trim()) {
         console.warn("addSection rejected: missing section object or type", JSON.stringify(op.section).slice(0, 300));
         return false;
+      }
+
+      const originalType = op.section.type;
+      op.section.type = coerceSectionType(op.section.type, validTypes, preferredSectionType);
+      if (op.section.type !== originalType) {
+        console.log(`addSection type coerced: \"${originalType}\" -> \"${op.section.type}\"`);
       }
 
       if (validTypes.size > 0 && !validTypes.has(op.section.type)) {
@@ -474,25 +489,19 @@ function normalizeTransformPayload(parsed: TransformPayload, availableSectionTyp
       op.section.blocks = isPlainObject(op.section.blocks) ? op.section.blocks : {};
 
       for (const blockId of Object.keys(op.section.blocks)) {
-        const block = op.section.blocks[blockId];
-        if (!isPlainObject(block) || typeof block.type !== "string") {
-          console.warn(`addSection: removing invalid block ${blockId}`);
-          delete op.section.blocks[blockId];
-        } else if (!isPlainObject(block.settings)) {
-          block.settings = {};
-        }
+        op.section.blocks[blockId] = normalizeBlock(op.section.blocks[blockId]);
       }
 
       op.section.block_order = op.section.block_order.filter((id: string) => id in op.section.blocks);
-      if (op.section.block_order.length === 0) {
-        console.warn("addSection rejected: no valid blocks remain", JSON.stringify(op.section).slice(0, 300));
-        return false;
+      if (op.section.block_order.length === 0 && Object.keys(op.section.blocks).length > 0) {
+        op.section.block_order = Object.keys(op.section.blocks);
       }
     }
 
     if (op.type === "addBlock") {
       if (!/^\d{13}$/.test(String(op.blockId || ""))) op.blockId = createNumericId();
-      if (!isPlainObject(op.block) || typeof op.block.type !== "string" || !isPlainObject(op.block.settings)) return false;
+      if (!isPlainObject(op.block)) return false;
+      op.block = normalizeBlock(op.block);
     }
 
     return true;
@@ -500,6 +509,93 @@ function normalizeTransformPayload(parsed: TransformPayload, availableSectionTyp
 
   return { operations: normalizedOperations, cssOverrides };
 }
+
+function coerceSectionType(rawType: unknown, validTypes: Set<string>, preferredSectionType = "") {
+  const normalized = String(rawType || "").trim();
+  if (validTypes.size === 0) return normalized || "section";
+  if (normalized && validTypes.has(normalized)) return normalized;
+
+  const lower = normalized.toLowerCase();
+  const preferred = String(preferredSectionType || "").trim().toLowerCase();
+  const semanticFallbacks: Record<string, string[]> = {
+    hero: ["newsletter_hero", "section", "page_content"],
+    features: ["section", "page_content", "sales_page_body"],
+    testimonials: ["section", "page_content", "sales_page_body"],
+    cta: ["section", "page_content", "sales_page_body"],
+    content: ["page_content", "section", "sales_page_body"],
+    gallery: ["carousel", "section", "page_content"],
+    pricing: ["products", "section", "sales_page_body"],
+    faq: ["section", "page_content", "sales_page_body"],
+    contact: ["section", "page_content", "sales_page_body"],
+    custom: ["section", "page_content", "sales_page_body"],
+  };
+
+  const candidates = [
+    normalized,
+    lower,
+    lower.replace(/\s+/g, "_"),
+    lower.replace(/-/g, "_"),
+    lower.replace(/_/g, "-"),
+    ...(semanticFallbacks[preferred] || []),
+    ...(semanticFallbacks[lower] || []),
+    "section",
+    "page_content",
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (validTypes.has(candidate)) return candidate;
+  }
+
+  return Array.from(validTypes)[0] || normalized || "section";
+}
+
+function normalizeSectionBlocks(section: any) {
+  if (!isPlainObject(section)) return;
+
+  if (Array.isArray(section.blocks)) {
+    section.blocks = Object.fromEntries(
+      section.blocks.map((block: any, index: number) => [String(index), normalizeBlock(block)]),
+    );
+  }
+
+  if (!isPlainObject(section.blocks)) section.blocks = {};
+
+  for (const [blockId, block] of Object.entries(section.blocks)) {
+    section.blocks[blockId] = normalizeBlock(block);
+  }
+
+  if (!Array.isArray(section.block_order)) {
+    section.block_order = Object.keys(section.blocks);
+  }
+}
+
+function normalizeBlock(block: any) {
+  if (!isPlainObject(block)) {
+    return {
+      type: "text",
+      settings: typeof block === "string" ? { text: block } : {},
+    };
+  }
+
+  return {
+    ...block,
+    type: typeof block.type === "string" && block.type.trim() ? block.type : "text",
+    settings: isPlainObject(block.settings) ? block.settings : createFallbackBlockSettings(block),
+  };
+}
+
+function createFallbackBlockSettings(block: Record<string, any>) {
+  const settings: Record<string, any> = {};
+  if (typeof block.heading === "string") settings.heading = block.heading;
+  if (typeof block.title === "string" && !settings.heading) settings.heading = block.title;
+  if (typeof block.text === "string") settings.text = block.text;
+  if (typeof block.body === "string" && !settings.text) settings.text = block.body;
+  if (typeof block.description === "string" && !settings.text) settings.text = block.description;
+  if (typeof block.image === "string") settings.image = block.image;
+  if (typeof block.url === "string") settings.url = block.url;
+  return settings;
+}
+
 
 function findSectionSourceContext(sourceFiles: SourceFiles, section: any): string {
   const sectionType = (section.type || "").toLowerCase();
