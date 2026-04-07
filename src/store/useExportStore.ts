@@ -246,17 +246,14 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         });
       }
 
-      if (aiPlanNeedsFallback(operations, baseTheme, currentProject.page)) {
-        console.warn('AI returned incomplete section data, using deterministic fallback plan instead.');
-        const fallbackPlan = buildTransformationPlan(
-          extractedDesign,
-          baseTheme,
-          currentProject.sourceProjectId,
-          currentProject.sourceProjectName,
-          currentProject.page,
-        );
-        set({ transformationPlan: fallbackPlan, isLoading: false, error: null });
-        return;
+      // Log warnings about stripped operations
+      const strippedCount = (data.operations?.length || 0) - operations.length;
+      if (strippedCount > 0) {
+        console.warn(`Stripped ${strippedCount} invalid operations from AI response`);
+      }
+
+      if (operations.length === 0) {
+        throw new Error('AI returned no valid operations. Please try again.');
       }
 
       const plan: TransformationPlan = {
@@ -271,21 +268,8 @@ export const useExportStore = create<ExportStore>((set, get) => ({
 
       set({ transformationPlan: plan, isLoading: false });
     } catch (e) {
-      console.error('AI plan failed, falling back to static:', e);
-      set({ loadingMessage: 'AI failed, using static mapping...' });
-      // Fallback to static plan
-      try {
-        const plan = buildTransformationPlan(
-          extractedDesign,
-          baseTheme,
-          currentProject.sourceProjectId,
-          currentProject.sourceProjectName,
-          currentProject.page,
-        );
-        set({ transformationPlan: plan, isLoading: false, error: `AI transform failed (${e}), used static fallback` });
-      } catch (e2) {
-        set({ error: `Failed to build plan: ${e2}`, isLoading: false });
-      }
+      console.error('AI plan failed:', e);
+      set({ error: `AI transform failed: ${e instanceof Error ? e.message : e}`, isLoading: false });
     }
   },
 
