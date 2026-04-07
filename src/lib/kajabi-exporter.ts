@@ -51,6 +51,80 @@ export async function applyPlanAndExport(
   return zip.generateAsync({ type: 'blob', compression: 'STORE' });
 }
 
+/**
+ * Sanitize settings_data to fix common AI output issues before zipping.
+ */
+function sanitizeSettingsData(current: Record<string, any>) {
+  // Fix content_for_* arrays: parse stringified arrays, remove empty strings
+  for (const key of Object.keys(current)) {
+    if (key.startsWith('content_for_')) {
+      let val = current[key];
+      // Parse stringified array like "['id1','id2']"
+      if (typeof val === 'string') {
+        try {
+          val = JSON.parse(val.replace(/'/g, '"'));
+        } catch {
+          // Try manual parse for Python-style arrays
+          const matches = val.match(/[\w\d]+/g);
+          val = matches || [];
+        }
+      }
+      // Filter empty strings and ensure array
+      if (Array.isArray(val)) {
+        current[key] = val.filter((id: string) => typeof id === 'string' && id.trim() !== '');
+      }
+    }
+  }
+
+  // Remove link_lists if present (Kajabi rejects it)
+  delete current.link_lists;
+
+  // Fix sections
+  const sections = current.sections || {};
+  for (const [id, section] of Object.entries(sections)) {
+    const s = section as any;
+    
+    // Remove empty stub sections (no type)
+    if (!s.type) {
+      delete sections[id];
+      // Also remove from content_for_* arrays
+      for (const key of Object.keys(current)) {
+        if (key.startsWith('content_for_') && Array.isArray(current[key])) {
+          current[key] = current[key].filter((sid: string) => sid !== id);
+        }
+      }
+      continue;
+    }
+
+    // Fix stringified objects in settings
+    if (s.settings && typeof s.settings === 'object') {
+      for (const [sk, sv] of Object.entries(s.settings)) {
+        if (typeof sv === 'string' && (sv.startsWith('{') || sv.startsWith('['))) {
+          try {
+            s.settings[sk] = JSON.parse(sv);
+          } catch { /* leave as string */ }
+        }
+      }
+    }
+
+    // Fix stringified objects in block settings
+    if (s.blocks && typeof s.blocks === 'object') {
+      for (const block of Object.values(s.blocks)) {
+        const b = block as any;
+        if (b.settings && typeof b.settings === 'object') {
+          for (const [bk, bv] of Object.entries(b.settings)) {
+            if (typeof bv === 'string' && (bv.startsWith('{') || bv.startsWith('['))) {
+              try {
+                b.settings[bk] = JSON.parse(bv);
+              } catch { /* leave as string */ }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 function applyOperation(
   op: TransformationOperation,
   current: Record<string, any>,
