@@ -66,11 +66,13 @@ DATA FORMAT RULES (CRITICAL — violations cause Kajabi to reject the theme):
 - Every addSection MUST include a complete section object with at minimum: type, name, settings (object), block_order (array), and blocks (object). Never emit empty stub sections.
 
 STRATEGY:
-1. First, update existing sections with the right content and settings
-2. Add new sections using ONLY existing section types to replicate missing content areas
-3. Update content_for_index via updateGlobalSetting to include all sections in the right order
-4. Use CSS overrides extensively to match the visual design (colors, fonts, spacing, backgrounds)
-5. Generate unique numeric-only 13-digit section IDs for new sections and use existing types`;
+1. First, update existing sections (hero, header, footer) with the right content and settings
+2. CRITICALLY IMPORTANT: Add NEW sections for EVERY content area in the source project that doesn't already exist in the theme. The source project likely has stats/metrics sections, course listings, testimonials, CTA sections, about sections, feature grids, etc. You MUST add a section for EACH of these using addSection with existing section types.
+3. For each new section, pick the closest existing section type (e.g. "banner" for CTA, "text-columns" for stats/features, "content" for about/info areas, "testimonials" for reviews). Fill in ALL content from the source via blocks and settings.
+4. Update content_for_index via updateGlobalSetting to be an array containing ALL section IDs (existing + new) in the correct visual order
+5. Use CSS overrides extensively to match the visual design (colors, fonts, spacing, backgrounds, section-specific styling using section IDs)
+6. Generate unique numeric-only 13-digit section IDs for new sections
+7. Aim for at least 4-6 total content sections on the page (not counting header/footer)`;
 
     const userPrompt = `## Source Project Files
 
