@@ -34,6 +34,81 @@ interface ExportStore {
   setLoading: (loading: boolean, message?: string) => void;
 }
 
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasCompleteAddSection(op: TransformationOperation): boolean {
+  if (op.type !== 'addSection') return false;
+
+  return Boolean(
+    op.sectionId &&
+    isPlainObject(op.section) &&
+    typeof op.section.type === 'string' &&
+    op.section.type.trim().length > 0 &&
+    isPlainObject(op.section.settings) &&
+    Array.isArray(op.section.block_order) &&
+    isPlainObject(op.section.blocks)
+  );
+}
+
+function parseContentForValue(value: unknown): string[] | null {
+  if (Array.isArray(value)) {
+    return value.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+  }
+
+  if (typeof value !== 'string') return null;
+
+  try {
+    const parsed = JSON.parse(value.replace(/'/g, '"'));
+    if (Array.isArray(parsed)) {
+      return parsed.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function aiPlanNeedsFallback(
+  operations: TransformationOperation[],
+  baseTheme: KajabiThemeData,
+  page: string,
+): boolean {
+  const contentKey = page === 'index' ? 'content_for_index' : `content_for_${page}`;
+  const existingContentSectionIds = new Set(getContentForPage(baseTheme, page).filter(Boolean));
+  const addedSectionIds = new Set<string>();
+
+  let hasInvalidAddSection = false;
+  let hiddenExistingContentSections = 0;
+
+  for (const op of operations) {
+    if (op.type === 'addSection') {
+      if (hasCompleteAddSection(op)) {
+        addedSectionIds.add(op.sectionId);
+      } else {
+        hasInvalidAddSection = true;
+      }
+    }
+
+    if (op.type === 'hideSection' && existingContentSectionIds.has(op.sectionId)) {
+      hiddenExistingContentSections += 1;
+    }
+  }
+
+  const hasBrokenContentForUpdate = operations.some((op) => {
+    if (op.type !== 'updateGlobalSetting' || op.key !== contentKey) return false;
+
+    const ids = parseContentForValue(op.value);
+    if (!ids?.length) return true;
+
+    return ids.some((id) => !existingContentSectionIds.has(id) && !addedSectionIds.has(id));
+  });
+
+  return hasInvalidAddSection || hasBrokenContentForUpdate || (hiddenExistingContentSections > 0 && addedSectionIds.size === 0);
+}
+
 export const useExportStore = create<ExportStore>((set, get) => ({
   currentProject: null,
   workspaceProjects: [],
@@ -169,6 +244,19 @@ export const useExportStore = create<ExportStore>((set, get) => ({
           css: data.cssOverrides,
           label: 'AI-generated CSS overrides',
         });
+      }
+
+      if (aiPlanNeedsFallback(operations, baseTheme, currentProject.page)) {
+        console.warn('AI returned incomplete section data, using deterministic fallback plan instead.');
+        const fallbackPlan = buildTransformationPlan(
+          extractedDesign,
+          baseTheme,
+          currentProject.sourceProjectId,
+          currentProject.sourceProjectName,
+          currentProject.page,
+        );
+        set({ transformationPlan: fallbackPlan, isLoading: false, error: null });
+        return;
       }
 
       const plan: TransformationPlan = {
