@@ -106,11 +106,48 @@ Generate the transformation operations and CSS overrides to make this Kajabi the
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-2.5-pro",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "apply_transformations",
+                description: "Apply Kajabi theme transformations with operations and CSS overrides",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    operations: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          type: { type: "string" },
+                          sectionId: { type: "string" },
+                          blockId: { type: "string" },
+                          key: { type: "string" },
+                          value: {},
+                          label: { type: "string" },
+                          menuId: { type: "string" },
+                          links: { type: "array" },
+                          section: { type: "object" },
+                          block: { type: "object" },
+                          css: { type: "string" },
+                        },
+                        required: ["type"],
+                      },
+                    },
+                    cssOverrides: { type: "string", description: "CSS string with @import and all overrides" },
+                  },
+                  required: ["operations", "cssOverrides"],
+                },
+              },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "apply_transformations" } },
         }),
       }
     );
@@ -134,20 +171,33 @@ Generate the transformation operations and CSS overrides to make this Kajabi the
     }
 
     const aiResult = await response.json();
-    let content = aiResult.choices?.[0]?.message?.content || "";
-
-    // Strip markdown fences if present
-    content = content.replace(/^```(?:json)?\s*/m, "").replace(/\s*```$/m, "").trim();
-
+    
     let parsed;
-    try {
-      parsed = JSON.parse(content);
-    } catch {
-      console.error("Failed to parse AI response:", content.slice(0, 500));
-      return new Response(
-        JSON.stringify({ error: "AI returned invalid JSON", raw: content.slice(0, 1000) }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Try tool call response first
+    const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
+    if (toolCall?.function?.arguments) {
+      try {
+        parsed = JSON.parse(toolCall.function.arguments);
+      } catch {
+        console.error("Failed to parse tool call args:", toolCall.function.arguments.slice(0, 500));
+        return new Response(
+          JSON.stringify({ error: "AI returned invalid tool call JSON" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      // Fallback: parse content as JSON
+      let content = aiResult.choices?.[0]?.message?.content || "";
+      content = content.replace(/^```(?:json)?\s*/m, "").replace(/\s*```$/m, "").trim();
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        console.error("Failed to parse AI response:", content.slice(0, 500));
+        return new Response(
+          JSON.stringify({ error: "AI returned invalid JSON", raw: content.slice(0, 1000) }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     return new Response(JSON.stringify(parsed), {
