@@ -205,36 +205,41 @@ function extractSections(files: SourceProjectFiles): ExtractedSection[] {
   const sections: ExtractedSection[] = [];
   const indexPage = files.indexPage || files.pages['src/pages/Index.tsx'] || '';
   
-  // Look for component imports/usage in index page to determine section order
-  const componentRegex = /<(\w+Section|\w+Hero|\w+Features|\w+Testimonials|\w+CTA|\w+Pricing|\w+FAQ|\w+Contact|\w+Gallery)/g;
+  // Look for component usage in index page to determine section order
+  const componentRegex = /<(\w+)/g;
   let match;
   let sectionIndex = 0;
+  const sectionNames = new Set<string>();
   
   while ((match = componentRegex.exec(indexPage)) !== null) {
-    const componentName = match[1];
-    const type = inferSectionType(componentName);
-    sections.push({
-      id: `extracted-${sectionIndex++}`,
-      type,
-      heading: componentName.replace(/([A-Z])/g, ' $1').trim(),
-    });
-  }
-  
-  // If no sections found via component names, try to detect from structure
-  if (sections.length === 0) {
-    // Look for common section patterns in components
+    const name = match[1];
+    // Skip HTML elements (lowercase) and common wrappers
+    if (name[0] === name[0].toLowerCase()) continue;
+    if (['Routes', 'Route', 'BrowserRouter', 'QueryClientProvider', 'TooltipProvider'].includes(name)) continue;
+    if (sectionNames.has(name)) continue;
+    sectionNames.add(name);
+    
+    const type = inferSectionType(name);
+    
+    // Try to find this component's file and extract heading
+    let heading = name.replace(/([A-Z])/g, ' $1').trim();
     for (const [path, content] of Object.entries(files.components)) {
-      const name = path.split('/').pop()?.replace(/\.(tsx|jsx)$/, '') || '';
-      if (name.toLowerCase().includes('section') || name.toLowerCase().includes('hero') || name.toLowerCase().includes('feature')) {
-        const type = inferSectionType(name);
-        const h2Match = content.match(/<h[12][^>]*>([^<]+)</);
-        sections.push({
-          id: `extracted-${sectionIndex++}`,
-          type,
-          heading: h2Match?.[1] || name.replace(/([A-Z])/g, ' $1').trim(),
-        });
+      const fileName = path.split('/').pop()?.replace(/\.(tsx|jsx)$/, '') || '';
+      if (fileName === name) {
+        const h2Match = content.match(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/);
+        if (h2Match) {
+          heading = h2Match[1]
+            .replace(/<[^>]+>/g, '')
+            .replace(/\{["']\s*["']\}/g, ' ')
+            .replace(/\{[^}]*\}/g, '')
+            .replace(/\s+/g, ' ')
+            .trim() || heading;
+        }
+        break;
       }
     }
+    
+    sections.push({ id: `extracted-${sectionIndex++}`, type, heading });
   }
   
   return sections;
@@ -243,21 +248,39 @@ function extractSections(files: SourceProjectFiles): ExtractedSection[] {
 function inferSectionType(name: string): ExtractedSection['type'] {
   const lower = name.toLowerCase();
   if (lower.includes('hero')) return 'hero';
-  if (lower.includes('feature')) return 'features';
+  if (lower.includes('feature') || lower.includes('course')) return 'features';
   if (lower.includes('testimonial')) return 'testimonials';
   if (lower.includes('cta') || lower.includes('calltoaction')) return 'cta';
   if (lower.includes('pricing')) return 'pricing';
   if (lower.includes('faq')) return 'faq';
   if (lower.includes('contact')) return 'contact';
   if (lower.includes('gallery')) return 'gallery';
+  if (lower.includes('stat')) return 'content';
+  if (lower.includes('footer')) return 'content';
   return 'content';
 }
 
 function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
+  // Try to extract from footer component
+  for (const [path, content] of Object.entries(files.components)) {
+    if (path.toLowerCase().includes('footer')) {
+      const logoMatch = content.match(/font-display[^>]*>([^<]+)/);
+      const copyrightMatch = content.match(/©\s*\d{4}\s*([^<"]+)/);
+      const linkMatches = [...content.matchAll(/href=["']#["'][^>]*>([^<]+)/g)];
+      
+      return {
+        backgroundColor: '#0d1520',
+        textColor: '#ffffff',
+        columns: linkMatches.length > 0 ? 2 : 1,
+        copyright: copyrightMatch ? `© ${copyrightMatch[0]}` : `© ${new Date().getFullYear()} All rights reserved.`,
+      };
+    }
+  }
+  
   return {
     backgroundColor: '#1a1a2e',
     textColor: '#ffffff',
-    columns: 3,
+    columns: 2,
     copyright: `© ${new Date().getFullYear()} All rights reserved.`,
   };
 }
