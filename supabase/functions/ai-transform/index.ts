@@ -398,14 +398,14 @@ function buildUserPrompt(
 ) {
   return `## Source design system
 ### index.css
-\
-\
+\`\`\`css
 ${trimText(sourceFiles.indexCss, 1800)}
+\`\`\`
 
 ### tailwind.config.ts
-\
-\
+\`\`\`ts
 ${trimText(sourceFiles.tailwindConfig, 800)}
+\`\`\`
 
 ## Source page/component snippets
 ${buildRelevantSourceContext(sourceFiles)}
@@ -566,7 +566,7 @@ function buildRelevantSourceContext(sourceFiles: SourceFiles) {
     .slice(0, 8);
 
   for (const [path, content] of [...pages, ...components]) {
-    snippets.push(`### ${path}\n${trimText(stripImports(content), 1400)}`);
+    snippets.push(`### ${path}\n\`\`\`tsx\n${trimText(stripImports(content), 1400)}\n\`\`\``);
   }
 
   return snippets.join("\n\n");
