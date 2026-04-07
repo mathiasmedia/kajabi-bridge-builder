@@ -21,8 +21,10 @@ export default function ExtractPage() {
   if (!currentProject) return null;
 
   const handleBuildPlanWithAI = async () => {
-    navigate('/mapping');
     await useExportStore.getState().buildPlanWithAI();
+    if (useExportStore.getState().transformationPlan) {
+      navigate('/mapping');
+    }
   };
 
   if (isLoading) {
