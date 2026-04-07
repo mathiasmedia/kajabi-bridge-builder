@@ -15,35 +15,37 @@ export async function applyPlanAndExport(
     applyOperation(op, current, (css) => { overridesCss += '\n' + css; });
   }
 
-  // Build the zip
+  // Build the zip — Kajabi requires STORE compression (no deflation)
   const zip = new JSZip();
+  const prefix = theme.rootPrefix || '';
+  const zipOpts = { compression: 'STORE' as const };
   
   // Write settings_data.json
-  zip.file('config/settings_data.json', JSON.stringify(settingsData, null, 2));
+  zip.file(prefix + 'config/settings_data.json', JSON.stringify(settingsData, null, 2), zipOpts);
 
   // Write all other files
   for (const [path, content] of Object.entries(theme.files)) {
     if (path === 'config/settings_data.json') continue;
     if (path === 'assets/overrides.css') continue;
-    zip.file(path, content);
+    zip.file(prefix + path, content, zipOpts);
   }
 
   // Write updated overrides.css
-  zip.file('assets/overrides.css', overridesCss);
+  zip.file(prefix + 'assets/overrides.css', overridesCss, zipOpts);
 
   // Write binary assets
   for (const [path, data] of Object.entries(theme.assets)) {
-    zip.file(path, data);
+    zip.file(prefix + path, data, zipOpts);
   }
 
   // Write any new assets from operations
   for (const op of plan.operations) {
     if (op.type === 'addAsset') {
-      zip.file(`assets/${op.fileName}`, op.data);
+      zip.file(prefix + `assets/${op.fileName}`, op.data, zipOpts);
     }
   }
 
-  return zip.generateAsync({ type: 'blob' });
+  return zip.generateAsync({ type: 'blob', compression: 'STORE' });
 }
 
 function applyOperation(
