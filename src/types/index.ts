@@ -135,7 +135,9 @@ export type TransformationOperation =
   | { type: 'showSection'; sectionId: string }
   | { type: 'addCssOverride'; css: string; label: string }
   | { type: 'updateNavigation'; menuId: string; links: Array<{ name: string; url: string }> }
-  | { type: 'addAsset'; fileName: string; data: ArrayBuffer };
+  | { type: 'addAsset'; fileName: string; data: ArrayBuffer }
+  | { type: 'addSection'; sectionId: string; section: { type: string; name: string; settings: Record<string, any>; block_order: string[]; blocks: Record<string, { type: string; settings: Record<string, any> }> }; label: string }
+  | { type: 'addBlock'; sectionId: string; blockId: string; block: { type: string; settings: Record<string, any> }; label: string };
 
 export interface ValidationWarning {
   severity: 'error' | 'warning' | 'info';
