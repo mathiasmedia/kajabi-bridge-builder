@@ -44,15 +44,6 @@ export async function loadKajabiThemeFromZip(zipData: ArrayBuffer): Promise<Kaja
   return { settingsData, files, assets, rootPrefix };
 }
 
-function normalizePath(path: string): string {
-  // Strip leading directory like "theme-export/"
-  const parts = path.split('/');
-  if (parts.length > 1 && !['config', 'layouts', 'templates', 'sections', 'snippets', 'assets', 'locales'].includes(parts[0])) {
-    return parts.slice(1).join('/');
-  }
-  return path;
-}
-
 function isTextFile(path: string): boolean {
   const textExtensions = ['.liquid', '.json', '.css', '.scss', '.js', '.html', '.txt', '.svg', '.md'];
   return textExtensions.some(ext => path.toLowerCase().endsWith(ext));
