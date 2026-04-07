@@ -97,7 +97,10 @@ export default function NewExportPage() {
                       <SelectItem value="_none" disabled>No projects found — loading...</SelectItem>
                     ) : (
                       workspaceProjects.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                          {hasProjectBundle(p.id) ? ' ✓' : ' (not yet indexed)'}
+                        </SelectItem>
                       ))
                     )}
                   </SelectContent>
