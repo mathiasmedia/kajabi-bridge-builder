@@ -171,20 +171,33 @@ Generate the transformation operations and CSS overrides to make this Kajabi the
     }
 
     const aiResult = await response.json();
-    let content = aiResult.choices?.[0]?.message?.content || "";
-
-    // Strip markdown fences if present
-    content = content.replace(/^```(?:json)?\s*/m, "").replace(/\s*```$/m, "").trim();
-
+    
     let parsed;
-    try {
-      parsed = JSON.parse(content);
-    } catch {
-      console.error("Failed to parse AI response:", content.slice(0, 500));
-      return new Response(
-        JSON.stringify({ error: "AI returned invalid JSON", raw: content.slice(0, 1000) }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Try tool call response first
+    const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
+    if (toolCall?.function?.arguments) {
+      try {
+        parsed = JSON.parse(toolCall.function.arguments);
+      } catch {
+        console.error("Failed to parse tool call args:", toolCall.function.arguments.slice(0, 500));
+        return new Response(
+          JSON.stringify({ error: "AI returned invalid tool call JSON" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      // Fallback: parse content as JSON
+      let content = aiResult.choices?.[0]?.message?.content || "";
+      content = content.replace(/^```(?:json)?\s*/m, "").replace(/\s*```$/m, "").trim();
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        console.error("Failed to parse AI response:", content.slice(0, 500));
+        return new Response(
+          JSON.stringify({ error: "AI returned invalid JSON", raw: content.slice(0, 1000) }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     return new Response(JSON.stringify(parsed), {
