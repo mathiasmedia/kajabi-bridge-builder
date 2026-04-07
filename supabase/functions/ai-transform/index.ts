@@ -106,11 +106,48 @@ Generate the transformation operations and CSS overrides to make this Kajabi the
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-2.5-pro",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "apply_transformations",
+                description: "Apply Kajabi theme transformations with operations and CSS overrides",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    operations: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          type: { type: "string" },
+                          sectionId: { type: "string" },
+                          blockId: { type: "string" },
+                          key: { type: "string" },
+                          value: {},
+                          label: { type: "string" },
+                          menuId: { type: "string" },
+                          links: { type: "array" },
+                          section: { type: "object" },
+                          block: { type: "object" },
+                          css: { type: "string" },
+                        },
+                        required: ["type"],
+                      },
+                    },
+                    cssOverrides: { type: "string", description: "CSS string with @import and all overrides" },
+                  },
+                  required: ["operations", "cssOverrides"],
+                },
+              },
+            },
+          ],
+          tool_choice: { type: "function", function: { name: "apply_transformations" } },
         }),
       }
     );
