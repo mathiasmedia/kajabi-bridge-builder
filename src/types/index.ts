@@ -1,0 +1,148 @@
+// Core types for the Export to Kajabi pipeline
+
+export interface ExportProject {
+  id: string;
+  name: string;
+  sourceProjectId: string;
+  sourceProjectName: string;
+  baseTheme: 'streamlined-home' | string;
+  page: string;
+  notes?: string;
+  createdAt: string;
+  status: 'new' | 'extracting' | 'extracted' | 'mapping' | 'mapped' | 'exporting' | 'exported' | 'error';
+}
+
+export interface ExtractedDesign {
+  colors: ExtractedColor[];
+  headingFont: string;
+  bodyFont: string;
+  logo?: string;
+  buttonStyle: {
+    backgroundColor: string;
+    textColor: string;
+    borderRadius: string;
+    style: 'solid' | 'outline' | 'ghost';
+  };
+  header: {
+    backgroundColor: string;
+    textColor: string;
+    navItems: Array<{ name: string; url: string }>;
+    logoText?: string;
+    logoImage?: string;
+    sticky: boolean;
+  };
+  hero?: {
+    heading: string;
+    subheading?: string;
+    ctaText?: string;
+    ctaUrl?: string;
+    backgroundImage?: string;
+    backgroundColor?: string;
+    textColor?: string;
+  };
+  sections: ExtractedSection[];
+  footer: {
+    backgroundColor: string;
+    textColor: string;
+    columns: number;
+    copyright?: string;
+    socialLinks?: Array<{ platform: string; url: string }>;
+  };
+  assets: ExtractedAsset[];
+}
+
+export interface ExtractedColor {
+  name: string;
+  value: string;
+  usage: 'primary' | 'secondary' | 'background' | 'text' | 'accent' | 'other';
+}
+
+export interface ExtractedSection {
+  id: string;
+  type: 'hero' | 'features' | 'testimonials' | 'cta' | 'content' | 'gallery' | 'pricing' | 'faq' | 'contact' | 'custom';
+  heading?: string;
+  body?: string;
+  ctaText?: string;
+  ctaUrl?: string;
+  image?: string;
+  backgroundImage?: string;
+  backgroundColor?: string;
+  items?: Array<{
+    heading?: string;
+    body?: string;
+    image?: string;
+    icon?: string;
+  }>;
+}
+
+export interface ExtractedAsset {
+  sourcePath: string;
+  fileName: string;
+  type: 'image' | 'font' | 'other';
+  data?: ArrayBuffer;
+  url?: string;
+}
+
+// Kajabi theme types
+
+export interface KajabiThemeData {
+  settingsData: KajabiSettingsData;
+  files: Record<string, string>; // path -> content
+  assets: Record<string, ArrayBuffer>; // path -> binary
+}
+
+export interface KajabiSettingsData {
+  current: Record<string, any>;
+}
+
+export interface KajabiSection {
+  type: string;
+  name: string;
+  hidden: string | boolean;
+  settings: Record<string, any>;
+  block_order: string[];
+  blocks: Record<string, KajabiBlock>;
+}
+
+export interface KajabiBlock {
+  type: string;
+  settings: Record<string, any>;
+  hidden?: string | boolean;
+}
+
+// Transformation plan
+
+export interface TransformationPlan {
+  sourceProjectId: string;
+  sourceProjectName: string;
+  sourcePage: string;
+  baseThemeId: string;
+  extractedDesign: ExtractedDesign;
+  operations: TransformationOperation[];
+  validationWarnings: ValidationWarning[];
+}
+
+export type TransformationOperation =
+  | { type: 'replaceLogo'; asset: string; fileName: string }
+  | { type: 'updateGlobalSetting'; key: string; value: any; label: string }
+  | { type: 'updateSectionSetting'; sectionId: string; key: string; value: any; label: string }
+  | { type: 'updateBlockSetting'; sectionId: string; blockId: string; key: string; value: any; label: string }
+  | { type: 'replaceImage'; target: string; asset: string; fileName: string }
+  | { type: 'replaceText'; sectionId: string; blockId: string; key: string; value: string; label: string }
+  | { type: 'moveSection'; sectionId: string; afterSectionId?: string }
+  | { type: 'hideSection'; sectionId: string }
+  | { type: 'showSection'; sectionId: string }
+  | { type: 'addCssOverride'; css: string; label: string }
+  | { type: 'updateNavigation'; menuId: string; links: Array<{ name: string; url: string }> }
+  | { type: 'addAsset'; fileName: string; data: ArrayBuffer };
+
+export interface ValidationWarning {
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  target?: string;
+}
+
+export interface WorkspaceProject {
+  id: string;
+  name: string;
+}
