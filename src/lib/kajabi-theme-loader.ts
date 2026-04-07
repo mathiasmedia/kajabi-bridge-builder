@@ -6,14 +6,26 @@ export async function loadKajabiThemeFromZip(zipData: ArrayBuffer): Promise<Kaja
   const files: Record<string, string> = {};
   const assets: Record<string, ArrayBuffer> = {};
   let settingsData: any = { current: {} };
+  let rootPrefix = '';
 
   const entries = Object.entries(zip.files);
+  
+  // Detect root folder prefix (e.g. "theme-export/")
+  for (const [path] of entries) {
+    const parts = path.split('/');
+    if (parts.length > 1 && !['config', 'layouts', 'templates', 'sections', 'snippets', 'assets', 'locales'].includes(parts[0])) {
+      rootPrefix = parts[0] + '/';
+      break;
+    }
+  }
   
   for (const [path, file] of entries) {
     if (file.dir) continue;
     
-    // Normalize path - strip leading folder if present
-    const normalizedPath = normalizePath(path);
+    // Normalize path - strip root prefix if present
+    const normalizedPath = rootPrefix && path.startsWith(rootPrefix) 
+      ? path.slice(rootPrefix.length) 
+      : path;
     
     if (normalizedPath === 'config/settings_data.json') {
       const content = await file.async('string');
@@ -29,7 +41,7 @@ export async function loadKajabiThemeFromZip(zipData: ArrayBuffer): Promise<Kaja
     }
   }
 
-  return { settingsData, files, assets };
+  return { settingsData, files, assets, rootPrefix };
 }
 
 function normalizePath(path: string): string {
