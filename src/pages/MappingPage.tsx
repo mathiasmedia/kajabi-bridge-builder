@@ -25,7 +25,7 @@ export default function MappingPage() {
     );
   }
 
-  const changeSummary = generateChangeSummary(transformationPlan);
+  const changeSummary = transformationPlan ? generateChangeSummary(transformationPlan) : [];
 
   const handleExport = async () => {
     const blob = await useExportStore.getState().exportZip();
