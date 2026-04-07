@@ -163,7 +163,7 @@ function extractHero(files: SourceProjectFiles): ExtractedDesign['hero'] | undef
       // Extract text content from JSX, handling expressions like {"text"}
       const h1Match = content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
       const pMatch = content.match(/<p[^>]*>([\s\S]{10,}?)<\/p>/);
-      const btnMatch = content.match(/(?:Button|button)[^>]*>([^<]+)</);
+      const btnMatch = content.match(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/);
       
       // Clean JSX text: remove tags, expressions, extra whitespace
       const cleanJsx = (text: string) => text
