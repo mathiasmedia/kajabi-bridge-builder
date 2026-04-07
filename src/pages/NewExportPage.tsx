@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, FolderOpen, Upload, FileArchive } from 'lucide-react';
+import { ArrowRight, FolderOpen, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { useExportStore } from '@/store/useExportStore';
+import { getProjectBundle, hasProjectBundle } from '@/lib/project-bundles';
 import type { ExportProject } from '@/types';
+import AppHeader from '@/components/AppHeader';
 
 const BASE_THEMES = [
   { id: 'streamlined-home', name: 'Streamlined Home', file: '/base-themes/streamlined-home.zip' },
@@ -16,7 +19,7 @@ const BASE_THEMES = [
 
 export default function NewExportPage() {
   const navigate = useNavigate();
-  const { workspaceProjects, createExportProject, loadBaseTheme, setLoading } = useExportStore();
+  const { workspaceProjects, createExportProject, loadBaseTheme, setSourceFiles } = useExportStore();
   
   const [projectName, setProjectName] = useState('');
   const [selectedSource, setSelectedSource] = useState('');
@@ -43,9 +46,18 @@ export default function NewExportPage() {
 
     createExportProject(project);
     
+    // Load base theme
     const theme = BASE_THEMES.find(t => t.id === selectedTheme);
     if (theme) {
       await loadBaseTheme(theme.file);
+    }
+
+    // Load source project files and extract design
+    const bundle = getProjectBundle(selectedSource);
+    if (bundle) {
+      setSourceFiles(bundle.files);
+      // Run extraction
+      useExportStore.getState().extractDesign();
     }
 
     navigate('/extract');
@@ -53,12 +65,7 @@ export default function NewExportPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container flex items-center h-16 gap-4">
-          <FileArchive className="h-6 w-6 text-primary" />
-          <h1 className="text-xl font-display font-bold">Export to Kajabi</h1>
-        </div>
-      </header>
+      <AppHeader />
 
       <main className="container py-12 max-w-2xl animate-fade-in">
         <div className="mb-8">
@@ -86,7 +93,10 @@ export default function NewExportPage() {
                       <SelectItem value="_none" disabled>No projects found — loading...</SelectItem>
                     ) : (
                       workspaceProjects.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                          {hasProjectBundle(p.id) ? ' ✓' : ' (not yet indexed)'}
+                        </SelectItem>
                       ))
                     )}
                   </SelectContent>
