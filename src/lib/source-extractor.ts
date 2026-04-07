@@ -119,35 +119,39 @@ function extractButtonStyle(files: SourceProjectFiles): ExtractedDesign['buttonS
 
 function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
   const navItems: Array<{ name: string; url: string }> = [];
+  let logoText: string | undefined;
   
-  // Search for route definitions in App.tsx
-  const appContent = files.appTsx || '';
-  const routeRegex = /path=["']([^"']+)["'].*?element=\{?<(\w+)/g;
-  let match;
-  while ((match = routeRegex.exec(appContent)) !== null) {
-    const [, path, component] = match;
-    if (path !== '*') {
-      navItems.push({ name: component.replace(/([A-Z])/g, ' $1').trim(), url: path });
-    }
-  }
-  
-  // Search for navigation components
+  // Search for footer component for brand name (often contains the logo text)
   for (const [path, content] of Object.entries(files.components)) {
-    if (path.toLowerCase().includes('nav') || path.toLowerCase().includes('header')) {
-      const linkRegex = /(?:to|href)=["']([^"']+)["'][^>]*>([^<]+)</g;
+    if (path.toLowerCase().includes('footer')) {
+      const logoMatch = content.match(/font-display[^>]*>([^<]+)/);
+      if (logoMatch) logoText = logoMatch[1].trim();
+    }
+    // Search for navigation links
+    if (path.toLowerCase().includes('nav') || path.toLowerCase().includes('header') || path.toLowerCase().includes('footer')) {
+      const linkRegex = /(?:to|href)=["']([^"'#]+)["'][^>]*>([^<]+)</g;
+      let match;
       while ((match = linkRegex.exec(content)) !== null) {
-        navItems.push({ name: match[2].trim(), url: match[1] });
+        const name = match[2].trim();
+        if (name && name.length < 30) {
+          navItems.push({ name, url: match[1] });
+        }
       }
     }
   }
   
+  // Detect background from CSS
+  const bgColorMatch = files.indexCss?.match(/--background:\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/);
+  const isDark = bgColorMatch && parseFloat(bgColorMatch[3]) < 20;
+  
   return {
-    backgroundColor: '#ffffff',
-    textColor: '#333333',
+    backgroundColor: isDark ? hslToHex(`hsl(${bgColorMatch![1]}, ${bgColorMatch![2]}%, ${bgColorMatch![3]}%)`) : '#ffffff',
+    textColor: isDark ? '#e0e8e4' : '#333333',
     navItems: navItems.length > 0 ? navItems : [
       { name: 'Home', url: '/' },
       { name: 'About', url: '/about' },
     ],
+    logoText,
     sticky: false,
   };
 }
