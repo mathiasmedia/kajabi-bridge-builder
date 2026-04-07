@@ -248,13 +248,48 @@ Generate the transformation operations and CSS overrides to make this Kajabi the
 
     // Validate operations
     const validTypes = new Set(availableSectionTypes || []);
+    const isPlainObject = (value: unknown) => typeof value === "object" && value !== null && !Array.isArray(value);
+    const hasCompleteSection = (section: any) => (
+      isPlainObject(section) &&
+      typeof section.type === "string" &&
+      section.type.trim().length > 0 &&
+      isPlainObject(section.settings) &&
+      Array.isArray(section.block_order) &&
+      isPlainObject(section.blocks)
+    );
+
     if (parsed.operations && Array.isArray(parsed.operations)) {
       parsed.operations = parsed.operations.filter((op: any) => {
+        if (!op || typeof op.type !== "string") {
+          return false;
+        }
+
         // Strip updateNavigation (link_lists not supported)
         if (op.type === "updateNavigation") {
           console.warn("Stripped updateNavigation op (link_lists incompatible)");
           return false;
         }
+
+        // Normalize content_for_* arrays
+        if (op.type === "updateGlobalSetting" && typeof op.key === "string" && op.key.startsWith("content_for_") && typeof op.value === "string") {
+          try {
+            const parsedValue = JSON.parse(op.value.replace(/'/g, '"'));
+            if (Array.isArray(parsedValue)) {
+              op.value = parsedValue.filter((id) => typeof id === "string" && id.trim() !== "");
+            }
+          } catch {
+            console.warn(`Unable to parse ${op.key} value, leaving as-is`);
+          }
+        }
+
+        // Strip incomplete addSection payloads
+        if (op.type === "addSection") {
+          if (!hasCompleteSection(op.section)) {
+            console.warn("Stripped incomplete addSection op");
+            return false;
+          }
+        }
+
         // Strip addSection with invalid types
         if (op.type === "addSection" && op.section?.type && validTypes.size > 0) {
           if (!validTypes.has(op.section.type)) {
@@ -271,6 +306,14 @@ Generate the transformation operations and CSS overrides to make this Kajabi the
         if (op.type === "addBlock" && op.blockId && !/^\d+$/.test(op.blockId)) {
           op.blockId = String(Math.floor(1000000000000 + Math.random() * 9000000000000));
         }
+
+        if (op.type === "addBlock") {
+          if (!isPlainObject(op.block) || typeof op.block.type !== "string" || !isPlainObject(op.block.settings)) {
+            console.warn("Stripped incomplete addBlock op");
+            return false;
+          }
+        }
+
         return true;
       });
     }
