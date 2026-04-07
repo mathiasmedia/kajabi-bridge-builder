@@ -49,17 +49,21 @@ Operation types you can emit:
 - { type: "updateBlockSetting", sectionId: string, blockId: string, key: string, value: any, label: string }
 - { type: "replaceText", sectionId: string, blockId: string, key: string, value: string, label: string }
 - { type: "hideSection", sectionId: string }
-- { type: "updateNavigation", menuId: string, links: Array<{name: string, url: string}> }
 - { type: "addSection", sectionId: string, section: { type: string, name: string, settings: object, block_order: string[], blocks: object }, label: string }
 - { type: "addBlock", sectionId: string, blockId: string, block: { type: string, settings: object }, label: string }
 - { type: "addCssOverride", css: string, label: string }
+
+IMPORTANT ID FORMAT RULES:
+- Section IDs for addSection MUST be numeric-only strings of 13 digits (like a timestamp), e.g. "1575400116835". Generate random 13-digit numbers. Do NOT use alphabetic characters in section IDs.
+- Block IDs for addBlock should also be numeric-only 13-digit strings.
+- Do NOT use "updateNavigation" — Kajabi does not accept "link_lists" as a global key. Instead, use CSS and section settings to style navigation.
 
 STRATEGY:
 1. First, update existing sections with the right content and settings
 2. Add new sections using ONLY existing section types to replicate missing content areas
 3. Update content_for_index via updateGlobalSetting to include all sections in the right order
 4. Use CSS overrides extensively to match the visual design (colors, fonts, spacing, backgrounds)
-5. Generate unique section IDs for new sections (e.g. "custom_hero_1234") but use existing types`;
+5. Generate unique numeric-only 13-digit section IDs for new sections and use existing types`;
 
     const userPrompt = `## Source Project Files
 
