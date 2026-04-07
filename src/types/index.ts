@@ -89,6 +89,7 @@ export interface KajabiThemeData {
   settingsData: KajabiSettingsData;
   files: Record<string, string>; // path -> content
   assets: Record<string, ArrayBuffer>; // path -> binary
+  rootPrefix: string; // original root folder prefix (e.g. "theme-export/")
 }
 
 export interface KajabiSettingsData {
