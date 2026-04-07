@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, X, AlertTriangle, Info, Download, Loader2, Settings2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, X, AlertTriangle, Info, Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { useExportStore } from '@/store/useExportStore';
 import { generateChangeSummary } from '@/lib/kajabi-exporter';
 import AppHeader from '@/components/AppHeader';
+import ThemePreview from '@/components/ThemePreview';
 
 export default function MappingPage() {
   const navigate = useNavigate();
@@ -123,19 +124,21 @@ export default function MappingPage() {
             )}
           </div>
 
-          {/* Center: Preview placeholder */}
+          {/* Center: Live Preview */}
           <Card className="lg:col-span-1">
             <CardHeader>
               <CardTitle className="text-base">Preview</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="aspect-[9/16] rounded-lg border bg-muted/20 flex items-center justify-center">
-                <div className="text-center text-muted-foreground text-sm">
-                  <Settings2 className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  <p>Kajabi preview</p>
-                  <p className="text-xs mt-1">Available after export</p>
-                </div>
-              </div>
+            <CardContent className="p-2">
+              <ScrollArea className="h-[600px]">
+                {extractedDesign && transformationPlan ? (
+                  <ThemePreview plan={transformationPlan} design={extractedDesign} />
+                ) : (
+                  <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
+                    No preview available
+                  </div>
+                )}
+              </ScrollArea>
             </CardContent>
           </Card>
 
