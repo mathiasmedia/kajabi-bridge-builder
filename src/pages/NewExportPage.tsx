@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, FolderOpen, Upload, FileArchive, AlertCircle } from 'lucide-react';
+import { ArrowRight, FolderOpen, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useExportStore } from '@/store/useExportStore';
 import { getProjectBundle, hasProjectBundle } from '@/lib/project-bundles';
 import type { ExportProject } from '@/types';
+import AppHeader from '@/components/AppHeader';
 
 const BASE_THEMES = [
   { id: 'streamlined-home', name: 'Streamlined Home', file: '/base-themes/streamlined-home.zip' },
@@ -64,12 +65,7 @@ export default function NewExportPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container flex items-center h-16 gap-4">
-          <FileArchive className="h-6 w-6 text-primary" />
-          <h1 className="text-xl font-display font-bold">Export to Kajabi</h1>
-        </div>
-      </header>
+      <AppHeader />
 
       <main className="container py-12 max-w-2xl animate-fade-in">
         <div className="mb-8">
