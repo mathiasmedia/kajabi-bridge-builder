@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Palette, Type, Layout, Image, MousePointer2, Loader2 } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Palette, Type, Layout, Image, MousePointer2, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +23,11 @@ export default function ExtractPage() {
   const handleBuildPlan = () => {
     useExportStore.getState().buildPlan();
     navigate('/mapping');
+  };
+
+  const handleBuildPlanWithAI = async () => {
+    navigate('/mapping');
+    await useExportStore.getState().buildPlanWithAI();
   };
 
   if (isLoading) {
@@ -53,8 +58,13 @@ export default function ExtractPage() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back
             </Button>
-            <Button onClick={handleBuildPlan} disabled={!extractedDesign}>
-              Build Plan
+            <Button variant="outline" onClick={handleBuildPlan} disabled={!extractedDesign}>
+              Static Plan
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            <Button onClick={handleBuildPlanWithAI} disabled={!extractedDesign}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              AI Plan
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
