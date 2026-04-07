@@ -13,7 +13,7 @@ export default function MappingPage() {
   const navigate = useNavigate();
   const { currentProject, transformationPlan, extractedDesign, isLoading, loadingMessage, removeOperation } = useExportStore();
 
-  if (!currentProject || !transformationPlan) {
+  if (!currentProject || (!transformationPlan && !isLoading)) {
     return (
       <div className="min-h-screen bg-background">
         <AppHeader />
