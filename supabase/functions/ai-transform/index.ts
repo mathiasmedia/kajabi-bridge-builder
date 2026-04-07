@@ -268,6 +268,8 @@ function normalizeTransformPayload(parsed: TransformPayload, availableSectionTyp
         op.sectionId = createNumericId();
       }
 
+      op.section = remapSectionBlockIds(op.section);
+
       if (!hasCompleteSection(op.section)) {
         console.warn("Stripped incomplete addSection op");
         return false;
@@ -618,6 +620,33 @@ function normalizeIdArray(value: unknown): string[] {
 
 function createNumericId() {
   return String(Math.floor(1000000000000 + Math.random() * 9000000000000));
+}
+
+function remapSectionBlockIds(section: any) {
+  if (!isPlainObject(section) || !isPlainObject(section.blocks)) return section;
+
+  const remappedBlocks: Record<string, any> = {};
+  const order = Array.isArray(section.block_order) ? section.block_order : Object.keys(section.blocks);
+  const idMap = new Map<string, string>();
+
+  for (const rawId of order.map((id: unknown) => String(id))) {
+    const nextId = /^\d{13}$/.test(rawId) ? rawId : createNumericId();
+    if (rawId in section.blocks) {
+      remappedBlocks[nextId] = section.blocks[rawId];
+      idMap.set(rawId, nextId);
+    }
+  }
+
+  for (const [rawId, block] of Object.entries(section.blocks)) {
+    if (idMap.has(rawId)) continue;
+    const nextId = /^\d{13}$/.test(rawId) ? rawId : createNumericId();
+    remappedBlocks[nextId] = block;
+    idMap.set(rawId, nextId);
+  }
+
+  section.blocks = remappedBlocks;
+  section.block_order = Array.from(idMap.values());
+  return section;
 }
 
 function isPlainObject(value: unknown): value is Record<string, any> {
