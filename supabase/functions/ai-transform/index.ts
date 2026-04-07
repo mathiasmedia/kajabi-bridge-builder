@@ -72,7 +72,28 @@ STRATEGY:
 4. Update content_for_index via updateGlobalSetting to be an array containing ALL section IDs (existing + new) in the correct visual order
 5. Use CSS overrides extensively to match the visual design (colors, fonts, spacing, backgrounds, section-specific styling using section IDs)
 6. Generate unique numeric-only 13-digit section IDs for new sections
-7. Aim for at least 4-6 total content sections on the page (not counting header/footer)`;
+7. Aim for at least 4-6 total content sections on the page (not counting header/footer)
+
+SECTION CUSTOMIZATION (CRITICAL — DO NOT LEAVE DEFAULTS):
+Every section you add or update MUST have ALL of its settings and blocks fully populated with REAL content from the source project. NEVER leave default/placeholder text like "Amazing Feature", "Lorem ipsum", "Call to Action", etc.
+
+For EVERY section:
+- Set the heading/title to the ACTUAL text from the source project
+- Set the body/description to the ACTUAL text from the source project
+- Set background_color to match the source section's background (use hex)
+- Set text_color/heading_color to match the source
+- Set padding_desktop and padding_mobile as objects like {"top":"80","bottom":"80"}
+- Set button text, URL, and style to match the source CTAs
+- For image blocks, set image alt text and placeholder descriptions
+- For multi-column sections (text-columns, features), populate EVERY block with distinct real content from the source — each column should have its own unique heading and description
+
+For blocks within sections:
+- Each block MUST have its "heading" or "title" set to real content
+- Each block MUST have its "text" or "description" set to real content  
+- Each block MUST have styling settings (colors, alignment) set appropriately
+- Do NOT rely on CSS alone — the section settings and block settings must contain the actual content
+
+The exported theme should look like a FINISHED, POLISHED page — not a template with placeholders.`;
 
     const userPrompt = `## Source Project Files
 
