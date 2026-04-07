@@ -131,7 +131,7 @@ Do NOT include any addSection operations.`;
 
   const result = await requestTransform({
     apiKey,
-    model: "google/gemini-2.5-pro",
+    model: "google/gemini-3-flash-preview",
     systemPrompt,
     userPrompt,
     maxTokens: 8000,
@@ -249,7 +249,7 @@ ${JSON.stringify(Object.keys(themeStructure.sections || {}), null, 2)}
 
 Create exactly ONE addSection operation for this section. Include all content items as blocks.`;
 
-  const models = ["google/gemini-2.5-pro", "openai/gpt-5"];
+  const models = ["google/gemini-3-flash-preview", "google/gemini-2.5-flash"];
   let lastError = "";
 
   for (const model of models) {
