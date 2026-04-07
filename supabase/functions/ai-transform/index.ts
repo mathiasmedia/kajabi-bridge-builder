@@ -68,45 +68,49 @@ serve(async (req) => {
       expectedSections,
     );
 
-    const initialResult = await requestTransform({
-      apiKey: LOVABLE_API_KEY,
-      model: "google/gemini-2.5-pro",
-      systemPrompt: buildSystemPrompt(sectionTypesList, expectedSections),
-      userPrompt: baseUserPrompt,
-      maxTokens: 12000,
-    });
+    const systemPrompt = buildSystemPrompt(sectionTypesList, expectedSections);
 
-    console.log("ai-transform initial finish reason", initialResult.finishReason ?? "unknown");
+    // Try primary model, fall back on MALFORMED_FUNCTION_CALL or empty response
+    const models = ["google/gemini-2.5-flash", "openai/gpt-5-mini"];
+    let parsed: Required<TransformPayload> | null = null;
+    let analysis: PlanAnalysis | null = null;
 
-    let parsed = normalizeTransformPayload(initialResult.parsed, availableSectionTypes);
-    let analysis = analyzePlan(parsed.operations ?? [], themeStructure, expectedSections);
+    for (const model of models) {
+      try {
+        const result = await requestTransform({
+          apiKey: LOVABLE_API_KEY,
+          model,
+          systemPrompt,
+          userPrompt: baseUserPrompt,
+          maxTokens: 16000,
+        });
 
-    if (shouldRepairPlan(initialResult.finishReason, analysis)) {
-      console.warn("ai-transform repairing incomplete plan", JSON.stringify(analysis));
+        console.log(`ai-transform [${model}] finish_reason=${result.finishReason ?? "unknown"}`);
 
-      const repairResult = await requestTransform({
-        apiKey: LOVABLE_API_KEY,
-        model: "openai/gpt-5-mini",
-        systemPrompt: buildRepairSystemPrompt(sectionTypesList, expectedSections, analysis),
-        userPrompt: buildRepairUserPrompt(baseUserPrompt, parsed, analysis, expectedSections),
-        maxTokens: 14000,
-      });
+        parsed = normalizeTransformPayload(result.parsed, availableSectionTypes);
+        analysis = analyzePlan(parsed.operations ?? [], themeStructure, expectedSections);
 
-      console.log("ai-transform repair finish reason", repairResult.finishReason ?? "unknown");
+        if (!shouldRepairPlan(result.finishReason, analysis)) {
+          break; // Good plan, use it
+        }
 
-      parsed = normalizeTransformPayload(repairResult.parsed, availableSectionTypes);
-      analysis = analyzePlan(parsed.operations ?? [], themeStructure, expectedSections);
-
-      if (shouldRepairPlan(repairResult.finishReason, analysis)) {
-        console.error("ai-transform unable to produce complete plan", JSON.stringify(analysis));
-        return jsonResponse(
-          {
-            error: "AI returned an incomplete transformation plan. Please retry.",
-            details: analysis,
-          },
-          500,
-        );
+        console.warn(`ai-transform [${model}] plan incomplete, trying next model`, JSON.stringify(analysis));
+        // Continue to next model
+      } catch (err) {
+        console.warn(`ai-transform [${model}] failed: ${err instanceof Error ? err.message : err}`);
+        // Continue to next model
       }
+    }
+
+    if (!parsed || !analysis || analysis.needsRepair) {
+      console.error("ai-transform all models failed", JSON.stringify(analysis));
+      return jsonResponse(
+        {
+          error: "AI was unable to produce a complete transformation plan. Please retry.",
+          details: analysis,
+        },
+        500,
+      );
     }
 
     return jsonResponse(parsed);
