@@ -208,21 +208,26 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         }
       }
 
-      // ── Build content_for_index with new section IDs ──
+      // ── Hide all original content sections & replace content_for_index ──
+      const existingContentIds = getContentForPage(baseTheme, currentProject.page).filter(Boolean);
+
+      // Hide every original content section so the exported theme only shows AI-generated ones
+      for (const sectionId of existingContentIds) {
+        operations.push({ type: 'hideSection', sectionId });
+      }
+
       const addedSectionIds = operations
         .filter((op): op is Extract<TransformationOperation, { type: 'addSection' }> => op.type === 'addSection')
         .map(op => op.sectionId);
 
-      if (addedSectionIds.length > 0) {
-        const existingContentIds = getContentForPage(baseTheme, currentProject.page).filter(Boolean);
-        const newContentIds = [...existingContentIds, ...addedSectionIds];
-        operations.push({
-          type: 'updateGlobalSetting',
-          key: currentProject.page === 'index' ? 'content_for_index' : `content_for_${currentProject.page}`,
-          value: newContentIds,
-          label: 'Update page content order with new sections',
-        });
-      }
+      // Replace (not append) content_for_index with only the new sections
+      const contentKey = currentProject.page === 'index' ? 'content_for_index' : `content_for_${currentProject.page}`;
+      operations.push({
+        type: 'updateGlobalSetting',
+        key: contentKey,
+        value: addedSectionIds,
+        label: 'Replace page content with AI-generated sections',
+      });
 
       if (operations.length === 0) {
         throw new Error('AI returned no valid operations across all steps. Please try again.');
