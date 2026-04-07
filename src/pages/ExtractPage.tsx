@@ -20,11 +20,6 @@ export default function ExtractPage() {
 
   if (!currentProject) return null;
 
-  const handleBuildPlan = () => {
-    useExportStore.getState().buildPlan();
-    navigate('/mapping');
-  };
-
   const handleBuildPlanWithAI = async () => {
     navigate('/mapping');
     await useExportStore.getState().buildPlanWithAI();
@@ -58,13 +53,9 @@ export default function ExtractPage() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back
             </Button>
-            <Button variant="outline" onClick={handleBuildPlan} disabled={!extractedDesign}>
-              Static Plan
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
             <Button onClick={handleBuildPlanWithAI} disabled={!extractedDesign}>
               <Sparkles className="mr-2 h-4 w-4" />
-              AI Plan
+              Generate Plan
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
