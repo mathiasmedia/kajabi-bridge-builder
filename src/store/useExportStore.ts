@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import type { ExportProject, ExtractedDesign, KajabiThemeData, TransformationPlan, WorkspaceProject } from '@/types';
-import { loadKajabiThemeFromZip } from '@/lib/kajabi-theme-loader';
+import type { ExportProject, ExtractedDesign, KajabiThemeData, TransformationPlan, TransformationOperation, WorkspaceProject } from '@/types';
+import { loadKajabiThemeFromZip, getThemeSections, getContentForPage } from '@/lib/kajabi-theme-loader';
 import { extractDesignFromSource, type SourceProjectFiles } from '@/lib/source-extractor';
 import { buildTransformationPlan } from '@/lib/transformation-planner';
 import { applyPlanAndExport } from '@/lib/kajabi-exporter';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ExportStore {
   // State
@@ -24,6 +25,7 @@ interface ExportStore {
   loadBaseTheme: (zipUrl: string) => Promise<void>;
   extractDesign: () => void;
   buildPlan: () => void;
+  buildPlanWithAI: () => Promise<void>;
   exportZip: () => Promise<Blob | null>;
   updateOperation: (index: number, updates: Partial<any>) => void;
   removeOperation: (index: number) => void;
@@ -94,6 +96,102 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       set({ transformationPlan: plan, isLoading: false });
     } catch (e) {
       set({ error: `Failed to build plan: ${e}`, isLoading: false });
+    }
+  },
+
+  buildPlanWithAI: async () => {
+    const { extractedDesign, baseTheme, currentProject, sourceFiles } = get();
+    if (!extractedDesign || !baseTheme || !currentProject || !sourceFiles) {
+      set({ error: 'Missing required data to build AI plan' });
+      return;
+    }
+    set({ isLoading: true, loadingMessage: 'AI is analyzing your project and generating transformations...' });
+    try {
+      // Build a compact theme structure for the AI
+      const sections = getThemeSections(baseTheme);
+      const contentForIndex = getContentForPage(baseTheme, 'index');
+      const themeStructure: Record<string, any> = {
+        content_for_index: contentForIndex,
+        sections: {} as Record<string, any>,
+      };
+      // Include header, footer, and content sections
+      for (const [id, section] of Object.entries(sections)) {
+        const s = section as any;
+        themeStructure.sections[id] = {
+          type: s.type,
+          name: s.name,
+          settings: s.settings,
+          block_order: s.block_order,
+          blocks: Object.fromEntries(
+            (s.block_order || []).map((bid: string) => [bid, {
+              type: s.blocks?.[bid]?.type,
+              settings: s.blocks?.[bid]?.settings,
+            }])
+          ),
+        };
+      }
+
+      const { data, error } = await supabase.functions.invoke('ai-transform', {
+        body: {
+          sourceFiles: {
+            indexCss: sourceFiles.indexCss,
+            tailwindConfig: sourceFiles.tailwindConfig,
+            components: sourceFiles.components,
+            pages: sourceFiles.pages,
+          },
+          extractedDesign,
+          themeStructure,
+        },
+      });
+
+      if (error) throw new Error(error.message || 'AI transform failed');
+      if (data?.error) throw new Error(data.error);
+
+      const operations: TransformationOperation[] = [];
+
+      // Add AI-generated operations
+      if (Array.isArray(data.operations)) {
+        for (const op of data.operations) {
+          operations.push(op as TransformationOperation);
+        }
+      }
+
+      // Add AI-generated CSS as override
+      if (data.cssOverrides && typeof data.cssOverrides === 'string') {
+        operations.push({
+          type: 'addCssOverride',
+          css: data.cssOverrides,
+          label: 'AI-generated CSS overrides',
+        });
+      }
+
+      const plan: TransformationPlan = {
+        sourceProjectId: currentProject.sourceProjectId,
+        sourceProjectName: currentProject.sourceProjectName,
+        sourcePage: currentProject.page,
+        baseThemeId: 'streamlined-home',
+        extractedDesign,
+        operations,
+        validationWarnings: [],
+      };
+
+      set({ transformationPlan: plan, isLoading: false });
+    } catch (e) {
+      console.error('AI plan failed, falling back to static:', e);
+      set({ loadingMessage: 'AI failed, using static mapping...' });
+      // Fallback to static plan
+      try {
+        const plan = buildTransformationPlan(
+          extractedDesign,
+          baseTheme,
+          currentProject.sourceProjectId,
+          currentProject.sourceProjectName,
+          currentProject.page,
+        );
+        set({ transformationPlan: plan, isLoading: false, error: `AI transform failed (${e}), used static fallback` });
+      } catch (e2) {
+        set({ error: `Failed to build plan: ${e2}`, isLoading: false });
+      }
     }
   },
 
