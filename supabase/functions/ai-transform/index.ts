@@ -312,7 +312,6 @@ async function requestTransform({
     },
     body: JSON.stringify({
       model,
-      temperature: 0.2,
       max_completion_tokens: maxTokens,
       messages: [
         { role: "system", content: systemPrompt },
