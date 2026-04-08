@@ -97,6 +97,7 @@ Apply the tweak and return the modified operations array as JSON.`;
       },
       body: JSON.stringify({
         model,
+        max_tokens: 8192,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent },
