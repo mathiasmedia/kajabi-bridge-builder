@@ -328,7 +328,14 @@ CONTENT RULES:
 - For testimonial sections, use one text or card block per testimonial with the quote and the person's name/role when present
 - Include buttons via use_btn="true" + btn_text + btn_action
 - Use actual source text, no placeholders
-- No external image URLs
+
+IMAGE RULES:
+- If available image URLs are provided below, USE them in appropriate blocks
+- For "image" blocks: set settings.image to the URL, settings.image_alt to a description
+- For "feature" blocks with images: set settings.image to the URL (do NOT set hide_image)
+- For section backgrounds: set bg_type="image" and bg_image to the URL
+- Match images to sections contextually (hero bg → hero image, product shots → course cards, etc.)
+- Only use the provided URLs — do NOT invent image URLs
 
 ID FORMAT: 13-digit numeric-only strings.
 FOOTER RULE: If this is a footer section, return {"operations":[],"cssOverrides":""}.${dedupWarning}`;
