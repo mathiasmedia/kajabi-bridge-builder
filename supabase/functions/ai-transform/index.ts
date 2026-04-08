@@ -126,8 +126,15 @@ KAJABI SCHEMA RULES:
 - Footer block types: logo, link_list, copyright, social_icons
 - Menu/link_list blocks have settings.menu referencing a link_list ID
 
+BACKGROUND COLOR RULES:
+- Do NOT set a global "background_color" key. Instead, set bg_type and background_color on EACH SECTION individually.
+- For the hero section, use updateSectionSetting with key "bg_type" = "color" and key "background_color" = the desired dark/light color.
+- For header/footer sections, also use updateSectionSetting for background_color.
+- Kajabi auto-applies "background-light" or "background-dark" CSS classes based on the section's background_color, which adjusts text color automatically.
+- So do NOT set text colors via CSS for sections — just set the right background_color per section.
+
 OPERATION TYPES (allowed in this step):
-- updateGlobalSetting: { type, key, value, label }
+- updateGlobalSetting: { type, key, value, label } — for fonts, NOT for background_color
 - updateSectionSetting: { type, sectionId, key, value, label }
 - updateBlockSetting: { type, sectionId, blockId, key, value, label }
 - replaceText: { type, sectionId, blockId, key:"text", value:"<html>", label }
@@ -142,9 +149,9 @@ NAVIGATION RULES:
 - Format: { type: "updateNavigation", menuId: "main-menu", links: [{name: "Home", url: "/"}], label: "..." }
 
 CSS RULES:
-- Put all CSS in cssOverrides (fonts @import, color overrides, typography, buttons)
+- Put all CSS in cssOverrides (fonts @import, typography, buttons, spacing)
+- Do NOT set page-wide background colors in CSS. Each section controls its own background.
 - Match the source design. Use !important when needed.
-- For background colors, use CSS on section wrappers
 
 ID FORMAT: 13-digit numeric-only strings.
 Use actual source text, no placeholders. No external image URLs.`;
@@ -190,7 +197,12 @@ IMPORTANT: Generate updateNavigation for "main-menu" and "about-menu" using the 
   console.log(`ai-transform [globals] finish_reason=${result.finishReason ?? "unknown"}`);
 
   const parsed = normalizeTransformPayload(result.parsed, availableSectionTypes);
-  parsed.operations = parsed.operations.filter((op: any) => op.type !== "addSection");
+  // Remove addSection ops (not allowed in globals) and global background_color (use per-section instead)
+  parsed.operations = parsed.operations.filter((op: any) => {
+    if (op.type === 'addSection') return false;
+    if (op.type === 'updateGlobalSetting' && op.key === 'background_color') return false;
+    return true;
+  });
 
   if (parsed.operations.length === 0 && !parsed.cssOverrides) {
     return jsonResponse({ error: "AI returned no valid global operations. Please retry." }, 500);
@@ -233,6 +245,10 @@ Create exactly ONE addSection operation that faithfully recreates a source secti
 CRITICAL KAJABI SCHEMA RULES:
 - Section type MUST be "section" (the only type that supports rich content blocks)
 - Section settings: bg_type ("none"|"color"|"image"), background_color, padding_desktop, padding_mobile, full_width, vertical, horizontal, equal_height
+- IMPORTANT: Always set bg_type="color" and background_color on EVERY section. Use the source design's background color for that section.
+  Kajabi auto-applies "background-light" or "background-dark" classes based on the background_color, which adjusts text color automatically.
+  For dark designs, use a dark background_color (e.g. "#0b1214"). For light designs, use a light color (e.g. "#ffffff").
+- Section does NOT have heading, subheading, or text settings! ALL content goes in BLOCKS.
 - Section does NOT have heading, subheading, or text settings! ALL content goes in BLOCKS.
 
 VALID BLOCK TYPES: text, feature, card, cta, image
