@@ -93,11 +93,21 @@ export default function LiveThemePreview({ plan, baseTheme: providedTheme, class
   <style>${result.styles}</style>
   <style>${overridesCss}</style>
   <style>
-    nav, .nav, .navigation, .site-nav,
-    .header-navigation, .footer-navigation,
-    .header__nav, .footer__nav,
-    ul.menu, .menu-list,
-    .kajabi-head nav, .kajabi-footer nav { display: none !important; }
+    /* Hide header/footer nav links in preview */
+    .header .link-list,
+    .header .link-list__links,
+    .header .dropdown,
+    .header .block-type--menu,
+    .header .block-type--dropdown,
+    .header .block-type--user,
+    .footer .link-list,
+    .footer .link-list__links,
+    .footer .block-type--link_list,
+    .footer_pro .link-list,
+    .footer_pro .link-list__links,
+    .footer_pro .block-type--link_list,
+    nav, .nav, .navigation,
+    .header__nav, .footer__nav { display: none !important; }
   </style>
 </head>
 <body>
