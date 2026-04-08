@@ -13,7 +13,7 @@ interface LiveThemePreviewProps {
 }
 
 /** Cached base theme so we only fetch the zip once per session */
-let cachedBaseTheme: KajabiThemeData | null = null;
+let cachedBaseTheme: KajabiThemeData | null = null; // reset on theme change
 
 async function getBaseTheme(existing?: KajabiThemeData | null): Promise<KajabiThemeData> {
   if (existing) return existing;
