@@ -1,4 +1,4 @@
-import type { ExtractedDesign, ExtractedColor, ExtractedSection, ExtractedAsset, SectionIntent, ExtractionWarning } from '@/types';
+import type { ExtractedDesign, ExtractedColor, ExtractedSection, ExtractedAsset, SectionIntent, ExtractionWarning, MediaIntent, ImageTarget, ImageTargetRole } from '@/types';
 
 // Source project extractor - analyzes a Lovable project's code to extract design information
 // This runs in the browser and uses cross-project tools via the store
@@ -302,6 +302,13 @@ function extractSectionsV2(files: SourceProjectFiles): { sections: ExtractedSect
   return { sections, warnings };
 }
 
+interface MediaAnalysis {
+  mediaIntent: MediaIntent;
+  mediaConfidence: number;
+  mediaEvidence: string[];
+  imageTargets: ImageTarget[];
+}
+
 interface ComponentAnalysis {
   intent: SectionIntent;
   confidence: number;
@@ -313,6 +320,7 @@ interface ComponentAnalysis {
   items?: ExtractedSection['items'];
   hasImages: boolean;
   hasPricing: boolean;
+  media: MediaAnalysis;
 }
 
 function cleanJsxText(text: string): string {
