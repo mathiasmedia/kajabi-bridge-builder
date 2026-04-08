@@ -13,13 +13,13 @@ interface LiveThemePreviewProps {
 }
 
 /** Cached base theme so we only fetch the zip once per session */
-let cachedBaseTheme: KajabiThemeData | null = null;
+let cachedBaseTheme: KajabiThemeData | null = null; // reset on theme change
 
 async function getBaseTheme(existing?: KajabiThemeData | null): Promise<KajabiThemeData> {
   if (existing) return existing;
   if (cachedBaseTheme) return cachedBaseTheme;
 
-  const resp = await fetch('/base-themes/streamlined-home.zip');
+  const resp = await fetch('/base-themes/pro-template.zip');
   if (!resp.ok) throw new Error('Failed to fetch base theme zip');
   const buf = await resp.arrayBuffer();
   cachedBaseTheme = await loadKajabiThemeFromZip(buf);

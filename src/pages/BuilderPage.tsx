@@ -65,7 +65,7 @@ export default function BuilderPage() {
     try {
       let baseTheme = useExportStore.getState().baseTheme;
       if (!baseTheme) {
-        await useExportStore.getState().loadBaseTheme('/base-themes/streamlined-home.zip');
+        await useExportStore.getState().loadBaseTheme('/base-themes/pro-template.zip');
         baseTheme = useExportStore.getState().baseTheme;
       }
       if (!baseTheme) { toast.error('Failed to load base theme'); return; }
