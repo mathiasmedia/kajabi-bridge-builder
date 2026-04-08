@@ -72,6 +72,9 @@ export default function RenderCheckPanel() {
     return acc;
   }, {}) || {};
 
+  const criticalCount = comparison?.mismatches?.filter(m => m.critical).length || 0;
+  const expected = comparison?.expected;
+
   const deterministicSuggestions = refinementResult?.suggestions.filter(
     s => s.strategy === 'apply_deterministic_fix' && s.proposedOperations?.length
   ) || [];
