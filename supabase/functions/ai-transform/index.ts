@@ -336,10 +336,10 @@ Block text must be rich HTML. Use width for column layouts.`;
   let lastError = "";
 
   for (const model of models) {
-    // Each model gets up to 2 attempts
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        const result = await requestTransform({
+        // Use plain JSON output (no tool calling) to avoid additionalProperties blocks bug
+        const result = await requestJsonTransform({
           apiKey,
           model,
           systemPrompt,
@@ -350,17 +350,10 @@ Block text must be rich HTML. Use width for column layouts.`;
         const fr = result.finishReason ?? "unknown";
         console.log(`ai-transform [section:${sectionToGenerate.type}] [${model}] attempt=${attempt} finish_reason=${fr}`);
 
-        // Detect truncation — retry with same model once
         if (fr === "length" || fr === "max_tokens") {
           console.warn(`ai-transform [section] TRUNCATED on attempt ${attempt}`);
           lastError = "Response truncated";
           continue;
-        }
-
-        // Log raw tool call for debugging
-        const rawToolArgs = result.rawToolCallArgs;
-        if (rawToolArgs) {
-          console.log(`ai-transform [section] raw tool args snippet: ${rawToolArgs.slice(0, 300)}`);
         }
 
         const parsed = normalizeTransformPayload(result.parsed, availableSectionTypes);
@@ -375,7 +368,6 @@ Block text must be rich HTML. Use width for column layouts.`;
           if (finalBlockCount > 0) {
             return jsonResponse({ operations: [addSectionOp] });
           }
-          // Blocks are empty — retry
           console.warn(`ai-transform [section] AI returned 0 blocks on attempt ${attempt}, retrying...`);
           lastError = "AI returned section with 0 blocks";
           continue;
@@ -387,7 +379,7 @@ Block text must be rich HTML. Use width for column layouts.`;
 
         lastError = "No valid addSection operation produced";
         console.warn(`ai-transform [section] [${model}] ${lastError}`, JSON.stringify(result.parsed).slice(0, 500));
-        break; // Don't retry same model if it produced wrong output type
+        break;
       } catch (err) {
         lastError = err instanceof Error ? err.message : String(err);
         console.warn(`ai-transform [section] [${model}] attempt=${attempt} failed: ${lastError}`);
