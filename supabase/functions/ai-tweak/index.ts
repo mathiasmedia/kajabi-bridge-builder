@@ -64,7 +64,12 @@ serve(async (req) => {
     const systemPrompt = `You are a Kajabi theme editor. You receive an existing transformation plan and a tweak instruction. Return ONLY the changes needed as patches.
 
 ${imageBase64 ? `## IMAGE ANALYSIS
-An image is attached. Analyze colors, fonts, layout, and text precisely. Apply changes to match.` : ''}
+An image is attached. Analyze it thoroughly:
+1. Extract exact colors (backgrounds, text, buttons, accents)
+2. Note typography styles (sizes, weights, colors per section)
+3. Identify layout patterns
+4. Match ALL visual elements — backgrounds, text colors, button styles, spacing
+BE COMPREHENSIVE. Apply CSS overrides for every visual difference you detect. Do NOT be minimal — the goal is to make the template look like the image.` : ''}
 
 ## BASE THEME SECTIONS (index page)
 These are the REAL section IDs in the base theme. Use these exact IDs in your CSS selectors and operations:
@@ -73,16 +78,24 @@ ${sectionMapStr}
 ## KAJABI HTML STRUCTURE
 All sections render via section.liquid with this HTML:
 - Section wrapper: \`#section-{sectionId} > section.section > .sizer > .section__overlay + .container > .row\`
-- Background color is on \`.section__overlay\` (absolute positioned)
+- Background color is on \`.section__overlay\` (absolute positioned, covers section)
 - Padding is on \`.sizer\`
 - Blocks: \`#block-{blockId}.block-type--{type}.col-{width} > .block\`
-- Text blocks render HTML directly inside \`.block\`
+- Text blocks render HTML directly inside \`.block\` (contains h1, h2, p tags)
 - Feature blocks: \`.feature > .feature__image + .feature__text\`
 - Feature icon blocks: \`.feature > .feature-icon + .feature__text\`
 - Buttons: \`.btn.btn--{size}.btn--{style}\`
 - NEVER use made-up classes like .hero__heading, .text-column__heading
 - NEVER use made-up section IDs like "hero" — use the real numeric IDs listed above
 - Target real classes: .section, .sizer, .container, .block, .btn, .feature
+- To change text color per section: \`#section-{id} h1, #section-{id} h2, #section-{id} p { color: #xxx; }\`
+
+## SECTION SETTINGS THAT WORK
+These section settings are rendered via Liquid and actually affect the output:
+- \`background_color\`: sets the .section__overlay background (e.g. "RGBA(22,30,42,0.86)" or "#10293E")
+- \`padding_desktop\`: { top, bottom, left, right } in px
+- \`padding_mobile\`: { top, bottom, left, right } in px
+- \`btn_background_color\`, \`btn_text_color\`, \`btn_border_radius\`, \`btn_style\`, \`btn_size\`
 
 ## PATCH FORMAT
 Return a JSON object with these optional arrays:
@@ -92,7 +105,7 @@ Return a JSON object with these optional arrays:
     { "index": 0, "changes": { "value": "new value" } }
   ],
   "add": [
-    { "type": "updateSectionSetting", "sectionId": "header", "key": "text_color", "value": "#fff", "label": "Header text white" }
+    { "type": "addCssOverride", "css": "#section-1575400116835 h1 { color: #fff; }", "label": "Hero text white" }
   ],
   "remove": [3, 7],
   "replaceCss": "full new CSS string if CSS needs changing",
@@ -104,9 +117,10 @@ Return a JSON object with these optional arrays:
 - "add": add new operations (same format as operation types below)
 - "remove": array of indices to remove
 - "replaceCss": if the addCssOverride needs changes, provide the COMPLETE new CSS string. This replaces the existing one.
-- Keep patches minimal — only change what the tweak instruction asks for
+${imageBase64 ? '- When matching an image: be THOROUGH. Use addCssOverride for colors, fonts, spacing, button styles. Use replaceText for changing heading/body text content.' : '- Keep patches minimal — only change what the tweak instruction asks for'}
 - Do NOT return unchanged operations
-- CSS selectors MUST use real Kajabi classes (see HTML structure above)
+- CSS selectors MUST use real Kajabi classes and section IDs (see above)
+- Prefer addCssOverride for visual styling — it's the most reliable way to change appearance
 
 ## OPERATION TYPES (for "add")
 - updateGlobalSetting: { type, key, value, label }
