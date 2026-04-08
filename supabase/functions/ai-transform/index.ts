@@ -648,6 +648,58 @@ function createFallbackBlockSettings(block: Record<string, any>) {
 }
 
 
+// ── Section intent classification ─────────────────────────────────────
+
+type SectionIntent = 'hero' | 'stats' | 'feature-grid' | 'testimonial-band' | 'cta-band' | 'content-media-split' | 'footer' | 'heading-separator' | 'content';
+
+function classifySectionIntent(section: any): SectionIntent {
+  const type = String(section?.type || '').toLowerCase();
+  const heading = String(section?.heading || '').toLowerCase();
+  const hasItems = Array.isArray(section?.items) && section.items.length > 0;
+  const hasBody = typeof section?.body === 'string' && section.body.length > 20;
+  const hasCta = typeof section?.ctaText === 'string' && section.ctaText.trim().length > 0;
+
+  if (type === 'hero') return 'hero';
+  if (type === 'testimonials' || heading.includes('testimonial') || heading.includes('what our') || heading.includes('reviews')) return 'testimonial-band';
+  if (type === 'cta' || heading.includes('ready to') || heading.includes('get started') || heading.includes('join') || heading.includes('sign up')) return 'cta-band';
+  if (heading.includes('footer') || type === 'footer') return 'footer';
+  if (type === 'features' || heading.includes('feature') || heading.includes('program') || heading.includes('course') || heading.includes('service')) return 'feature-grid';
+  if (heading.includes('stat') || heading.includes('number') || heading.includes('impact') || heading.includes('result')) return 'stats';
+  if (type === 'content' && !hasBody && !hasItems && !hasCta) return 'heading-separator';
+  if (section?.image || heading.includes('about')) return 'content-media-split';
+  return 'content';
+}
+
+function getTypesForIntent(intent: SectionIntent, availableTypes: string[]): string[] {
+  const available = new Set(availableTypes);
+
+  const intentToTypes: Record<SectionIntent, string[]> = {
+    'hero': ['newsletter_hero', 'section', 'page_content'],
+    'stats': ['text-columns', 'section', 'page_content'],
+    'feature-grid': ['text-columns', 'section', 'page_content'],
+    'testimonial-band': ['text-columns', 'section', 'page_content'],
+    'cta-band': ['section', 'page_content', 'newsletter_hero'],
+    'content-media-split': ['text-and-image', 'section', 'page_content'],
+    'footer': [],
+    'heading-separator': ['section', 'page_content'],
+    'content': ['section', 'text-columns', 'page_content', 'text-and-image'],
+  };
+
+  const preferred = intentToTypes[intent] || intentToTypes['content'];
+  const result = preferred.filter(t => available.has(t));
+  // Always include at least one fallback
+  if (result.length === 0) {
+    for (const t of ['section', 'page_content']) {
+      if (available.has(t)) { result.push(t); break; }
+    }
+  }
+  if (result.length === 0 && availableTypes.length > 0) {
+    result.push(availableTypes[0]);
+  }
+  return result;
+}
+
+
 function findSectionSourceContext(sourceFiles: SourceFiles, section: any): string {
   const sectionType = (section.type || "").toLowerCase();
   const sectionHeading = (section.heading || "").toLowerCase();
