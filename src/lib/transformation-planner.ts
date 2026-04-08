@@ -396,12 +396,12 @@ h1, h2, h3, h4, h5, h6 { font-family: '${extracted.headingFont}', 'Playfair Disp
   background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(11,18,20,0.65) 100%) !important;
 }
 
-/* ── Links & Buttons ── */
+/* ── Links ── */
 a { color: ${primaryHex} !important; text-decoration: none !important; }
 a:hover { opacity: 0.85 !important; }
+
+/* ── Default button base (non-color properties only) ── */
 .btn, .btn-primary, [class*="btn-primary"], button[type="submit"] {
-  background-color: ${primaryHex} !important;
-  color: ${bgHex} !important;
   border: none !important;
   border-radius: 12px !important;
   padding: 14px 32px !important;
@@ -415,9 +415,26 @@ a:hover { opacity: 0.85 !important; }
 .btn-outline, [class*="btn-outline"] {
   background-color: transparent !important;
   border: 1px solid rgba(255,255,255,0.25) !important;
-  color: ${fgHex} !important;
   border-radius: 12px !important;
   padding: 14px 32px !important;
+}
+
+/* ── Scoped button colors per section ── */
+/* Hero CTA */
+.section:first-of-type .btn,
+.section--hero .btn {
+  background-color: ${primaryHex} !important;
+  color: ${bgHex} !important;
+}
+/* CTA band button */
+.cta-card + .btn, .cta-card ~ .btn,
+.section:nth-last-of-type(2) .btn {
+  background-color: ${primaryHex} !important;
+  color: ${bgHex} !important;
+}
+/* Outline variant stays transparent everywhere */
+.btn-outline, [class*="btn-outline"] {
+  color: ${fgHex} !important;
 }
 
 /* ── Header ── */
