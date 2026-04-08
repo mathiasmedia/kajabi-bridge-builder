@@ -85,7 +85,7 @@ export async function applyPlanAndExport(
  */
 // Valid block types for Kajabi "section" type
 const VALID_BLOCK_TYPES = new Set([
-  "text", "feature", "card", "cta", "image", "accordion", "form", "video",
+  "text", "feature", "cta", "image", "accordion", "form", "video",
   "video_embed", "audio", "blog", "code", "countdown", "course_outline",
   "event", "external_widget", "link_list", "multi_video", "offer", "pricing",
   "social_icons", "social_share",
@@ -98,8 +98,9 @@ const BLOCK_TYPE_REMAP: Record<string, string> = {
   "text-column": "feature",
   "textcolumn": "feature",
   "stat": "feature",
-  "testimonial": "feature",
-  "quote": "feature",
+  "testimonial": "text",
+  "quote": "text",
+  "card": "text",
   "heading": "text",
   "paragraph": "text",
   "button": "cta",
