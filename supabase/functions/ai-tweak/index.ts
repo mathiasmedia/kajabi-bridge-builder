@@ -152,6 +152,17 @@ ${imageBase64 ? '- When matching an image: be THOROUGH. Use addCssOverride for c
 
 Return ONLY valid JSON. No markdown fences.`;
 
+    // Build vision design context if available
+    const visionContext = visionDesign ? `
+## VISION ANALYSIS (pre-extracted from screenshot)
+Style: ${visionDesign.overallStyle || 'N/A'}
+Colors: ${JSON.stringify(visionDesign.colors || {})}
+Typography: ${JSON.stringify(visionDesign.typography || {})}
+Sections: ${JSON.stringify(visionDesign.sections?.map((s: any) => ({ name: s.name, bg: s.bgColor })) || [])}
+Text Content: ${JSON.stringify(visionDesign.textContent || {})}
+Effects: ${JSON.stringify(visionDesign.effects || {})}
+USE THESE EXACT VALUES for colors, fonts, and text. This is the ground truth from the screenshot.` : '';
+
     const textPart = `## Current Plan Summary (${operations.length} operations)
 ${opSummary}
 
@@ -161,6 +172,7 @@ ${JSON.stringify(compactOps).slice(0, 10000)}
 ## Design Context
 Colors: ${JSON.stringify(extractedDesign?.colors?.slice(0, 6))}
 Fonts: heading="${extractedDesign?.headingFont}", body="${extractedDesign?.bodyFont}"
+${visionContext}
 
 ## Tweak Instruction
 ${tweakInstruction}`;
