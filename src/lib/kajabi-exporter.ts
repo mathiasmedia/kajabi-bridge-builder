@@ -326,10 +326,27 @@ export function generateChangeSummary(plan: TransformationPlan): ChangeSummaryIt
       case 'moveSection': return { type: op.type, label: `Move section`, detail: `Section: ${op.sectionId}${op.afterSectionId ? ` after ${op.afterSectionId}` : ''}` };
       case 'addAsset': return { type: op.type, label: `Add asset`, detail: `File: ${op.fileName}` };
       case 'addSection': {
-        const blockCount = Object.keys(op.section?.blocks || {}).length;
-        const blockTypes = Object.values(op.section?.blocks || {}).map((b: any) => b.type);
+        const blocks = op.section?.blocks || {};
+        const blockEntries = Object.values(blocks);
         const bgColor = op.section?.settings?.background_color || 'none';
-        return { type: op.type, label: op.label, detail: `${blockCount} blocks (${blockTypes.join(', ')}) · bg: ${bgColor}` };
+        const blockDetails = blockEntries.map((b: any, i: number) => {
+          const type = b.type || '?';
+          const text = b.settings?.text || '';
+          // Extract readable preview from HTML
+          const stripped = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          const preview = stripped.slice(0, 60);
+          const btnText = b.settings?.btn_text;
+          const width = b.settings?.width;
+          let desc = `[${type}${width ? ` w${width}` : ''}]`;
+          if (preview) desc += ` "${preview}${stripped.length > 60 ? '…' : ''}"`;
+          if (btnText) desc += ` [btn: ${btnText}]`;
+          return `  ${i + 1}. ${desc}`;
+        });
+        return { 
+          type: op.type, 
+          label: op.label, 
+          detail: `${blockEntries.length} blocks · bg: ${bgColor}\n${blockDetails.join('\n')}` 
+        };
       }
       case 'addBlock': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Block: ${op.blockId} · Type: ${op.block.type}` };
       default: return { type: 'unknown', label: 'Unknown operation', detail: '' };
