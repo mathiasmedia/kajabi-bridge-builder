@@ -212,10 +212,11 @@ export default function RenderCheckPanel() {
               <div className="space-y-1.5">
                 {Object.entries(grouped).map(([category, items]) => {
                   const expanded = expandedCategories.has(category);
-                  const errorCount = items.filter(i => i.severity === 'error').length;
+                  const critCount = items.filter(i => i.critical).length;
+                  const errorCount = items.filter(i => i.severity === 'error' && !i.critical).length;
                   const warnCount = items.filter(i => i.severity === 'warning').length;
                   return (
-                    <div key={category} className="rounded border">
+                    <div key={category} className={`rounded border ${critCount > 0 ? 'border-destructive/50' : ''}`}>
                       <button
                         className="flex w-full items-center gap-2 p-2 text-left text-xs hover:bg-muted/50"
                         onClick={() => toggleCategory(category)}
@@ -223,6 +224,7 @@ export default function RenderCheckPanel() {
                         {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                         <span className="font-medium">{CATEGORY_LABELS[category] || category}</span>
                         <span className="ml-auto flex gap-1">
+                          {critCount > 0 && <Badge variant="destructive" className="h-4 px-1 text-[10px]">{critCount} crit</Badge>}
                           {errorCount > 0 && <Badge variant="destructive" className="h-4 px-1 text-[10px]">{errorCount}</Badge>}
                           {warnCount > 0 && <Badge variant="outline" className="h-4 px-1 text-[10px] border-amber-500/50 text-amber-500">{warnCount}</Badge>}
                         </span>
