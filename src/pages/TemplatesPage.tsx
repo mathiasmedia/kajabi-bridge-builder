@@ -13,6 +13,27 @@ import { applyPlanAndExport } from '@/lib/kajabi-exporter';
 import AppHeader from '@/components/AppHeader';
 import LiveThemePreview from '@/components/LiveThemePreview';
 
+/** Strip heavy block content from addSection ops to reduce payload */
+function compactPlanForTweak(plan: any): any {
+  if (!plan?.operations) return plan;
+  return {
+    ...plan,
+    operations: plan.operations.map((op: any) => {
+      if (op.type === 'addSection' && op.section?.blocks) {
+        const compactBlocks: Record<string, any> = {};
+        for (const [id, block] of Object.entries(op.section.blocks as Record<string, any>)) {
+          compactBlocks[id] = {
+            type: block.type,
+            settings: { ...block.settings, text: block.settings?.text?.slice(0, 200) },
+          };
+        }
+        return { ...op, section: { ...op.section, blocks: compactBlocks } };
+      }
+      return op;
+    }),
+  };
+}
+
 interface SavedTemplate {
   id: string;
   name: string;
@@ -98,7 +119,7 @@ export default function TemplatesPage() {
 
     try {
       const body: any = {
-        planJson: template.plan_json,
+        planJson: compactPlanForTweak(template.plan_json as any),
         extractedDesign: template.extracted_design_json,
         tweakInstruction: instruction,
       };
