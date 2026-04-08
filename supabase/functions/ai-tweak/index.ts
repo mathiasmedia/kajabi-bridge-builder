@@ -192,7 +192,7 @@ USE THESE EXACT VALUES for colors, fonts, and text. This is the ground truth fro
 ${opSummary}
 
 ## Operation Details
-${JSON.stringify(compactOps).slice(0, 10000)}
+${JSON.stringify(compactOps).slice(0, 6000)}
 
 ## Design Context
 Colors: ${JSON.stringify(extractedDesign?.colors?.slice(0, 6))}
@@ -227,7 +227,7 @@ ${tweakInstruction}`;
       },
       body: JSON.stringify({
         model,
-        max_tokens: imageBase64 ? 16384 : 8192,
+        max_tokens: imageBase64 ? 32768 : 16384,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent },
