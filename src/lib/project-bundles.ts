@@ -670,10 +670,311 @@ const Footer = () => {
   },
 };
 
+// AquaWeave Academy (ABC Underwater Basketweaving) — light-themed source site
+const AQUAWEAVE_ACADEMY: ProjectSourceBundle = {
+  projectId: 'd7143301-c007-48b8-8d1c-26193f81bff3',
+  projectName: 'AquaWeave Academy',
+  files: {
+    indexCss: `@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 33% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 222 47% 15%;
+    --primary-foreground: 40 33% 98%;
+    --secondary: 40 20% 94%;
+    --secondary-foreground: 222 47% 15%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 38 92% 50%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 222 47% 15%;
+    --radius: 0.5rem;
+    --gold: 38 92% 50%;
+    --gold-light: 40 85% 60%;
+    --navy: 222 47% 15%;
+    --navy-dark: 222 50% 10%;
+    --cream: 40 33% 98%;
+    --cream-dark: 40 20% 94%;
+    --gradient-gold: linear-gradient(135deg, hsl(38 92% 50%), hsl(40 85% 60%));
+    --gradient-navy: linear-gradient(135deg, hsl(222 47% 15%), hsl(222 50% 10%));
+    --gradient-hero: linear-gradient(180deg, hsl(40 33% 98%) 0%, hsl(40 20% 94%) 100%);
+  }
+}`,
+
+    tailwindConfig: `export default {
+  theme: {
+    extend: {
+      fontFamily: {
+        display: ['"Playfair Display"', 'serif'],
+        body: ['"DM Sans"', 'sans-serif'],
+      },
+      colors: {
+        gold: {
+          DEFAULT: "hsl(var(--gold))",
+          light: "hsl(var(--gold-light))",
+        },
+        navy: {
+          DEFAULT: "hsl(var(--navy))",
+          dark: "hsl(var(--navy-dark))",
+        },
+      },
+    },
+  },
+}`,
+
+    appTsx: `import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import Home from "@/pages/Home";
+import About from "@/pages/About";
+import Contact from "@/pages/Contact";
+import Sales from "@/pages/Sales";
+import Testimonials from "@/pages/Testimonials";
+import FAQ from "@/pages/FAQ";
+import NotFound from "@/pages/NotFound";
+
+const App = () => (
+  <BrowserRouter>
+    <Header />
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/about" element={<About />} />
+      <Route path="/contact" element={<Contact />} />
+      <Route path="/sales" element={<Sales />} />
+      <Route path="/testimonials" element={<Testimonials />} />
+      <Route path="/faq" element={<FAQ />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+    <Footer />
+  </BrowserRouter>
+);`,
+
+    indexPage: `import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { CheckCircle, Award, Users, BookOpen } from "lucide-react";
+import heroImg from "@/assets/hero-weaving.jpg";
+import basketImg from "@/assets/basket-craft.jpg";
+import materialsImg from "@/assets/weaving-materials.jpg";
+
+const Home = () => {
+  return (
+    <main>
+      {/* Hero Section */}
+      <section className="relative py-20 md:py-32 overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <img src={heroImg} alt="Underwater basket weaving" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+        </div>
+        <div className="container relative z-10">
+          <div className="max-w-3xl mx-auto text-center">
+            <p className="text-accent font-semibold tracking-wide uppercase mb-4">25 Years of Excellence</p>
+            <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight mb-6">
+              Master the Art of <span className="text-gradient-gold">Underwater Basket Weaving</span>
+            </h1>
+            <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+              Transform your craft with our comprehensive certification program. Join thousands of professionals who have elevated their skills with ABC.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link to="/sales"><Button variant="hero" size="xl">Enroll in Basket Weaving A-Z</Button></Link>
+              <Link to="/about"><Button variant="hero-outline" size="xl">Learn More</Button></Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Problem Section */}
+      <section className="py-20 md:py-28 bg-card">
+        <div className="container">
+          <div className="max-w-3xl mx-auto text-center mb-16">
+            <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-6">The Challenge of Mastering Underwater Basketweaving</h2>
+            <p className="text-lg text-muted-foreground">Many aspiring craftspeople struggle with fragmented training, outdated techniques, and lack of proper certification.</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              { title: "Fragmented Learning", description: "Scattered resources and conflicting advice make it nearly impossible to develop consistent, professional-grade skills." },
+              { title: "Outdated Methods", description: "Traditional approaches fail to incorporate modern materials and techniques that define excellence in today's market." },
+              { title: "No Recognition", description: "Without proper certification, talented weavers struggle to demonstrate their expertise to potential clients and employers." },
+            ].map((item, index) => (
+              <div key={index} className="bg-background p-8 rounded-lg border border-border hover-lift">
+                <h3 className="font-display text-xl font-semibold text-foreground mb-3">{item.title}</h3>
+                <p className="text-muted-foreground">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Solution Section */}
+      <section className="py-20 md:py-28">
+        <div className="container">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <p className="text-accent font-semibold tracking-wide uppercase mb-4">The Solution</p>
+              <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-6">A Comprehensive Path to Certification</h2>
+              <p className="text-lg text-muted-foreground mb-8">Our Basket Weaving A-Z program provides everything you need to go from beginner to certified professional.</p>
+              <ul className="space-y-4">
+                {["Step-by-step video training modules", "Live virtual workshops with master weavers", "Personal feedback on your projects", "Industry-recognized certification"].map((item, index) => (
+                  <li key={index} className="flex items-start gap-3">
+                    <CheckCircle className="h-6 w-6 text-accent shrink-0 mt-0.5" />
+                    <span className="text-foreground">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="relative">
+              <div className="aspect-[4/3] rounded-2xl overflow-hidden border border-border">
+                <img src={basketImg} alt="Beautifully crafted woven basket" className="w-full h-full object-cover" loading="lazy" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="relative py-20 md:py-28 text-primary-foreground overflow-hidden">
+        <div className="absolute inset-0 z-0">
+          <img src={materialsImg} alt="Natural weaving materials" className="w-full h-full object-cover" loading="lazy" />
+          <div className="absolute inset-0 bg-primary/85" />
+        </div>
+        <div className="container relative z-10">
+          <div className="max-w-3xl mx-auto text-center mb-16">
+            <h2 className="font-display text-3xl md:text-4xl font-bold mb-6">What's Included in the Program</h2>
+            <p className="text-lg text-primary-foreground/70">Everything you need to master underwater basket weaving and earn your certification.</p>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {[
+              { title: "12 Core Modules", description: "Comprehensive curriculum covering fundamentals to advanced techniques" },
+              { title: "Live Workshops", description: "Weekly sessions with master weavers and personalized feedback" },
+              { title: "Certification", description: "Industry-recognized credential upon successful completion" },
+              { title: "Lifetime Access", description: "Unlimited access to all materials and future updates" },
+            ].map((feature, index) => (
+              <div key={index} className="text-center p-6">
+                <h3 className="font-display text-xl font-semibold mb-2">{feature.title}</h3>
+                <p className="text-primary-foreground/70">{feature.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-20 md:py-28">
+        <div className="container">
+          <div className="max-w-3xl mx-auto text-center">
+            <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-6">Ready to Transform Your Craft?</h2>
+            <p className="text-lg text-muted-foreground mb-8">Join thousands of professionals who have elevated their skills with our comprehensive certification program.</p>
+            <Link to="/sales"><Button variant="gold" size="xl">Enroll in Basket Weaving A-Z</Button></Link>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+};`,
+
+    components: {
+      'src/components/Header.tsx': `import { Link, useLocation } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+
+const navLinks = [
+  { href: "/", label: "Home" },
+  { href: "/about", label: "About" },
+  { href: "/sales", label: "Sales Page" },
+  { href: "/testimonials", label: "Testimonials" },
+  { href: "/contact", label: "Contact" },
+];
+
+const Header = () => {
+  return (
+    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur">
+      <div className="container flex h-16 items-center justify-between">
+        <Link to="/" className="flex items-center gap-2">
+          <span className="font-display text-xl font-bold text-primary">ABC Underwater Basketweaving</span>
+        </Link>
+        <nav className="hidden md:flex items-center gap-1">
+          {navLinks.map((link) => (
+            <Link key={link.href} to={link.href}><Button variant="nav">{link.label}</Button></Link>
+          ))}
+        </nav>
+        <div className="hidden md:flex items-center gap-4">
+          <Link to="/sales"><Button variant="gold">Enroll Now</Button></Link>
+        </div>
+      </div>
+    </header>
+  );
+};`,
+
+      'src/components/Footer.tsx': `import { Link } from "react-router-dom";
+
+const Footer = () => (
+  <footer className="border-t border-border bg-primary text-primary-foreground">
+    <div className="container py-12 md:py-16">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="md:col-span-2">
+          <h3 className="font-display text-2xl font-bold mb-4">ABC Underwater Basketweaving</h3>
+          <p className="text-primary-foreground/70 max-w-md leading-relaxed">Master the art of underwater basket weaving with 25 years of proven expertise. Join thousands of certified professionals worldwide.</p>
+        </div>
+        <div>
+          <h4 className="font-semibold mb-4">Quick Links</h4>
+          <ul className="space-y-2 text-primary-foreground/70">
+            <li><Link to="/">Home</Link></li>
+            <li><Link to="/about">About Us</Link></li>
+            <li><Link to="/sales">Enroll Now</Link></li>
+            <li><Link to="/testimonials">Testimonials</Link></li>
+          </ul>
+        </div>
+        <div>
+          <h4 className="font-semibold mb-4">Support</h4>
+          <ul className="space-y-2 text-primary-foreground/70">
+            <li><Link to="/faq">FAQ</Link></li>
+            <li><Link to="/contact">Contact Us</Link></li>
+          </ul>
+        </div>
+      </div>
+      <div className="mt-12 pt-8 border-t border-primary-foreground/10 flex flex-col md:flex-row justify-between items-center gap-4">
+        <p className="text-primary-foreground/60 text-sm">© 2026 ABC Underwater Basketweaving. All rights reserved.</p>
+        <div className="flex gap-6 text-sm text-primary-foreground/60">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+);`,
+    },
+
+    assets: [
+      'src/assets/hero-weaving.jpg',
+      'src/assets/basket-craft.jpg',
+      'src/assets/weaving-materials.jpg',
+    ],
+
+    imageUrls: {},
+
+    pages: {
+      'src/pages/Home.tsx': `/* same as indexPage above */`,
+    },
+  },
+};
+
 // Registry of all pre-extracted project bundles
 const PROJECT_BUNDLES: Record<string, ProjectSourceBundle> = {
   'eb365d77-280e-413a-ac01-0dbd5bf741fc': WOVEN_WAVES_LANDING,
   '4c253e87-cce3-43ef-baf0-8d07dea63406': BRAND_BRILLIANCE_STUDIO,
+  'd7143301-c007-48b8-8d1c-26193f81bff3': AQUAWEAVE_ACADEMY,
 };
 
 export function getProjectBundle(projectId: string): ProjectSourceBundle | null {
