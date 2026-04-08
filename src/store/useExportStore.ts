@@ -152,7 +152,15 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       };
 
       // ── Step 1: Globals (header, footer, hero, CSS) ──
-      const nonHeroSections = extractedDesign.sections.filter(s => s.type !== 'hero');
+      // Filter out footer-like sections from non-hero sections
+      const nonHeroSections = extractedDesign.sections.filter(s => {
+        if (s.type === 'hero') return false;
+        // Skip footer-like sections — they're handled by layout
+        const heading = (s.heading || '').toLowerCase();
+        const type = (s.type || '').toLowerCase();
+        if (type === 'content' && (heading.includes('footer') || heading === 'footer')) return false;
+        return true;
+      });
       const totalSteps = 1 + nonHeroSections.length;
 
       set({ isLoading: true, loadingMessage: `Step 1/${totalSteps}: Generating global styles, header, footer & hero...` });
