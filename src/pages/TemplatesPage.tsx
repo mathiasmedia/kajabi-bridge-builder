@@ -91,19 +91,20 @@ export default function TemplatesPage() {
     finally { setCritiquing(null); }
   };
 
-  const applyTweak = async (template: SavedTemplate, instruction: string) => {
+  const applyTweak = async (template: SavedTemplate, instruction: string, imageData?: string | null) => {
     setTweaking(true);
-    const logEntry = `🔧 ${instruction}`;
+    const logEntry = `🔧 ${instruction}${imageData ? ' 📷' : ''}`;
     setTweakLog(prev => ({ ...prev, [template.id]: [...(prev[template.id] || []), logEntry] }));
 
     try {
-      const { data, error } = await supabase.functions.invoke('ai-tweak', {
-        body: {
-          planJson: template.plan_json,
-          extractedDesign: template.extracted_design_json,
-          tweakInstruction: instruction,
-        },
-      });
+      const body: any = {
+        planJson: template.plan_json,
+        extractedDesign: template.extracted_design_json,
+        tweakInstruction: instruction,
+      };
+      if (imageData) body.imageBase64 = imageData;
+
+      const { data, error } = await supabase.functions.invoke('ai-tweak', { body });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
