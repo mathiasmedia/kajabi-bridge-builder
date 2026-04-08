@@ -89,6 +89,8 @@ serve(async (req) => {
       return await handleGlobalsStep(LOVABLE_API_KEY, body);
     } else if (step === "section") {
       return await handleSectionStep(LOVABLE_API_KEY, body);
+    } else if (step === "refine") {
+      return await handleRefineStep(LOVABLE_API_KEY, body);
     } else {
       return jsonResponse({ error: `Unknown step: ${step}` }, 400);
     }
