@@ -139,6 +139,22 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         .filter(p => p.startsWith('sections/') && p.endsWith('.liquid'))
         .map(p => p.replace('sections/', '').replace('.liquid', ''));
 
+      // Build hero block map with actual block IDs so the AI uses them directly
+      const contentForPage = getContentForPage(baseTheme, currentProject.page).filter(Boolean);
+      const heroSectionId = contentForPage[0]; // First content section is the hero
+      let heroBlockMap: Record<string, any> | undefined;
+      if (heroSectionId && sections[heroSectionId]) {
+        const heroSec = sections[heroSectionId] as any;
+        const blockOrder = heroSec.block_order || Object.keys(heroSec.blocks || {});
+        heroBlockMap = {};
+        for (const bid of blockOrder) {
+          const block = heroSec.blocks?.[bid];
+          if (block) {
+            heroBlockMap[bid] = { type: block.type, settings: block.settings };
+          }
+        }
+      }
+
       const sharedBody = {
         sourceFiles: {
           indexCss: sourceFiles.indexCss,
@@ -149,6 +165,8 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         extractedDesign,
         themeStructure,
         availableSectionTypes,
+        heroSectionId,
+        heroBlockMap,
       };
 
       // ── Step 1: Globals (header, footer, hero, navigation, CSS) ──
@@ -175,96 +193,6 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       if (Array.isArray(globalsData.operations)) {
         for (const op of globalsData.operations) {
           operations.push(op as TransformationOperation);
-        }
-      }
-
-      // ── Remap fabricated block IDs to actual theme block IDs ──
-      const themeSections = getThemeSections(baseTheme);
-      for (const op of operations) {
-        const opAny = op as any;
-        if ((op.type === 'replaceText' || op.type === 'updateBlockSetting') && opAny.sectionId && opAny.blockId) {
-          const section = themeSections[opAny.sectionId] as any;
-          if (section) {
-            const blockOrder = section.block_order || Object.keys(section.blocks || {});
-            const blockExists = opAny.blockId in (section.blocks || {});
-            if (!blockExists && blockOrder.length > 0) {
-              // Try to extract position from fabricated ID (e.g. "1575400116835_0" → index 0)
-              const posMatch = String(opAny.blockId).match(/_(\d+)$/);
-              const targetIndex = posMatch ? parseInt(posMatch[1], 10) : 0;
-              const actualBlockId = blockOrder[Math.min(targetIndex, blockOrder.length - 1)];
-              if (actualBlockId) {
-                console.log(`Remapping block ID ${opAny.blockId} → ${actualBlockId} in section ${opAny.sectionId}`);
-                opAny.blockId = actualBlockId;
-              }
-            }
-          }
-        }
-      }
-
-      // ── Ensure hero content is applied to the actual theme hero section ──
-      if (extractedDesign.hero) {
-        const contentIds = getContentForPage(baseTheme, currentProject.page).filter(Boolean);
-        const heroSectionId = contentIds[0]; // First content section is typically the hero
-        const heroSection = heroSectionId ? themeSections[heroSectionId] as any : null;
-        if (heroSection) {
-          const blockOrder = heroSection.block_order || Object.keys(heroSection.blocks || {});
-          // Check if any replaceText op already targets this section
-          const hasHeroTextOp = operations.some((op: any) =>
-            op.type === 'replaceText' && op.sectionId === heroSectionId
-          );
-          if (!hasHeroTextOp) {
-            console.log(`Hero fix: injecting replaceText ops for hero section ${heroSectionId} with ${blockOrder.length} blocks`);
-            // Find text blocks and inject hero content
-            for (const blockId of blockOrder) {
-              const block = heroSection.blocks?.[blockId] as any;
-              if (!block) continue;
-              const currentText = (block.settings?.text || '').toLowerCase();
-              // Match heading block (contains <h1> or <h2>)
-              if (currentText.includes('<h1') || currentText.includes('<h2')) {
-                let heroHtml = `<h1>${extractedDesign.hero.heading || ''}</h1>`;
-                if (extractedDesign.hero.subheading) {
-                  heroHtml += `<p>${extractedDesign.hero.subheading}</p>`;
-                }
-                operations.push({
-                  type: 'replaceText',
-                  sectionId: heroSectionId,
-                  blockId,
-                  key: 'text',
-                  value: heroHtml,
-                  label: `Hero heading: "${extractedDesign.hero.heading}"`,
-                });
-                // Also set CTA if present
-                if (extractedDesign.hero.ctaText) {
-                  operations.push({
-                    type: 'updateBlockSetting',
-                    sectionId: heroSectionId,
-                    blockId,
-                    key: 'btn_text',
-                    value: extractedDesign.hero.ctaText,
-                    label: `Hero CTA: "${extractedDesign.hero.ctaText}"`,
-                  });
-                  operations.push({
-                    type: 'updateBlockSetting',
-                    sectionId: heroSectionId,
-                    blockId,
-                    key: 'use_btn',
-                    value: 'true',
-                    label: 'Enable hero CTA button',
-                  });
-                }
-                if (extractedDesign.hero.ctaUrl) {
-                  operations.push({
-                    type: 'updateBlockSetting',
-                    sectionId: heroSectionId,
-                    blockId,
-                    key: 'btn_action',
-                    value: extractedDesign.hero.ctaUrl,
-                    label: `Hero CTA URL`,
-                  });
-                }
-              }
-            }
-          }
         }
       }
 

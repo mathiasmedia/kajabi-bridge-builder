@@ -109,6 +109,8 @@ async function handleGlobalsStep(apiKey: string, body: any) {
     extractedDesign = {},
     themeStructure = {},
     availableSectionTypes = [],
+    heroSectionId,
+    heroBlockMap,
   } = body;
 
   const systemPrompt = `You are an expert web-to-Kajabi theme transformer.
@@ -153,8 +155,25 @@ CSS RULES:
 - Do NOT set page-wide background colors in CSS. Each section controls its own background.
 - Match the source design. Use !important when needed.
 
+CRITICAL — BLOCK IDs:
+You MUST use the EXACT block IDs from the theme structure. Do NOT fabricate or invent block IDs.
+The block IDs are the keys under each section's "blocks" object in the theme structure below.
+
 ID FORMAT: 13-digit numeric-only strings.
 Use actual source text, no placeholders. No external image URLs.`;
+
+  // Build explicit hero block reference so the AI can't get IDs wrong
+  let heroBlockRef = '';
+  if (heroSectionId && heroBlockMap) {
+    heroBlockRef = `\n\n## Hero section block IDs (USE THESE EXACT IDs)
+Hero sectionId: "${heroSectionId}"
+Blocks:\n${Object.entries(heroBlockMap).map(([bid, b]: [string, any]) => {
+      const textPreview = (b.settings?.text || '').slice(0, 100);
+      return `- blockId: "${bid}" (type: ${b.type}) — current text: "${textPreview}..."`;
+    }).join('\n')}
+
+For hero content, generate replaceText operations using sectionId="${heroSectionId}" and the exact blockId values listed above.`;
+  }
 
   const userPrompt = `## Source design
 ### index.css
@@ -182,8 +201,10 @@ ${JSON.stringify({
 
 ## Current Kajabi theme structure
 ${JSON.stringify(themeStructure, null, 2)}
+${heroBlockRef}
 
 Generate operations for: header, footer, hero blocks, navigation menus, and CSS overrides.
+IMPORTANT: For the hero, you MUST generate replaceText ops targeting the exact block IDs listed above.
 IMPORTANT: Generate updateNavigation for "main-menu" and "about-menu" using the source nav items.`;
 
   const result = await requestTransform({
