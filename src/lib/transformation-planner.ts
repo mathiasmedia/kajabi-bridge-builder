@@ -95,6 +95,9 @@ export function buildTransformationPlan(
   // ── Dynamic site analysis ──
   const siteIsDark = detectDarkSite(extracted);
   const darkCardBg = siteIsDark ? darkenHex(bgColor ? toHex(bgColor.value) : '#0b1214', 0.15) : '#FFFFFF';
+  // Pre-compute text colors for inline styles (Kajabi strips auto-inversion when span style= is present)
+  const inlineFgHex = headingColor ? toHex(headingColor.value) : '#d6e8e2';
+  const inlineBodyHex = textColor ? toHex(textColor.value) : '#8a9ba8';
 
   // ── 7. Map sections ──
   const validSectionIds = contentFor.filter(id => id && sections[id]);
@@ -114,7 +117,7 @@ export function buildTransformationPlan(
     
     const textBlock = findBlock(heroSection, 'text');
     if (textBlock) {
-      const heroHtml = buildHeroHtml(extracted, primaryColor ? toHex(primaryColor.value) : '#2eb89a');
+      const heroHtml = buildHeroHtml(extracted, primaryColor ? toHex(primaryColor.value) : '#2eb89a', inlineFgHex, inlineBodyHex);
       operations.push({ type: 'replaceText', sectionId: heroId, blockId: textBlock.id, key: 'text', value: heroHtml, label: 'Hero content' });
       operations.push({ type: 'updateBlockSetting', sectionId: heroId, blockId: textBlock.id, key: 'text_align', value: 'center', label: 'Hero text align' });
       operations.push({ type: 'updateBlockSetting', sectionId: heroId, blockId: textBlock.id, key: 'width', value: '8', label: 'Hero text width' });
@@ -163,14 +166,14 @@ export function buildTransformationPlan(
     // Render all stats (not just 3) — use inline styles so colors survive Kajabi rendering
     statsContent.forEach((stat, i) => {
       if (i < featureBlocks.length) {
-        const html = `<h3 style="color:${statPrimaryHex}; font-size:48px; font-weight:700; line-height:1.1; margin-bottom:4px">${stat.title}</h3>\n<h4 style="font-size:16px; font-weight:600; margin-bottom:8px">${stat.subtitle}</h4>\n<p style="font-size:14px; line-height:1.5">${stat.body}</p>`;
+        const html = `<h3 style="color:${statPrimaryHex}; font-size:48px; font-weight:700; line-height:1.1; margin-bottom:4px">${stat.title}</h3>\n<h4 style="color:${inlineFgHex}; font-size:16px; font-weight:600; margin-bottom:8px">${stat.subtitle}</h4>\n<p style="color:${inlineBodyHex}; font-size:14px; line-height:1.5">${stat.body}</p>`;
         operations.push({ type: 'replaceText', sectionId: featuresId, blockId: featureBlocks[i].id, key: 'text', value: html, label: `Stat ${i + 1} text` });
         operations.push({ type: 'updateBlockSetting', sectionId: featuresId, blockId: featureBlocks[i].id, key: 'hide_image', value: 'true', label: `Stat ${i + 1} hide image` });
         operations.push({ type: 'updateBlockSetting', sectionId: featuresId, blockId: featureBlocks[i].id, key: 'text_align', value: 'center', label: `Stat ${i + 1} align` });
       } else {
         // Need to add extra stat blocks beyond what exists in the base theme
         const blockId = `stat_extra_${i}`;
-        const html = `<h3 style="color:${statPrimaryHex}; font-size:48px; font-weight:700; line-height:1.1; margin-bottom:4px">${stat.title}</h3>\n<h4 style="font-size:16px; font-weight:600; margin-bottom:8px">${stat.subtitle}</h4>\n<p style="font-size:14px; line-height:1.5">${stat.body}</p>`;
+        const html = `<h3 style="color:${statPrimaryHex}; font-size:48px; font-weight:700; line-height:1.1; margin-bottom:4px">${stat.title}</h3>\n<h4 style="color:${inlineFgHex}; font-size:16px; font-weight:600; margin-bottom:8px">${stat.subtitle}</h4>\n<p style="color:${inlineBodyHex}; font-size:14px; line-height:1.5">${stat.body}</p>`;
         operations.push({
           type: 'addBlock',
           sectionId: featuresId,
@@ -209,7 +212,7 @@ export function buildTransformationPlan(
 
     if (textBlock) {
       // Narrower heading block (~8 cols) with eyebrow using inline styles
-      const headingHtml = `<p style="color:${accentHexLocal}; font-size:12px; letter-spacing:0.25em; text-transform:uppercase; font-weight:500; margin-bottom:12px">${eyebrowText}</p>\n<h2>${headingText}</h2>\n<p>${descText}</p>`;
+      const headingHtml = `<p style="color:${accentHexLocal}; font-size:12px; letter-spacing:0.25em; text-transform:uppercase; font-weight:500; margin-bottom:12px">${eyebrowText}</p>\n<h2 style="color:${inlineFgHex}">${headingText}</h2>\n<p style="color:${inlineBodyHex}">${descText}</p>`;
       operations.push({ type: 'replaceText', sectionId, blockId: textBlock.id, key: 'text', value: headingHtml, label: 'Programs heading text' });
       // Narrower width so description doesn't stretch full-width
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'width', value: '8', label: 'Programs heading width' });
@@ -279,7 +282,7 @@ export function buildTransformationPlan(
     if (textBlock) {
       const eyebrowLabel = testimonialSection?.heading ? 'TESTIMONIALS' : 'TESTIMONIALS';
       const headingLabel = testimonialSection?.heading || 'What Our Divers Say';
-      const headingHtml = `<p style="color:${accentHexLocal}; font-size:12px; letter-spacing:0.25em; text-transform:uppercase; font-weight:500; margin-bottom:12px">${eyebrowLabel}</p>\n<h2>${headingLabel}</h2>`;
+      const headingHtml = `<p style="color:${accentHexLocal}; font-size:12px; letter-spacing:0.25em; text-transform:uppercase; font-weight:500; margin-bottom:12px">${eyebrowLabel}</p>\n<h2 style="color:${inlineFgHex}">${headingLabel}</h2>`;
       operations.push({ type: 'replaceText', sectionId, blockId: textBlock.id, key: 'text', value: headingHtml, label: 'Testimonials heading' });
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'width', value: '12', label: 'Testimonials heading width' });
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'text_align', value: 'center', label: 'Testimonials heading align' });
@@ -343,7 +346,7 @@ export function buildTransformationPlan(
     if (textBlock) {
       // CTA card with darker bg than the section
       const ctaCardBg = siteIsDark ? darkCardBg : 'rgba(255,255,255,0.04)';
-      const ctaHtml = `<div style="background:${ctaCardBg}; border:1px solid rgba(255,255,255,0.08); border-radius:24px; padding:64px 48px; max-width:640px; margin:0 auto 24px">\n<h2>${ctaHeading}</h2>\n<p>${ctaBody}</p>\n</div>`;
+      const ctaHtml = `<div style="background:${ctaCardBg}; border:1px solid rgba(255,255,255,0.08); border-radius:24px; padding:64px 48px; max-width:640px; margin:0 auto 24px">\n<h2 style="color:${inlineFgHex}">${ctaHeading}</h2>\n<p style="color:${inlineBodyHex}">${ctaBody}</p>\n</div>`;
       operations.push({ type: 'replaceText', sectionId, blockId: textBlock.id, key: 'text', value: ctaHtml, label: 'CTA text' });
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'text_align', value: 'center', label: 'CTA text align' });
       // Narrower block width (6-7 instead of 12)
@@ -542,7 +545,7 @@ function getBlocksInOrder(section: any): Array<{ id: string; type: string; setti
   return order.map((id: string) => ({ id, type: blocks[id]?.type, settings: blocks[id]?.settings || {} })).filter((b: any) => b.type);
 }
 
-function buildHeroHtml(extracted: ExtractedDesign, accentHex: string): string {
+function buildHeroHtml(extracted: ExtractedDesign, accentHex: string, fgHex: string, bodyHex: string): string {
     const hero = extracted.hero!;
     let html = '';
     if (hero.eyebrow || hero.subheading) {
@@ -551,21 +554,22 @@ function buildHeroHtml(extracted: ExtractedDesign, accentHex: string): string {
     }
     if (hero.heading) {
       // If emphasisWord is set, wrap that word in a styled span (italic serif)
+      // IMPORTANT: Always include color in inline styles — Kajabi disables auto text color inversion when style= is present
       if (hero.emphasisWord) {
         const emphasized = hero.heading.replace(
           new RegExp(`(${hero.emphasisWord})`, 'i'),
           `<span style="font-style:italic; font-family:'Playfair Display',Georgia,serif; color:${accentHex}">$1</span>`
         );
-        html += `<h1>${emphasized}</h1>\n`;
+        html += `<h1 style="color:${fgHex}">${emphasized}</h1>\n`;
       } else {
         html += `<h1>${hero.heading}</h1>\n`;
       }
     }
-    // Add the description from source
+    // Add the description from source — include color in inline style
     const descText = hero.subheading && hero.eyebrow
       ? hero.subheading
       : "Dive deep into the world's most exclusive craft. Certified instructors, pristine reefs, and the finest seagrass materials — all 30 feet below the surface.";
-    html += `<p class="hero-description" style="font-size:18px; line-height:1.7; max-width:560px; margin:0 auto 32px">${descText}</p>`;
+    html += `<p class="hero-description" style="color:${bodyHex}; font-size:18px; line-height:1.7; max-width:560px; margin:0 auto 32px">${descText}</p>`;
     return html;
   }
 
