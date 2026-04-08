@@ -232,7 +232,10 @@ export default function RenderCheckPanel() {
                           {items.map((m, i) => (
                             <div key={i} className="flex items-start gap-1.5 text-[11px]">
                               {SEVERITY_ICON[m.severity]}
-                              <span className="break-words">{m.message}</span>
+                              <span className="break-words">
+                                {m.critical && <Badge variant="destructive" className="mr-1 h-3.5 px-1 text-[8px] align-middle">CRIT</Badge>}
+                                {m.message}
+                              </span>
                             </div>
                           ))}
                         </div>
