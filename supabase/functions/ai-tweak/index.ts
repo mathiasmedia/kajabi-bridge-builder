@@ -13,7 +13,7 @@ serve(async (req) => {
 
     if (!tweakInstruction) {
       return new Response(JSON.stringify({ error: "tweakInstruction is required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -97,6 +97,7 @@ Apply the tweak and return the modified operations array as JSON.`;
       },
       body: JSON.stringify({
         model,
+        max_tokens: 8192,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent },
@@ -106,17 +107,14 @@ Apply the tweak and return the modified operations array as JSON.`;
 
     if (!response.ok) {
       const status = response.status;
-      if (status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limited — try again shortly" }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (status === 402) {
-        return new Response(JSON.stringify({ error: "Credits exhausted" }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      throw new Error(`AI gateway error: ${status}`);
+      const errText = await response.text();
+      console.error("AI gateway error:", status, errText);
+      const msg = status === 429 ? "Rate limited — try again shortly" 
+        : status === 402 ? "Credits exhausted" 
+        : `AI gateway error: ${status}`;
+      return new Response(JSON.stringify({ error: msg }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const data = await response.json();
@@ -143,7 +141,7 @@ Apply the tweak and return the modified operations array as JSON.`;
           : "AI did not return valid operations", 
         raw: content.slice(0, 500) 
       }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -156,7 +154,7 @@ Apply the tweak and return the modified operations array as JSON.`;
   } catch (e) {
     console.error("ai-tweak error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
