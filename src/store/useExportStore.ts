@@ -5,7 +5,7 @@ import { extractDesignFromSource, type SourceProjectFiles } from '@/lib/source-e
 import { buildTransformationPlan } from '@/lib/transformation-planner';
 import { applyPlanAndExport } from '@/lib/kajabi-exporter';
 import { preValidateExport, type ValidationResult } from '@/lib/kajabi-exporter';
-import { getRuleForIntent, validateMappingQuality } from '@/lib/intent-mapping';
+import { getRuleForIntent, validateMappingQuality, shouldGenerateSection } from '@/lib/intent-mapping';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ExportStore {
@@ -177,9 +177,12 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       const nonHeroSections = extractedDesign.sections.filter(s => {
         // Use intent as primary driver
         if (s.intent === 'hero') return false;
-        if (s.intent === 'footer_like') return false;
-        const rule = getRuleForIntent(s.intent);
-        if (rule.excludeFromContent) return false;
+        // Strong-evidence gating: skip sections without sufficient evidence
+        const gate = shouldGenerateSection(s);
+        if (!gate.allowed) {
+          console.warn(`Skipping section "${s.heading || s.type}" (intent: ${s.intent}): ${gate.reason}`);
+          return false;
+        }
         return true;
       });
       const totalSteps = 1 + nonHeroSections.length;
