@@ -253,17 +253,45 @@ Return valid JSON:
         dark_accent_color_primary, dark_accent_color_secondary, light_accent_color_primary, light_accent_color_secondary
 - addSection: { type, sectionId, section: { type: "section", settings, blocks, block_order }, label }
 - hideSection: { type, sectionId }
-- updateNavigation: { type, menuId: "main-menu", links: [{name, url}] }
+
+## CRITICAL RULES — READ CAREFULLY
+
+### DO NOT generate header or footer sections. Skip them entirely.
+
+### NEVER set full_width: true. Leave it out or set to false.
+
+### Background Colors — BE VERY CAREFUL
+- Do NOT set background_color on sections UNLESS you are intentionally creating a dark/colored section (e.g. a hero with dark overlay, a dark CTA section).
+- Setting background_color causes Kajabi to automatically change text color:
+  - Dark background_color → text becomes white/light → invisible if section is actually white
+  - Light background_color → text becomes dark → may clash
+- If you want a normal white/light section, simply OMIT background_color entirely.
+- Only use background_color for sections that should genuinely have a colored/dark background.
+
+### Section Structure — Group related content together
+- A heading that introduces content below it (e.g. "Is Your Brand Holding You Back?" above 3 feature cards) must be in the SAME section as the cards — NOT a separate section.
+- Don't create single-block sections for headings that belong with adjacent content.
+
+### Multi-Column Layouts (side-by-side content)
+- To create a 2-column layout (e.g. text on left, image on right), use the section setting: "columns": 2
+- Blocks fill columns sequentially: block 1 → column 1, block 2 → column 2
+- Within a column, block "width" is relative to the column (use "12" for full column width)
+- Example: text+CTA left, image right → columns: 2, block1 (text, width "12"), block2 (cta, width "12"), block3 (image, width "12")
+  - Blocks 1-2 go to column 1, block 3 to column 2 (Kajabi fills columns evenly)
+
+### Block Width
+- Width is "1" to "12" (Bootstrap grid) relative to the container/column
+- For 3 equal cards in a single-column section: each block width "4"
+- For full-width text: width "12"
 
 ## SECTION SETTINGS
 All sections use type: "section". Available settings:
-- background_color: hex color for section background (applied via .section__overlay)
 - padding_desktop: { top: number, bottom: number, left: number, right: number }
 - padding_mobile: { top: number, bottom: number, left: number, right: number }
 - vertical: "top" | "center" | "bottom" | "stretch" (row vertical alignment)
 - horizontal: "left" | "center" | "right" (row horizontal alignment)
-- full_width: true/false
-- full_height: true/false
+- columns: 1 | 2 (number of columns — use 2 for side-by-side layouts)
+- background_color: hex color (ONLY for intentionally dark/colored sections — see rules above)
 - bg_type: "color" | "image" | "video"
 - bg_image: URL for background image
 
@@ -285,16 +313,13 @@ All blocks go in section.blocks as { "block-id": { type, settings } } with secti
 ### cta block:
 { type: "cta", settings: { btn_text: "Button Label", btn_action: "#", btn_style: "solid", btn_size: "medium", btn_width: "auto", btn_background_color: "#hex", btn_text_color: "#hex", btn_border_radius: "4px" } }
 
-## RULES
+## ADDITIONAL RULES
 - Use EXACT TEXT from reference if visible
 - Use accurate hex colors from the design
 - Match vertical order of content precisely
-- Generate 15-25 operations for a full page
+- Generate 8-20 operations for a full page (fewer sections, more content per section)
 - Section type is ALWAYS "section" (never "hero", "text_column", etc.)
 - Do NOT include addCssOverride — handled separately
-- For dark backgrounds, set background_color in section settings
-- Use block width (col-1 to col-12) for layout columns
-- For multi-column layouts, use multiple blocks with width "4" or "6"
 - Feature blocks are for icon+text cards. Text blocks are for headings/paragraphs.
 - Include padding_desktop and padding_mobile in section settings
 
