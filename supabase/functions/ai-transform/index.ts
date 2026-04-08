@@ -331,8 +331,22 @@ CONTENT RULES:
 ID FORMAT: 13-digit numeric-only strings.
 FOOTER RULE: If this is a footer section, return {"operations":[],"cssOverrides":""}.${dedupWarning}`;
 
+  const itemsDetail = sectionToGenerate.items?.length
+    ? `\n\n## ITEMS TO INCLUDE (MANDATORY — use ALL of these, one block per item):\n${sectionToGenerate.items.map((item: any, i: number) => {
+        const parts = [`${i + 1}. "${item.title || item.heading || 'Untitled'}"`];
+        if (item.body) parts.push(`   Body: ${item.body}`);
+        if (item.price) parts.push(`   Price: ${item.price}`);
+        if (item.quote) parts.push(`   Quote: "${item.quote}"`);
+        if (item.author) parts.push(`   Author: ${item.author}`);
+        if (item.role) parts.push(`   Role: ${item.role}`);
+        if (item.meta) parts.push(`   Meta: ${item.meta}`);
+        return parts.join('\n');
+      }).join('\n')}\n\nYou MUST create one feature/card/text block per item above. Do NOT use placeholder text like "Card Title" or "Lorem ipsum".`
+    : '';
+
   const userPrompt = `## Source section to recreate
 ${JSON.stringify(sectionToGenerate, null, 2)}
+${itemsDetail}
 
 ## Source section content
 - Intent: ${intent}
@@ -340,7 +354,6 @@ ${JSON.stringify(sectionToGenerate, null, 2)}
 - Body: ${sectionToGenerate.body || "none"}
 - CTA: ${sectionToGenerate.ctaText || "none"} → ${sectionToGenerate.ctaUrl || "none"}
 - Items count: ${sectionToGenerate.items?.length || 0}
-${sectionToGenerate.items ? "- Items:\n" + JSON.stringify(sectionToGenerate.items, null, 2) : ""}
 
 ## Relevant source code
 ${sectionContext}
@@ -355,7 +368,8 @@ ${JSON.stringify({
 
 Create ONE addSection with type "section" and rich content blocks.
 Remember: section settings do NOT have heading/subheading/text fields. Put ALL content in blocks.
-Block text must be rich HTML. Use width for column layouts.`;
+Block text must be rich HTML. Use width for column layouts.
+CRITICAL: Use the ACTUAL text from the items list above. Never use generic placeholder text.`;
 
   const models = ["google/gemini-2.5-flash", "google/gemini-3-flash-preview"];
   let lastError = "";
