@@ -243,7 +243,8 @@ function extractHero(files: SourceProjectFiles): ExtractedDesign['hero'] | undef
     if (path.toLowerCase().includes('hero')) {
       const h1Match = content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
       const pMatch = content.match(/<p[^>]*>([\s\S]{10,}?)<\/p>/);
-      const btnMatch = content.match(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/);
+      // Extract all Button components
+      const btnMatches = [...content.matchAll(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/g)];
       
       const cleanJsx = (text: string) => text
         .replace(/<[^>]+>/g, '')
@@ -254,6 +255,18 @@ function extractHero(files: SourceProjectFiles): ExtractedDesign['hero'] | undef
       
       const heading = h1Match ? cleanJsx(h1Match[1]) : undefined;
       const subheading = pMatch ? cleanJsx(pMatch[1]) : undefined;
+
+      // Detect eyebrow text (small text above h1)
+      let eyebrow: string | undefined;
+      const eyebrowMatch = content.match(/<p[^>]*(?:tracking|uppercase|text-sm|text-xs)[^>]*>([^<]+)<\/p>\s*(?:<[^h]|[\s\S]*?)<h1/);
+      if (eyebrowMatch) eyebrow = cleanJsx(eyebrowMatch[1]);
+
+      // Detect inline emphasis (e.g. text-gradient, accent-colored span)
+      let emphasisWord: string | undefined;
+      if (h1Match) {
+        const spanMatch = h1Match[1].match(/<span[^>]*(?:text-gradient|text-accent|text-primary|accent)[^>]*>([^<]+)<\/span>/);
+        if (spanMatch) emphasisWord = cleanJsx(spanMatch[1]);
+      }
       
       // Look for hero background image reference
       const imgImportMatch = content.match(/import\s+\w+\s+from\s+["'](@\/assets\/[^"']+)["']/);
@@ -264,9 +277,13 @@ function extractHero(files: SourceProjectFiles): ExtractedDesign['hero'] | undef
         return {
           heading: heading || 'Welcome',
           subheading: subheading,
-          ctaText: btnMatch?.[1]?.trim(),
+          ctaText: btnMatches[0]?.[1]?.trim(),
           ctaUrl: '/',
+          secondaryCtaText: btnMatches[1]?.[1]?.trim(),
+          secondaryCtaUrl: btnMatches[1] ? '/' : undefined,
           backgroundImage: heroImageUrl,
+          eyebrow,
+          emphasisWord,
         };
       }
     }
@@ -274,16 +291,37 @@ function extractHero(files: SourceProjectFiles): ExtractedDesign['hero'] | undef
   
   // Fallback: check index page directly
   const indexPage = files.indexPage || files.pages['src/pages/Index.tsx'] || '';
-  const h1Match = indexPage.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
-  const pMatch = indexPage.match(/<p[^>]*>([\s\S]{10,}?)<\/p>/);
-  const btnMatch = indexPage.match(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/);
+
+  // Try inline hero section
+  const heroSectionMatch = indexPage.match(/\{\/\*\s*Hero\s*(?:Section)?\s*\*\/\}\s*<section[\s>]([\s\S]*?)<\/section>/);
+  const heroContent = heroSectionMatch?.[1] || indexPage;
+
+  const h1Match = heroContent.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
+  const pMatch = heroContent.match(/<p[^>]*>([\s\S]{10,}?)<\/p>/);
+  const btnMatches = [...heroContent.matchAll(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/g)];
   
   if (h1Match || pMatch) {
+    // Detect eyebrow
+    let eyebrow: string | undefined;
+    const eyebrowMatch = heroContent.match(/<span[^>]*(?:text-sm|text-xs)[^>]*>([^<]+)<\/span>\s*(?:[\s\S]*?)<h1/);
+    if (eyebrowMatch) eyebrow = cleanJsx(eyebrowMatch[1]);
+
+    // Detect emphasis
+    let emphasisWord: string | undefined;
+    if (h1Match) {
+      const spanMatch = h1Match[1].match(/<span[^>]*(?:text-gradient|accent)[^>]*>([^<]+)<\/span>/);
+      if (spanMatch) emphasisWord = cleanJsx(spanMatch[1]);
+    }
+
     return {
       heading: h1Match ? cleanJsx(h1Match[1]) : 'Welcome',
       subheading: pMatch ? cleanJsx(pMatch[1]) : undefined,
-      ctaText: btnMatch?.[1]?.trim(),
+      ctaText: btnMatches[0]?.[1]?.trim(),
       ctaUrl: '/',
+      secondaryCtaText: btnMatches[1]?.[1]?.trim(),
+      secondaryCtaUrl: btnMatches[1] ? '/' : undefined,
+      eyebrow,
+      emphasisWord,
     };
   }
   
