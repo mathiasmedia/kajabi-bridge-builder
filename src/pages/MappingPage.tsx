@@ -99,8 +99,8 @@ export default function MappingPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Source summary */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left column: Source + Validation + Warnings */}
           <div className="space-y-4">
             <Card>
               <CardHeader>
@@ -176,14 +176,12 @@ export default function MappingPage() {
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
                           <Wrench className="h-3 w-3" /> Auto-fixes ({exportValidation.autoFixes.length})
                         </p>
-                        <ScrollArea className="max-h-[120px]">
-                          {exportValidation.autoFixes.map((f, i) => (
-                            <div key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                              <Check className="h-3 w-3 mt-0.5 shrink-0 text-emerald-500" />
-                              <span>{f}</span>
-                            </div>
-                          ))}
-                        </ScrollArea>
+                        {exportValidation.autoFixes.map((f, i) => (
+                          <div key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                            <Check className="h-3 w-3 mt-0.5 shrink-0 text-emerald-500" />
+                            <span>{f}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </>
@@ -216,33 +214,33 @@ export default function MappingPage() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Preview */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Preview</CardTitle>
+              </CardHeader>
+              <CardContent className="p-2">
+                <ScrollArea className="h-[600px]">
+                  {extractedDesign && transformationPlan ? (
+                    <ThemePreview plan={transformationPlan} design={extractedDesign} />
+                  ) : (
+                    <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
+                      No preview available
+                    </div>
+                  )}
+                </ScrollArea>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Center: Live Preview */}
-          <Card className="lg:col-span-1">
-            <CardHeader>
-              <CardTitle className="text-base">Preview</CardTitle>
-            </CardHeader>
-            <CardContent className="p-2">
-              <ScrollArea className="h-[600px]">
-                {extractedDesign && transformationPlan ? (
-                  <ThemePreview plan={transformationPlan} design={extractedDesign} />
-                ) : (
-                  <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
-                    No preview available
-                  </div>
-                )}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
-          {/* Right: Operations — sequential, detailed */}
+          {/* Right column: Operations — full width, no truncation */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Operations ({changeSummary.length})</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <ScrollArea className="h-[600px]">
+              <ScrollArea className="h-[calc(100vh-200px)]">
                 <div className="p-3 space-y-1.5">
                   {changeSummary.map((item, i) => (
                     <OperationRow key={i} item={item} index={i} onRemove={removeOperation} />
