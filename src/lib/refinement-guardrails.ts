@@ -45,7 +45,7 @@ export function extractStyleIntents(design: ExtractedDesign): SectionStyleIntent
   }));
 }
 
-function inferColorIntent(s: ExtractedSection): ColorIntent {
+export function inferColorIntent(s: ExtractedSection): ColorIntent {
   const bg = (s.backgroundColor || '').toLowerCase();
   if (!bg) return 'unknown';
   // Dark heuristics
