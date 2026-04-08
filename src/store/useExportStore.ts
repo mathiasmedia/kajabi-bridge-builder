@@ -9,6 +9,7 @@ import { getRuleForIntent, validateMappingQuality, shouldGenerateSection } from 
 import { supabase } from '@/integrations/supabase/client';
 import type { SourceProjectSnapshot, IngestionWarning } from '@/lib/ingestion';
 import { snapshotToSourceFiles, validateSnapshot, BundledProjectAdapter } from '@/lib/ingestion';
+import { applyStreamlinedHomeRecipes } from '@/lib/theme-recipes/streamlined-home';
 
 interface ExportStore {
   // State
