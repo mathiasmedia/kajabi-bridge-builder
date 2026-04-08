@@ -278,132 +278,106 @@ export default function TemplatesPage() {
                   </CardContent>
                 </Card>
 
-                {/* Two-column: Preview + Tweaks */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {/* Visual Preview */}
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Theme Preview</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <LiveThemePreview
-                        key={`${selected.id}-${planVersion}`}
-                        plan={selected.plan_json}
-                      />
-                    </CardContent>
-                  </Card>
+                {/* Tweak bar */}
+                <Card>
+                  <CardContent className="pt-4 pb-3 space-y-3">
+                    {/* Critique issues */}
+                    {selectedCritique && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Score: {selectedCritique.score}/10</span>
+                          <Badge variant="outline" className="text-xs">{selectedCritique.issues?.length || 0} issues</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{selectedCritique.summary}</p>
 
-                  {/* Tweak Panel */}
-                  <Card className="flex flex-col">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Wrench className="h-4 w-4 text-primary" />
-                        Tweak & Refine
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-1 flex flex-col min-h-0">
-                      {/* Critique issues with Apply Fix buttons */}
-                      {selectedCritique && (
-                        <div className="mb-3 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">Score: {selectedCritique.score}/10</span>
-                            <Badge variant="outline" className="text-xs">{selectedCritique.issues?.length || 0} issues</Badge>
+                        {selectedCritique.issues?.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedCritique.issues.map((issue, i) => (
+                              <div key={i} className="text-xs border border-border rounded p-2 flex-1 min-w-[200px]">
+                                <div className="flex items-center justify-between gap-1 mb-1">
+                                  <Badge variant={issue.severity === 'critical' ? 'destructive' : 'outline'} className="text-[10px]">
+                                    {issue.severity}
+                                  </Badge>
+                                  {issue.fix && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-[10px] text-primary hover:text-primary"
+                                      onClick={() => applyTweak(selected, issue.fix)}
+                                      disabled={tweaking}
+                                    >
+                                      <Wrench className="h-3 w-3 mr-1" /> Apply Fix
+                                    </Button>
+                                  )}
+                                </div>
+                                <p className="text-muted-foreground">{issue.description}</p>
+                              </div>
+                            ))}
                           </div>
-                          <p className="text-xs text-muted-foreground">{selectedCritique.summary}</p>
+                        )}
 
-                          {selectedCritique.issues?.length > 0 && (
-                            <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
-                              {selectedCritique.issues.map((issue, i) => (
-                                <div key={i} className="text-xs border border-border rounded p-2">
-                                  <div className="flex items-center justify-between gap-1 mb-1">
-                                    <Badge variant={issue.severity === 'critical' ? 'destructive' : 'outline'} className="text-[10px]">
-                                      {issue.severity}
-                                    </Badge>
-                                    {issue.fix && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 px-2 text-[10px] text-primary hover:text-primary"
-                                        onClick={() => applyTweak(selected, issue.fix)}
-                                        disabled={tweaking}
-                                      >
-                                        <Wrench className="h-3 w-3 mr-1" /> Apply Fix
-                                      </Button>
-                                    )}
-                                  </div>
-                                  <p className="text-muted-foreground">{issue.description}</p>
-                                  {issue.fix && <p className="text-primary mt-0.5">Fix: {issue.fix}</p>}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {selectedCritique.improvements?.length > 0 && (
-                            <div className="mt-1">
-                              <p className="text-xs font-medium flex items-center gap-1 mb-1">
-                                <Lightbulb className="h-3 w-3 text-amber-300" /> Improvements
-                              </p>
-                              {selectedCritique.improvements.map((imp, i) => (
-                                <div key={i} className="flex items-center justify-between gap-1 text-xs text-muted-foreground">
-                                  <span>• {imp}</span>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-5 px-1.5 text-[10px] text-primary hover:text-primary shrink-0"
-                                    onClick={() => applyTweak(selected, imp)}
-                                    disabled={tweaking}
-                                  >
-                                    Apply
-                                  </Button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Tweak log */}
-                      <ScrollArea className="flex-1 min-h-[80px] max-h-[180px] mb-3">
-                        <div className="space-y-1.5">
-                          {selectedLog.map((entry, i) => (
-                            <div key={i} className="text-xs px-2 py-1.5 rounded bg-muted text-muted-foreground">
-                              {entry}
-                            </div>
-                          ))}
-                          {tweaking && (
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground px-2 py-1.5">
-                              <Loader2 className="h-3 w-3 animate-spin" /> Applying tweak...
-                            </div>
-                          )}
-                          {selectedLog.length === 0 && !tweaking && (
-                            <p className="text-xs text-muted-foreground py-4 text-center">
-                              {selectedCritique ? 'Click "Apply Fix" on issues above, or type a custom tweak below' : 'Run AI Critique first, or type a custom tweak below'}
-                            </p>
-                          )}
-                        </div>
-                      </ScrollArea>
-
-                      {/* Tweak input */}
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="e.g. 'Make all buttons use #2eb89a' or 'Fix testimonial widths'"
-                          value={tweakPrompt}
-                          onChange={e => setTweakPrompt(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleTweakSubmit(selected)}
-                          disabled={tweaking}
-                          className="text-sm"
-                        />
-                        <Button
-                          size="icon"
-                          onClick={() => handleTweakSubmit(selected)}
-                          disabled={!tweakPrompt.trim() || tweaking}
-                        >
-                          <Send className="h-4 w-4" />
-                        </Button>
+                        {selectedCritique.improvements?.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {selectedCritique.improvements.map((imp, i) => (
+                              <Button
+                                key={i}
+                                variant="outline"
+                                size="sm"
+                                className="h-6 text-[10px]"
+                                onClick={() => applyTweak(selected, imp)}
+                                disabled={tweaking}
+                              >
+                                <Lightbulb className="h-3 w-3 mr-1 text-amber-500" /> {imp.slice(0, 50)}{imp.length > 50 ? '…' : ''}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                    )}
+
+                    {/* Tweak log (compact) */}
+                    {selectedLog.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedLog.slice(-3).map((entry, i) => (
+                          <span key={i} className="text-[10px] px-2 py-1 rounded bg-muted text-muted-foreground">
+                            {entry}
+                          </span>
+                        ))}
+                        {tweaking && (
+                          <span className="flex items-center gap-1 text-[10px] px-2 py-1 text-muted-foreground">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Applying…
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Tweak input */}
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="e.g. 'Make all buttons use #2eb89a' or 'Fix testimonial widths'"
+                        value={tweakPrompt}
+                        onChange={e => setTweakPrompt(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleTweakSubmit(selected)}
+                        disabled={tweaking}
+                        className="text-sm"
+                      />
+                      <Button
+                        size="icon"
+                        onClick={() => handleTweakSubmit(selected)}
+                        disabled={!tweakPrompt.trim() || tweaking}
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Full-width preview */}
+                <LiveThemePreview
+                  key={`${selected.id}-${planVersion}`}
+                  plan={selected.plan_json}
+                  className="rounded-lg border overflow-hidden"
+                />
               </div>
             ) : (
               <Card>
