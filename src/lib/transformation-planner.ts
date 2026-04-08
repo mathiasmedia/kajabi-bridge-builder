@@ -92,6 +92,10 @@ export function buildTransformationPlan(
     }
   }
 
+  // ── Dynamic site analysis ──
+  const siteIsDark = detectDarkSite(extracted);
+  const darkCardBg = siteIsDark ? darkenHex(bgColor ? toHex(bgColor.value) : '#0b1214', 0.15) : '#FFFFFF';
+
   // ── 7. Map sections ──
   const validSectionIds = contentFor.filter(id => id && sections[id]);
 
@@ -100,15 +104,17 @@ export function buildTransformationPlan(
     const heroId = validSectionIds[0];
     const heroSection = sections[heroId];
     
-    operations.push({ type: 'updateSectionSetting', sectionId: heroId, key: 'background_color', value: 'RGBA(11, 18, 20, 0.65)', label: 'Hero overlay' });
+    // Use lighter overlay — gradient will be applied via CSS
+    operations.push({ type: 'updateSectionSetting', sectionId: heroId, key: 'background_color', value: 'RGBA(11, 18, 20, 0.35)', label: 'Hero overlay (light, gradient via CSS)' });
     operations.push({ type: 'updateSectionSetting', sectionId: heroId, key: 'bg_type', value: 'color', label: 'Hero bg type' });
     operations.push({ type: 'updateSectionSetting', sectionId: heroId, key: 'full_height', value: 'true', label: 'Hero full height' });
-    operations.push({ type: 'updateSectionSetting', sectionId: heroId, key: 'padding_desktop', value: { top: '120', bottom: '120' }, label: 'Hero padding desktop' });
-    operations.push({ type: 'updateSectionSetting', sectionId: heroId, key: 'padding_mobile', value: { top: '80', bottom: '80' }, label: 'Hero padding mobile' });
+    // Increased padding for taller hero
+    operations.push({ type: 'updateSectionSetting', sectionId: heroId, key: 'padding_desktop', value: { top: '160', bottom: '160' }, label: 'Hero padding desktop' });
+    operations.push({ type: 'updateSectionSetting', sectionId: heroId, key: 'padding_mobile', value: { top: '100', bottom: '100' }, label: 'Hero padding mobile' });
     
     const textBlock = findBlock(heroSection, 'text');
     if (textBlock) {
-      const heroHtml = buildHeroHtml(extracted);
+      const heroHtml = buildHeroHtml(extracted, primaryColor ? toHex(primaryColor.value) : '#2eb89a');
       operations.push({ type: 'replaceText', sectionId: heroId, blockId: textBlock.id, key: 'text', value: heroHtml, label: 'Hero content' });
       operations.push({ type: 'updateBlockSetting', sectionId: heroId, blockId: textBlock.id, key: 'text_align', value: 'center', label: 'Hero text align' });
       operations.push({ type: 'updateBlockSetting', sectionId: heroId, blockId: textBlock.id, key: 'width', value: '8', label: 'Hero text width' });
@@ -116,72 +122,164 @@ export function buildTransformationPlan(
     
     const ctaBlock = findBlock(heroSection, 'cta');
     if (ctaBlock) {
-      operations.push({ type: 'updateBlockSetting', sectionId: heroId, blockId: ctaBlock.id, key: 'btn_text', value: 'Book Your First Dive', label: 'Hero CTA text' });
-      operations.push({ type: 'updateBlockSetting', sectionId: heroId, blockId: ctaBlock.id, key: 'btn_action', value: '#', label: 'Hero CTA link' });
+      const heroCta = extracted.hero.ctaText || 'Book Your First Dive';
+      const heroCtaUrl = extracted.hero.ctaUrl || '#';
+      operations.push({ type: 'updateBlockSetting', sectionId: heroId, blockId: ctaBlock.id, key: 'btn_text', value: heroCta, label: 'Hero CTA text' });
+      operations.push({ type: 'updateBlockSetting', sectionId: heroId, blockId: ctaBlock.id, key: 'btn_action', value: heroCtaUrl, label: 'Hero CTA link' });
+      // Ensure button uses primary/accent color
+      if (primaryColor) {
+        operations.push({ type: 'updateBlockSetting', sectionId: heroId, blockId: ctaBlock.id, key: 'btn_background_color', value: toHex(primaryColor.value), label: 'Hero CTA bg color' });
+      }
     }
   }
 
-  // Map stats into the 3-feature-columns section
+  // Map stats — dynamically pull from extracted sections
+  const statsSection = extracted.sections.find(s => s.intent === 'stats');
   if (validSectionIds.length > 1) {
     const featuresId = validSectionIds[1];
     const featureSection = sections[featuresId];
     const featureBlocks = getBlocksInOrder(featureSection);
+    const statPrimaryHex = primaryColor ? toHex(primaryColor.value) : '#2eb89a';
     
     operations.push({ type: 'updateSectionSetting', sectionId: featuresId, key: 'background_color', value: '#0b1214', label: 'Stats bg' });
     operations.push({ type: 'updateSectionSetting', sectionId: featuresId, key: 'padding_desktop', value: { top: '80', bottom: '80' }, label: 'Stats padding' });
     operations.push({ type: 'updateSectionSetting', sectionId: featuresId, key: 'padding_mobile', value: { top: '48', bottom: '48' }, label: 'Stats padding mobile' });
     
-    const statsContent = [
-      { title: '2,400+', subtitle: 'Graduates', body: 'Certified divers and weavers from around the world.' },
-      { title: '27', subtitle: 'Years Teaching', body: 'The original and most experienced underwater basketweaving school.' },
-      { title: '12', subtitle: 'Reef Locations', body: 'From Bali to the Maldives — pristine reefs, expert instructors.' },
-    ];
+    // Dynamic stats from extracted data (fallback to hardcoded if not available)
+    const statsItems = statsSection?.items || [];
+    const statsContent = statsItems.length > 0
+      ? statsItems.map(item => ({
+          title: item.value || item.heading || '',
+          subtitle: item.heading || item.body?.split('.')[0] || '',
+          body: item.body || '',
+        }))
+      : [
+          { title: '2,400+', subtitle: 'Graduates', body: 'Certified divers and weavers from around the world.' },
+          { title: '27', subtitle: 'Years Teaching', body: 'The original and most experienced underwater basketweaving school.' },
+          { title: '12', subtitle: 'Reef Locations', body: 'From Bali to the Maldives — pristine reefs, expert instructors.' },
+          { title: '98%', subtitle: 'Would Dive Again', body: 'Our students keep coming back for the craft and the community.' },
+        ];
     
-    featureBlocks.forEach((block, i) => {
-      if (i < statsContent.length) {
-        const html = `<h3 class="stat-number">${statsContent[i].title}</h3>\n<h4 class="stat-label">${statsContent[i].subtitle}</h4>\n<p class="stat-desc">${statsContent[i].body}</p>`;
-        operations.push({ type: 'replaceText', sectionId: featuresId, blockId: block.id, key: 'text', value: html, label: `Stat ${i + 1} text` });
-        operations.push({ type: 'updateBlockSetting', sectionId: featuresId, blockId: block.id, key: 'hide_image', value: 'true', label: `Stat ${i + 1} hide image` });
-        operations.push({ type: 'updateBlockSetting', sectionId: featuresId, blockId: block.id, key: 'text_align', value: 'center', label: `Stat ${i + 1} align` });
+    // Render all stats (not just 3) — use inline styles so colors survive Kajabi rendering
+    statsContent.forEach((stat, i) => {
+      if (i < featureBlocks.length) {
+        const html = `<h3 style="color:${statPrimaryHex}; font-size:48px; font-weight:700; line-height:1.1; margin-bottom:4px">${stat.title}</h3>\n<h4 style="font-size:16px; font-weight:600; margin-bottom:8px">${stat.subtitle}</h4>\n<p style="font-size:14px; line-height:1.5">${stat.body}</p>`;
+        operations.push({ type: 'replaceText', sectionId: featuresId, blockId: featureBlocks[i].id, key: 'text', value: html, label: `Stat ${i + 1} text` });
+        operations.push({ type: 'updateBlockSetting', sectionId: featuresId, blockId: featureBlocks[i].id, key: 'hide_image', value: 'true', label: `Stat ${i + 1} hide image` });
+        operations.push({ type: 'updateBlockSetting', sectionId: featuresId, blockId: featureBlocks[i].id, key: 'text_align', value: 'center', label: `Stat ${i + 1} align` });
+      } else {
+        // Need to add extra stat blocks beyond what exists in the base theme
+        const blockId = `stat_extra_${i}`;
+        const html = `<h3 style="color:${statPrimaryHex}; font-size:48px; font-weight:700; line-height:1.1; margin-bottom:4px">${stat.title}</h3>\n<h4 style="font-size:16px; font-weight:600; margin-bottom:8px">${stat.subtitle}</h4>\n<p style="font-size:14px; line-height:1.5">${stat.body}</p>`;
+        operations.push({
+          type: 'addBlock',
+          sectionId: featuresId,
+          blockId,
+          block: {
+            type: 'feature',
+            settings: {
+              text: html,
+              hide_image: 'true',
+              text_align: 'center',
+              width: String(Math.floor(12 / statsContent.length)),
+            },
+          },
+          label: `Stat ${i + 1}: ${stat.subtitle}`,
+        });
       }
     });
   }
 
-  // Map courses into the first Text & Image section
+  // Map programs — proper section with eyebrow heading + feature card blocks
+  const programSection = extracted.sections.find(s => s.intent === 'program_cards');
   if (validSectionIds.length > 2) {
     const sectionId = validSectionIds[2];
     const section = sections[sectionId];
+    const accentHexLocal = accentColor ? toHex(accentColor.value) : (primaryColor ? toHex(primaryColor.value) : '#2eb89a');
+
+    operations.push({ type: 'updateSectionSetting', sectionId, key: 'background_color', value: '#0b1214', label: 'Programs bg' });
+    operations.push({ type: 'updateSectionSetting', sectionId, key: 'padding_desktop', value: { top: '96', bottom: '96' }, label: 'Programs padding' });
+    operations.push({ type: 'updateSectionSetting', sectionId, key: 'padding_mobile', value: { top: '64', bottom: '64' }, label: 'Programs padding mobile' });
+
+    // Build eyebrow + heading with inline accent color styles
     const textBlock = findBlock(section, 'text');
+    const eyebrowText = programSection?.heading ? 'OUR PROGRAMS' : 'OUR PROGRAMS';
+    const headingText = programSection?.heading || 'Choose Your Depth';
+    const descText = programSection?.body || 'From shallow-water fundamentals to deep-sea mastery — every course includes equipment, materials, and marine biologist supervision.';
+
     if (textBlock) {
-      const coursesHtml = `<p class="section-eyebrow">OUR PROGRAMS</p>\n<h2>Choose Your Depth</h2>\n<p>From shallow-water fundamentals to deep-sea mastery — every course includes equipment, materials, and marine biologist supervision.</p>\n<div class="course-list"><p><strong>Beginner Weave</strong> · 2 Days · <span class="price">$349</span></p>\n<p><strong>Advanced Patterns</strong> · 5 Days · <span class="price">$899</span></p>\n<p><strong>Master Artisan</strong> · 2 Weeks · <span class="price">$2,400</span></p></div>`;
-      operations.push({ type: 'replaceText', sectionId, blockId: textBlock.id, key: 'text', value: coursesHtml, label: 'Courses section text' });
+      // Narrower heading block (~8 cols) with eyebrow using inline styles
+      const headingHtml = `<p style="color:${accentHexLocal}; font-size:12px; letter-spacing:0.25em; text-transform:uppercase; font-weight:500; margin-bottom:12px">${eyebrowText}</p>\n<h2>${headingText}</h2>\n<p>${descText}</p>`;
+      operations.push({ type: 'replaceText', sectionId, blockId: textBlock.id, key: 'text', value: headingHtml, label: 'Programs heading text' });
+      // Narrower width so description doesn't stretch full-width
+      operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'width', value: '8', label: 'Programs heading width' });
+      operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'text_align', value: 'center', label: 'Programs heading align' });
     }
-    operations.push({ type: 'updateSectionSetting', sectionId, key: 'background_color', value: '#0b1214', label: 'Courses bg' });
-    operations.push({ type: 'updateSectionSetting', sectionId, key: 'padding_desktop', value: { top: '96', bottom: '96' }, label: 'Courses padding' });
-    operations.push({ type: 'updateSectionSetting', sectionId, key: 'padding_mobile', value: { top: '64', bottom: '64' }, label: 'Courses padding mobile' });
     
     // Hide the image block placeholder
     const imageBlock = findBlock(section, 'image');
     if (imageBlock) {
-      operations.push({ type: 'updateBlockSetting', sectionId, blockId: imageBlock.id, key: 'hide_on_desktop', value: 'true', label: 'Hide courses image' });
-      operations.push({ type: 'updateBlockSetting', sectionId, blockId: imageBlock.id, key: 'hide_on_mobile', value: 'true', label: 'Hide courses image mobile' });
+      operations.push({ type: 'updateBlockSetting', sectionId, blockId: imageBlock.id, key: 'hide_on_desktop', value: 'true', label: 'Hide programs image' });
+      operations.push({ type: 'updateBlockSetting', sectionId, blockId: imageBlock.id, key: 'hide_on_mobile', value: 'true', label: 'Hide programs image mobile' });
     }
+
+    // Add feature blocks for each program card with dark card shells
+    const programItems = programSection?.items || [
+      { heading: 'Beginner Weave', body: '2 Days', price: '$349' },
+      { heading: 'Advanced Patterns', body: '5 Days', price: '$899' },
+      { heading: 'Master Artisan', body: '2 Weeks', price: '$2,400' },
+    ];
+
+    programItems.forEach((item, i) => {
+      const blockId = `program_card_${i}`;
+      let cardHtml = `<h4>${item.heading || `Program ${i + 1}`}</h4>`;
+      if (item.body) cardHtml += `\n<p>${item.body}</p>`;
+      if (item.price) cardHtml += `\n<p><strong style="font-size:24px; color:${accentHexLocal}">${item.price}</strong></p>`;
+      if (item.ctaText) cardHtml += `\n<p><a href="${item.ctaUrl || '#'}" style="color:${accentHexLocal}">${item.ctaText}</a></p>`;
+
+      operations.push({
+        type: 'addBlock',
+        sectionId,
+        blockId,
+        block: {
+          type: 'feature',
+          settings: {
+            text: cardHtml,
+            hide_image: programSection?.hasImages ? 'false' : 'true',
+            image_width: '1000',
+            text_align: 'center',
+            width: '4',
+            background_color: darkCardBg,
+            border_radius: '12',
+            box_shadow: siteIsDark ? 'none' : 'medium',
+            use_btn: 'false',
+            padding_desktop: { top: '24', right: '24', bottom: '24', left: '24' },
+            padding_mobile: { top: '20', right: '20', bottom: '20', left: '20' },
+          },
+        },
+        label: `Program card: ${item.heading || `Program ${i + 1}`}`,
+      });
+    });
   }
 
   // Map testimonials — use a dedicated section with feature blocks (one per testimonial)
+  const testimonialSection = extracted.sections.find(s => s.intent === 'testimonial_band');
   if (validSectionIds.length > 3) {
     const sectionId = validSectionIds[3];
     const section = sections[sectionId];
+    const accentHexLocal = accentColor ? toHex(accentColor.value) : (primaryColor ? toHex(primaryColor.value) : '#2eb89a');
 
     // Section-level settings
     operations.push({ type: 'updateSectionSetting', sectionId, key: 'background_color', value: '#0b1214', label: 'Testimonials bg' });
     operations.push({ type: 'updateSectionSetting', sectionId, key: 'padding_desktop', value: { top: '96', bottom: '96' }, label: 'Testimonials padding' });
     operations.push({ type: 'updateSectionSetting', sectionId, key: 'padding_mobile', value: { top: '64', bottom: '64' }, label: 'Testimonials padding mobile' });
 
-    // Add a heading text block first
+    // Add a heading text block with eyebrow using inline accent styles
     const textBlock = findBlock(section, 'text');
     if (textBlock) {
-      const headingHtml = `<p class="section-eyebrow">TESTIMONIALS</p>\n<h2>What Our Divers Say</h2>`;
+      const eyebrowLabel = testimonialSection?.heading ? 'TESTIMONIALS' : 'TESTIMONIALS';
+      const headingLabel = testimonialSection?.heading || 'What Our Divers Say';
+      const headingHtml = `<p style="color:${accentHexLocal}; font-size:12px; letter-spacing:0.25em; text-transform:uppercase; font-weight:500; margin-bottom:12px">${eyebrowLabel}</p>\n<h2>${headingLabel}</h2>`;
       operations.push({ type: 'replaceText', sectionId, blockId: textBlock.id, key: 'text', value: headingHtml, label: 'Testimonials heading' });
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'width', value: '12', label: 'Testimonials heading width' });
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'text_align', value: 'center', label: 'Testimonials heading align' });
@@ -194,16 +292,16 @@ export function buildTransformationPlan(
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: imageBlock.id, key: 'hide_on_mobile', value: 'true', label: 'Hide testimonial image mobile' });
     }
 
-    // Add 3 feature blocks — one per testimonial, using the correct Kajabi feature block schema
-    const testimonials = [
+    // Dynamic testimonials from extracted data (fallback to hardcoded)
+    const testimonialItems = testimonialSection?.items || [
       { name: 'Jordan Reed', role: 'Master Artisan Graduate, 2024', quote: '"I never thought I\'d find my calling at 40 feet below sea level. Now I sell my baskets at galleries in Maui."' },
       { name: 'Priya Nair', role: 'Beginner Weave, Bali Campus', quote: '"The instructors are incredibly patient — even when a curious sea turtle unraveled my entire second basket."' },
       { name: 'Marcus Holm', role: 'Advanced Patterns, Maldives', quote: '"Worth every penny. The bioluminescent night-weave session alone changed my entire perspective on craft."' },
     ];
 
-    testimonials.forEach((t, i) => {
+    testimonialItems.forEach((t, i) => {
       const blockId = `testimonial_feature_${i}`;
-      const featureText = `<p>${t.quote}</p>\n<h4>${t.name}</h4>\n<p>${t.role}</p>`;
+      const featureText = `<p>${t.quote || ''}</p>\n<h4>${t.name || ''}</h4>\n<p>${t.role || ''}</p>`;
       operations.push({
         type: 'addBlock',
         sectionId,
@@ -215,37 +313,50 @@ export function buildTransformationPlan(
             hide_image: 'true',
             text_align: 'center',
             width: '4',
-            background_color: '#111a1e',
+            background_color: darkCardBg,
             border_radius: '12',
-            box_shadow: 'none',
+            box_shadow: siteIsDark ? 'none' : 'medium',
             use_btn: 'false',
             padding_desktop: { top: '30', right: '30', bottom: '30', left: '30' },
             padding_mobile: { top: '20', right: '20', bottom: '20', left: '20' },
           },
         },
-        label: `Testimonial: ${t.name}`,
+        label: `Testimonial: ${t.name || `Testimonial ${i + 1}`}`,
       });
     });
   }
 
-  // Map CTA section
+  // Map CTA section — narrower width, correct button color, darker bg
   if (validSectionIds.length > 4) {
     const sectionId = validSectionIds[4];
     const section = sections[sectionId];
+    const ctaSectionBg = siteIsDark ? darkCardBg : '#0b1214';
     
-    operations.push({ type: 'updateSectionSetting', sectionId, key: 'background_color', value: '#0b1214', label: 'CTA bg' });
+    operations.push({ type: 'updateSectionSetting', sectionId, key: 'background_color', value: '#0b1214', label: 'CTA section bg' });
     operations.push({ type: 'updateSectionSetting', sectionId, key: 'padding_desktop', value: { top: '96', bottom: '96' }, label: 'CTA padding' });
     operations.push({ type: 'updateSectionSetting', sectionId, key: 'padding_mobile', value: { top: '64', bottom: '64' }, label: 'CTA padding mobile' });
     
+    const ctaHeading = extracted.sections.find(s => s.intent === 'cta_band')?.heading || 'Ready to Take the Plunge?';
+    const ctaBody = extracted.sections.find(s => s.intent === 'cta_band')?.body || 'Next cohort starts June 15th in Bali. Limited to 8 students per instructor for personalized, one-on-one reef time.';
+
     const textBlock = findBlock(section, 'text');
     if (textBlock) {
-      const ctaHtml = `<div class="cta-card">\n<h2>Ready to Take the Plunge?</h2>\n<p>Next cohort starts June 15th in Bali. Limited to 8 students per instructor for personalized, one-on-one reef time.</p>\n</div>`;
+      // CTA card with darker bg than the section
+      const ctaCardBg = siteIsDark ? darkCardBg : 'rgba(255,255,255,0.04)';
+      const ctaHtml = `<div style="background:${ctaCardBg}; border:1px solid rgba(255,255,255,0.08); border-radius:24px; padding:64px 48px; max-width:640px; margin:0 auto 24px">\n<h2>${ctaHeading}</h2>\n<p>${ctaBody}</p>\n</div>`;
       operations.push({ type: 'replaceText', sectionId, blockId: textBlock.id, key: 'text', value: ctaHtml, label: 'CTA text' });
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'text_align', value: 'center', label: 'CTA text align' });
+      // Narrower block width (6-7 instead of 12)
+      operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'width', value: '7', label: 'CTA block width' });
     }
     const ctaBlock = findBlock(section, 'cta');
     if (ctaBlock) {
-      operations.push({ type: 'updateBlockSetting', sectionId, blockId: ctaBlock.id, key: 'btn_text', value: 'Reserve Your Spot', label: 'CTA button text' });
+      const ctaBtnText = extracted.sections.find(s => s.intent === 'cta_band')?.ctaText || 'Reserve Your Spot';
+      operations.push({ type: 'updateBlockSetting', sectionId, blockId: ctaBlock.id, key: 'btn_text', value: ctaBtnText, label: 'CTA button text' });
+      // Force correct button color
+      if (primaryColor) {
+        operations.push({ type: 'updateBlockSetting', sectionId, blockId: ctaBlock.id, key: 'btn_background_color', value: toHex(primaryColor.value), label: 'CTA button bg color' });
+      }
     }
   }
 
@@ -275,6 +386,12 @@ h1, h2, h3, h4, h5, h6 { font-family: '${extracted.headingFont}', 'Playfair Disp
 [style*="background-color: #f9"], [style*="background-color: rgb(249"],
 [style*="background: rgb(255"], [style*="background: #fff"],
 [style*="background-color: white"] { background-color: ${bgHex} !important; }
+
+/* ── Hero gradient overlay — lighter at top, heavier at bottom ── */
+.section--hero .section__overlay,
+.section:first-of-type .section__overlay {
+  background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(11,18,20,0.65) 100%) !important;
+}
 
 /* ── Links & Buttons ── */
 a { color: ${primaryHex} !important; text-decoration: none !important; }
@@ -318,7 +435,11 @@ a:hover { opacity: 0.85 !important; }
 .hero-eyebrow { color: ${primaryHex} !important; font-size: 13px !important; letter-spacing: 0.3em !important; text-transform: uppercase !important; font-weight: 500 !important; margin-bottom: 20px !important; display: block !important; }
 .hero-description { color: ${bodyTextHex} !important; font-size: 18px !important; line-height: 1.7 !important; max-width: 560px !important; margin: 0 auto 32px !important; }
 
-/* ── Stats Section ── */
+/* ── Stats Section — borders top & bottom ── */
+.section:nth-of-type(2) {
+  border-top: 1px solid rgba(255,255,255,0.08) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+}
 .stat-number { color: ${primaryHex} !important; font-size: 48px !important; font-weight: 700 !important; margin-bottom: 4px !important; line-height: 1.1 !important; }
 .stat-label { color: ${fgHex} !important; font-size: 16px !important; font-weight: 600 !important; margin-bottom: 8px !important; font-family: '${extracted.bodyFont}', sans-serif !important; }
 .stat-desc { color: ${bodyTextHex} !important; font-size: 14px !important; line-height: 1.5 !important; }
@@ -344,7 +465,7 @@ a:hover { opacity: 0.85 !important; }
 .testimonial-author { color: ${fgHex} !important; font-size: 15px !important; margin-bottom: 2px !important; }
 .testimonial-role { color: ${bodyTextHex} !important; font-size: 13px !important; opacity: 0.7 !important; }
 
-/* ── CTA Section ── */
+/* ── CTA Section — ensure button uses accent/primary color ── */
 .cta-card {
   background: rgba(255,255,255,0.04) !important;
   border: 1px solid rgba(255,255,255,0.08) !important;
@@ -356,6 +477,10 @@ a:hover { opacity: 0.85 !important; }
 @media (max-width: 768px) { .cta-card { padding: 40px 24px !important; } }
 .cta-card h2 { margin-bottom: 16px !important; }
 .cta-card p { color: ${bodyTextHex} !important; max-width: 480px !important; margin: 0 auto !important; }
+.cta-card + .btn, .cta-card ~ .btn {
+  background-color: ${primaryHex} !important;
+  color: ${bgHex} !important;
+}
 
 /* ── Footer ── */
 .footer, .footer__inner { background-color: ${bgHex} !important; border-top: 1px solid rgba(255,255,255,0.06) !important; }
@@ -417,23 +542,35 @@ function getBlocksInOrder(section: any): Array<{ id: string; type: string; setti
   return order.map((id: string) => ({ id, type: blocks[id]?.type, settings: blocks[id]?.settings || {} })).filter((b: any) => b.type);
 }
 
-function buildHeroHtml(extracted: ExtractedDesign): string {
+function buildHeroHtml(extracted: ExtractedDesign, accentHex: string): string {
     const hero = extracted.hero!;
     let html = '';
-    if (hero.subheading) {
-      html += `<p class="hero-eyebrow">${hero.subheading}</p>\n`;
+    if (hero.eyebrow || hero.subheading) {
+      const eyebrowText = hero.eyebrow || hero.subheading || '';
+      html += `<p class="hero-eyebrow" style="color:${accentHex}; font-size:13px; letter-spacing:0.3em; text-transform:uppercase; font-weight:500">${eyebrowText}</p>\n`;
     }
     if (hero.heading) {
-      html += `<h1>${hero.heading}</h1>\n`;
+      // If emphasisWord is set, wrap that word in a styled span (italic serif)
+      if (hero.emphasisWord) {
+        const emphasized = hero.heading.replace(
+          new RegExp(`(${hero.emphasisWord})`, 'i'),
+          `<span style="font-style:italic; font-family:'Playfair Display',Georgia,serif; color:${accentHex}">$1</span>`
+        );
+        html += `<h1>${emphasized}</h1>\n`;
+      } else {
+        html += `<h1>${hero.heading}</h1>\n`;
+      }
     }
     // Add the description from source
-    html += `<p class="hero-description">Dive deep into the world's most exclusive craft. Certified instructors, pristine reefs, and the finest seagrass materials — all 30 feet below the surface.</p>`;
+    const descText = hero.subheading && hero.eyebrow
+      ? hero.subheading
+      : "Dive deep into the world's most exclusive craft. Certified instructors, pristine reefs, and the finest seagrass materials — all 30 feet below the surface.";
+    html += `<p class="hero-description" style="font-size:18px; line-height:1.7; max-width:560px; margin:0 auto 32px">${descText}</p>`;
     return html;
   }
 
 function isDarkColor(color: string): boolean {
   if (!color) return false;
-  // Simple heuristic
   if (color.includes('RGBA') || color.includes('rgba')) {
     const match = color.match(/(\d+),\s*(\d+),\s*(\d+)/);
     if (match) {
@@ -449,4 +586,31 @@ function isDarkColor(color: string): boolean {
     return (r + g + b) / 3 < 128;
   }
   return false;
+}
+
+/**
+ * Detect whether the source site is dark-themed (bg luminance < 30%).
+ * Used to dynamically choose dark card shells, shadow styles, etc.
+ */
+function detectDarkSite(extracted: ExtractedDesign): boolean {
+  const bgColor = extracted.colors.find(c => c.usage === 'background');
+  if (!bgColor) return false;
+  const hex = bgColor.value.startsWith('#') ? bgColor.value : hslToHex(bgColor.value);
+  return isDarkColor(hex);
+}
+
+/**
+ * Darken a hex color by a factor (0-1). factor=0.15 means 15% lighter than source bg.
+ * Used to create card shells that are slightly lighter than the page bg on dark sites.
+ */
+function darkenHex(hex: string, lightenFactor: number): string {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  // Lighten slightly for card shells on dark backgrounds
+  const lr = Math.min(255, Math.round(r + (255 - r) * lightenFactor));
+  const lg = Math.min(255, Math.round(g + (255 - g) * lightenFactor));
+  const lb = Math.min(255, Math.round(b + (255 - b) * lightenFactor));
+  return `#${lr.toString(16).padStart(2, '0')}${lg.toString(16).padStart(2, '0')}${lb.toString(16).padStart(2, '0')}`;
 }

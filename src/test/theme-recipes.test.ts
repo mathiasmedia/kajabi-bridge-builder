@@ -147,7 +147,7 @@ describe('streamlined-home recipes', () => {
       expect(addOp.section.blocks.t1.settings.box_shadow).toBe('large');
       expect(addOp.section.blocks.t1.settings.border_radius).toBe('16');
       expect(addOp.section.blocks.t1.settings.padding_desktop).toBeDefined();
-      expect(addOp.section.blocks.t1.settings.width).toBe('8');
+      expect(addOp.section.blocks.t1.settings.width).toBe('7');
     });
   });
 
