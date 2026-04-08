@@ -467,6 +467,8 @@ export const useExportStore = create<ExportStore>((set, get) => ({
   reset: () => set({
     currentProject: null,
     sourceFiles: null,
+    sourceSnapshot: null,
+    ingestionWarnings: [],
     extractedDesign: null,
     extractionWarnings: [],
     baseTheme: null,

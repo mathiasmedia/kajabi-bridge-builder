@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useExportStore } from '@/store/useExportStore';
-import { getProjectBundle, hasProjectBundle } from '@/lib/project-bundles';
+import { hasProjectBundle } from '@/lib/project-bundles';
 import type { ExportProject } from '@/types';
 import AppHeader from '@/components/AppHeader';
 
@@ -19,7 +19,7 @@ const BASE_THEMES = [
 
 export default function NewExportPage() {
   const navigate = useNavigate();
-  const { workspaceProjects, createExportProject, loadBaseTheme, setSourceFiles } = useExportStore();
+  const { workspaceProjects, createExportProject, loadBaseTheme, ingestProject } = useExportStore();
   
   const [projectName, setProjectName] = useState('');
   const [selectedSource, setSelectedSource] = useState('');
@@ -52,12 +52,13 @@ export default function NewExportPage() {
       await loadBaseTheme(theme.file);
     }
 
-    // Load source project files and extract design
-    const bundle = getProjectBundle(selectedSource);
-    if (bundle) {
-      setSourceFiles(bundle.files);
-      // Run extraction
-      useExportStore.getState().extractDesign();
+    // Ingest source project through the ingestion layer
+    await ingestProject({ projectId: selectedSource, page });
+
+    // Run extraction if ingestion succeeded
+    const store = useExportStore.getState();
+    if (store.sourceFiles && !store.error) {
+      store.extractDesign();
     }
 
     navigate('/extract');
