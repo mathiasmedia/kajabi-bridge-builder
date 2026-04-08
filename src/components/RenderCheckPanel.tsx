@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Eye, Loader2, CheckCircle2, XCircle, AlertTriangle, Info, ChevronDown, ChevronUp, Wrench, Zap, RotateCcw, ExternalLink } from 'lucide-react';
+import { Eye, Loader2, CheckCircle2, XCircle, AlertTriangle, Info, ChevronDown, ChevronUp, Wrench, Zap, RotateCcw, ExternalLink, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +31,7 @@ export default function RenderCheckPanel() {
     renderCheckResult, isRenderChecking, runRenderCheck,
     transformationPlan, refinementResult, previousScore,
     generateRefinements, applyRefinement, applyAllSafeRefinements,
+    regressionReport,
   } = useExportStore();
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
@@ -75,6 +76,8 @@ export default function RenderCheckPanel() {
   const otherSuggestions = refinementResult?.suggestions.filter(
     s => s.strategy !== 'apply_deterministic_fix'
   ) || [];
+
+  const rejectedCount = refinementResult?.rejected?.length || 0;
 
   return (
     <Card>
@@ -123,6 +126,31 @@ export default function RenderCheckPanel() {
             </div>
             <p className="text-xs text-muted-foreground">{result.error}</p>
             <Button size="sm" variant="outline" onClick={runRenderCheck}>Retry</Button>
+          </div>
+        )}
+
+        {/* Regression Report */}
+        {regressionReport && regressionReport.regressions.length > 0 && (
+          <div className="rounded border p-2 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs font-medium">
+              {regressionReport.hasCritical ? (
+                <ShieldAlert className="h-3.5 w-3.5 text-destructive" />
+              ) : (
+                <ShieldCheck className="h-3.5 w-3.5 text-amber-500" />
+              )}
+              {regressionReport.hasCritical
+                ? 'Refinements rolled back — critical regressions detected'
+                : 'Regression warnings'}
+            </div>
+            {regressionReport.regressions.map((r, i) => (
+              <div key={i} className="flex items-start gap-1.5 text-[11px]">
+                {r.severity === 'critical'
+                  ? <XCircle className="h-3 w-3 shrink-0 text-destructive mt-0.5" />
+                  : <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500 mt-0.5" />
+                }
+                <span className="break-words text-muted-foreground">{r.message}</span>
+              </div>
+            ))}
           </div>
         )}
 
@@ -194,6 +222,11 @@ export default function RenderCheckPanel() {
                     <p className="flex items-center gap-1.5 text-xs font-medium">
                       <Wrench className="h-3.5 w-3.5" />
                       Refinement Suggestions ({refinementResult.suggestions.length})
+                      {rejectedCount > 0 && (
+                        <Badge variant="outline" className="ml-1 h-4 px-1 text-[9px] border-destructive/50 text-destructive">
+                          {rejectedCount} blocked
+                        </Badge>
+                      )}
                     </p>
                     {deterministicSuggestions.length > 0 && (
                       <Button size="sm" variant="default" className="h-6 text-[10px] px-2" onClick={applyAllSafeRefinements}>
@@ -244,13 +277,14 @@ export default function RenderCheckPanel() {
 
 function SuggestionRow({ suggestion, onApply }: { suggestion: RefinementSuggestion; onApply?: () => void }) {
   const style = STRATEGY_LABELS[suggestion.strategy] || STRATEGY_LABELS.warn_only;
+  const isBlocked = suggestion.message.startsWith('[Blocked by guardrail]');
   return (
-    <div className="flex items-start gap-2 rounded border p-2 text-[11px]">
+    <div className={`flex items-start gap-2 rounded border p-2 text-[11px] ${isBlocked ? 'opacity-60' : ''}`}>
       {SEVERITY_ICON[suggestion.severity]}
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex items-center gap-1.5">
           <Badge variant="outline" className={`shrink-0 border text-[9px] px-1 h-4 ${style.color}`}>
-            {style.label}
+            {isBlocked ? 'Blocked' : style.label}
           </Badge>
           <span className="break-words">{suggestion.message}</span>
         </div>
@@ -258,7 +292,7 @@ function SuggestionRow({ suggestion, onApply }: { suggestion: RefinementSuggesti
           <span className="text-muted-foreground text-[10px]">Target: {suggestion.targetIntent}</span>
         )}
       </div>
-      {onApply && suggestion.strategy === 'apply_deterministic_fix' && (
+      {onApply && suggestion.strategy === 'apply_deterministic_fix' && !isBlocked && (
         <Button size="sm" variant="outline" className="h-5 shrink-0 px-1.5 text-[10px]" onClick={onApply}>
           Apply
         </Button>
