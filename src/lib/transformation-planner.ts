@@ -168,25 +168,64 @@ export function buildTransformationPlan(
     }
   }
 
-  // Map testimonials into second Text & Image section
+  // Map testimonials — use a dedicated section with feature blocks (one per testimonial)
   if (validSectionIds.length > 3) {
     const sectionId = validSectionIds[3];
     const section = sections[sectionId];
+
+    // Section-level settings
+    operations.push({ type: 'updateSectionSetting', sectionId, key: 'background_color', value: '#0b1214', label: 'Testimonials bg' });
+    operations.push({ type: 'updateSectionSetting', sectionId, key: 'padding_desktop', value: { top: '96', bottom: '96' }, label: 'Testimonials padding' });
+    operations.push({ type: 'updateSectionSetting', sectionId, key: 'padding_mobile', value: { top: '64', bottom: '64' }, label: 'Testimonials padding mobile' });
+
+    // Add a heading text block first
     const textBlock = findBlock(section, 'text');
     if (textBlock) {
-      const testimonialsHtml = `<p class="section-eyebrow">TESTIMONIALS</p>\n<h2>What Our Divers Say</h2>\n<div class="testimonial-grid">\n<div class="testimonial-card"><p class="testimonial-quote">"I never thought I'd find my calling at 40 feet below sea level. Now I sell my baskets at galleries in Maui."</p><p class="testimonial-author"><strong>Jordan Reed</strong></p><p class="testimonial-role">Master Artisan Graduate, 2024</p></div>\n<div class="testimonial-card"><p class="testimonial-quote">"The instructors are incredibly patient — even when a curious sea turtle unraveled my entire second basket."</p><p class="testimonial-author"><strong>Priya Nakamura</strong></p><p class="testimonial-role">Beginner Weave, Bali Campus</p></div>\n<div class="testimonial-card"><p class="testimonial-quote">"Worth every penny. The bioluminescent night-weave session alone changed my entire perspective on craft."</p><p class="testimonial-author"><strong>Marcus Holm</strong></p><p class="testimonial-role">Advanced Patterns, Maldives</p></div>\n</div>`;
-      operations.push({ type: 'replaceText', sectionId, blockId: textBlock.id, key: 'text', value: testimonialsHtml, label: 'Testimonials text' });
-      operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'width', value: '12', label: 'Testimonials width' });
-      operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'text_align', value: 'center', label: 'Testimonials align' });
+      const headingHtml = `<p class="section-eyebrow">TESTIMONIALS</p>\n<h2>What Our Divers Say</h2>`;
+      operations.push({ type: 'replaceText', sectionId, blockId: textBlock.id, key: 'text', value: headingHtml, label: 'Testimonials heading' });
+      operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'width', value: '12', label: 'Testimonials heading width' });
+      operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'text_align', value: 'center', label: 'Testimonials heading align' });
     }
+
+    // Hide the image block if present
     const imageBlock = findBlock(section, 'image');
     if (imageBlock) {
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: imageBlock.id, key: 'hide_on_desktop', value: 'true', label: 'Hide testimonial image' });
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: imageBlock.id, key: 'hide_on_mobile', value: 'true', label: 'Hide testimonial image mobile' });
     }
-    operations.push({ type: 'updateSectionSetting', sectionId, key: 'background_color', value: '#0b1214', label: 'Testimonials bg' });
-    operations.push({ type: 'updateSectionSetting', sectionId, key: 'padding_desktop', value: { top: '96', bottom: '96' }, label: 'Testimonials padding' });
-    operations.push({ type: 'updateSectionSetting', sectionId, key: 'padding_mobile', value: { top: '64', bottom: '64' }, label: 'Testimonials padding mobile' });
+
+    // Add 3 feature blocks — one per testimonial, using the correct Kajabi feature block schema
+    const testimonials = [
+      { name: 'Jordan Reed', role: 'Master Artisan Graduate, 2024', quote: '"I never thought I\'d find my calling at 40 feet below sea level. Now I sell my baskets at galleries in Maui."' },
+      { name: 'Priya Nair', role: 'Beginner Weave, Bali Campus', quote: '"The instructors are incredibly patient — even when a curious sea turtle unraveled my entire second basket."' },
+      { name: 'Marcus Holm', role: 'Advanced Patterns, Maldives', quote: '"Worth every penny. The bioluminescent night-weave session alone changed my entire perspective on craft."' },
+    ];
+
+    testimonials.forEach((t, i) => {
+      const blockId = `testimonial_feature_${i}`;
+      const featureText = `<p>${t.quote}</p>\n<h4>${t.name}</h4>\n<p>${t.role}</p>`;
+      operations.push({
+        type: 'addBlock',
+        sectionId,
+        blockId,
+        block: {
+          type: 'feature',
+          settings: {
+            text: featureText,
+            hide_image: 'true',
+            text_align: 'center',
+            width: '4',
+            background_color: '#111a1e',
+            border_radius: '12',
+            box_shadow: 'none',
+            use_btn: 'false',
+            padding_desktop: { top: '30', right: '30', bottom: '30', left: '30' },
+            padding_mobile: { top: '20', right: '20', bottom: '20', left: '20' },
+          },
+        },
+        label: `Testimonial: ${t.name}`,
+      });
+    });
   }
 
   // Map CTA section
