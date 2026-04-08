@@ -6,17 +6,29 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useExportStore } from '@/store/useExportStore';
 import { generateChangeSummary } from '@/lib/kajabi-exporter';
 import AppHeader from '@/components/AppHeader';
 import ThemePreview from '@/components/ThemePreview';
 
+const OP_TYPE_COLORS: Record<string, string> = {
+  addSection: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+  addBlock: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+  updateGlobalSetting: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+  updateSectionSetting: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+  updateBlockSetting: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+  replaceText: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+  hideSection: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30',
+  showSection: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30',
+  updateNavigation: 'bg-violet-500/10 text-violet-400 border-violet-500/30',
+  addCssOverride: 'bg-pink-500/10 text-pink-400 border-pink-500/30',
+  replaceLogo: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+  replaceImage: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+};
+
 export default function MappingPage() {
   const navigate = useNavigate();
   const { currentProject, transformationPlan, extractedDesign, isLoading, loadingMessage, removeOperation, runExportValidation, exportValidation } = useExportStore();
-  const [logsOpen, setLogsOpen] = useState(false);
-  const [expandedOps, setExpandedOps] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (transformationPlan) {
@@ -50,21 +62,6 @@ export default function MappingPage() {
       a.download = `${currentProject.name.replace(/\s+/g, '-').toLowerCase()}-kajabi-theme.zip`;
       a.click();
       URL.revokeObjectURL(url);
-    }
-  };
-
-  const toggleOp = (index: number) => {
-    setExpandedOps(prev => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
-  };
-
-  const copyAllOps = () => {
-    if (transformationPlan) {
-      navigator.clipboard.writeText(JSON.stringify(transformationPlan.operations, null, 2));
     }
   };
 
@@ -236,89 +233,40 @@ export default function MappingPage() {
             </CardContent>
           </Card>
 
-          {/* Right: Operations */}
+          {/* Right: Operations — sequential, detailed */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Operations ({changeSummary.length})</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <ScrollArea className="h-[600px]">
-                <div className="p-4 space-y-2">
-                  {changeSummary.map((summary, i) => (
-                    <div key={i} className="flex items-center gap-2 rounded-md border px-3 py-2 group">
-                      <Check className="h-3.5 w-3.5 text-success shrink-0" />
-                      <span className="text-sm flex-1">{summary}</span>
-                      <button
-                        onClick={() => removeOperation(i)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Remove operation"
-                      >
-                        <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                      </button>
-                    </div>
-                  ))}
+                <div className="p-3 space-y-1.5">
+                  {changeSummary.map((item, i) => {
+                    const colorClass = OP_TYPE_COLORS[item.type] || 'bg-muted text-muted-foreground border-border';
+                    return (
+                      <div key={i} className="rounded-md border px-3 py-2 group">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono text-muted-foreground w-5 shrink-0 text-right">{i + 1}</span>
+                          <Badge variant="outline" className={`text-[10px] font-mono shrink-0 border ${colorClass}`}>
+                            {item.type}
+                          </Badge>
+                          <span className="text-sm font-medium flex-1 truncate">{item.label}</span>
+                          <button
+                            onClick={() => removeOperation(i)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Remove operation"
+                          >
+                            <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1 ml-7 truncate">{item.detail}</p>
+                      </div>
+                    );
+                  })}
                 </div>
               </ScrollArea>
             </CardContent>
           </Card>
-        </div>
-
-        {/* Full Operation Logs */}
-        <div className="mt-6">
-          <Collapsible open={logsOpen} onOpenChange={setLogsOpen}>
-            <Card>
-              <CardHeader className="pb-2">
-                <CollapsibleTrigger asChild>
-                  <button className="flex items-center gap-2 w-full text-left">
-                    {logsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    <CardTitle className="text-base">Full Operation Logs ({transformationPlan.operations.length})</CardTitle>
-                  </button>
-                </CollapsibleTrigger>
-              </CardHeader>
-              <CollapsibleContent>
-                <CardContent className="pt-0">
-                  <div className="flex justify-end mb-2">
-                    <Button variant="outline" size="sm" onClick={copyAllOps}>
-                      <Copy className="h-3 w-3 mr-1" /> Copy All JSON
-                    </Button>
-                  </div>
-                  <div className="space-y-2 max-h-[70vh] overflow-y-auto">
-                    {transformationPlan.operations.map((op, i) => {
-                      const isExpanded = expandedOps.has(i);
-                      const opLabel = (op as any).label || (op as any).type || `Operation ${i}`;
-                      const opType = (op as any).type || 'unknown';
-                      const blockCount = opType === 'addSection'
-                        ? Object.keys((op as any).section?.blocks || {}).length
-                        : null;
-
-                      return (
-                        <div key={i} className="border rounded-md overflow-hidden">
-                          <button
-                            className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-muted/50 transition-colors"
-                            onClick={() => toggleOp(i)}
-                          >
-                            {isExpanded ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
-                            <Badge variant="outline" className="text-[10px] font-mono shrink-0">{opType}</Badge>
-                            <span className="text-xs flex-1 truncate">{opLabel}</span>
-                            {blockCount !== null && (
-                              <Badge variant={blockCount > 0 ? 'default' : 'destructive'} className="text-[10px] shrink-0">
-                                {blockCount} blocks
-                              </Badge>
-                            )}
-                          </button>
-                          {isExpanded && (
-                            <pre className="px-3 pb-3 text-[11px] leading-relaxed font-mono text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all bg-muted/30">
-                              {JSON.stringify(op, null, 2)}
-                            </pre>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
         </div>
       </main>
     </div>
