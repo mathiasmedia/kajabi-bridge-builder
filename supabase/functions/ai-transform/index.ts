@@ -353,9 +353,18 @@ FOOTER RULE: If this is a footer section, return {"operations":[],"cssOverrides"
       }).join('\n')}\n\nYou MUST create one feature/card/text block per item above. Do NOT use placeholder text like "Card Title" or "Lorem ipsum".`
     : '';
 
+  // Build available images reference
+  const availableImages = (extractedDesign?.assets || [])
+    .filter((a: any) => a.url && a.type === 'image')
+    .map((a: any) => `- ${a.fileName}: ${a.url} (from source: ${a.sourcePath})`);
+  const imageContext = availableImages.length > 0
+    ? `\n\n## Available images (use these URLs in image/feature blocks or section bg_image)\n${availableImages.join('\n')}`
+    : '';
+
   const userPrompt = `## Source section to recreate
 ${JSON.stringify(sectionToGenerate, null, 2)}
 ${itemsDetail}
+${imageContext}
 
 ## Source section content
 - Intent: ${intent}
@@ -378,7 +387,8 @@ ${JSON.stringify({
 Create ONE addSection with type "section" and rich content blocks.
 Remember: section settings do NOT have heading/subheading/text fields. Put ALL content in blocks.
 Block text must be rich HTML. Use width for column layouts.
-CRITICAL: Use the ACTUAL text from the items list above. Never use generic placeholder text.`;
+CRITICAL: Use the ACTUAL text from the items list above. Never use generic placeholder text.
+${availableImages.length > 0 ? 'IMPORTANT: Use the available image URLs where contextually appropriate (hero backgrounds, course/feature cards, etc.).' : ''}`;
 
   const models = ["google/gemini-2.5-flash", "google/gemini-3-flash-preview"];
   let lastError = "";
