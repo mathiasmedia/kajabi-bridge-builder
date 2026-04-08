@@ -153,7 +153,7 @@ Apply the tweak and return the modified operations array as JSON.`;
   } catch (e) {
     console.error("ai-tweak error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
