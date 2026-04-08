@@ -14,7 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      saved_templates: {
+        Row: {
+          ai_critique: string | null
+          created_at: string
+          extracted_design_json: Json | null
+          id: string
+          name: string
+          notes: string | null
+          plan_json: Json
+          source_project_id: string | null
+          source_project_name: string | null
+          updated_at: string
+          zip_storage_path: string | null
+        }
+        Insert: {
+          ai_critique?: string | null
+          created_at?: string
+          extracted_design_json?: Json | null
+          id?: string
+          name: string
+          notes?: string | null
+          plan_json: Json
+          source_project_id?: string | null
+          source_project_name?: string | null
+          updated_at?: string
+          zip_storage_path?: string | null
+        }
+        Update: {
+          ai_critique?: string | null
+          created_at?: string
+          extracted_design_json?: Json | null
+          id?: string
+          name?: string
+          notes?: string | null
+          plan_json?: Json
+          source_project_id?: string | null
+          source_project_name?: string | null
+          updated_at?: string
+          zip_storage_path?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

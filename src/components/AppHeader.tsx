@@ -5,6 +5,7 @@ const steps = [
   { path: '/', label: 'New' },
   { path: '/extract', label: 'Extract' },
   { path: '/mapping', label: 'Map & Export' },
+  { path: '/templates', label: 'Templates' },
 ];
 
 export default function AppHeader() {

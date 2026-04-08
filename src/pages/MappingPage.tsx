@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench, RefreshCw, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useExportStore } from '@/store/useExportStore';
 import { generateChangeSummary, type ChangeSummaryItem } from '@/lib/kajabi-exporter';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import AppHeader from '@/components/AppHeader';
 import RenderCheckPanel from '@/components/RenderCheckPanel';
 
@@ -46,6 +48,7 @@ export default function MappingPage() {
     }
   }, [transformationPlan, runExportValidation]);
 
+  const [isSaving, setIsSaving] = useState(false);
   const canExport = exportValidation?.ready !== false;
 
   if (!currentProject || (!transformationPlan && !isLoading)) {
@@ -72,6 +75,39 @@ export default function MappingPage() {
       a.download = `${currentProject.name.replace(/\s+/g, '-').toLowerCase()}-kajabi-theme.zip`;
       a.click();
       URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!transformationPlan || !currentProject) return;
+    setIsSaving(true);
+    try {
+      // Upload zip to storage
+      let zipPath: string | null = null;
+      const blob = await useExportStore.getState().exportZip();
+      if (blob) {
+        const fileName = `${currentProject.id}-${Date.now()}.zip`;
+        const { error: uploadError } = await supabase.storage
+          .from('theme-assets')
+          .upload(`templates/${fileName}`, blob, { contentType: 'application/zip' });
+        if (!uploadError) zipPath = `templates/${fileName}`;
+      }
+
+      const { error } = await supabase.from('saved_templates').insert({
+        name: currentProject.name,
+        source_project_id: currentProject.sourceProjectId,
+        source_project_name: currentProject.sourceProjectName,
+        plan_json: transformationPlan as any,
+        extracted_design_json: extractedDesign as any,
+        zip_storage_path: zipPath,
+      });
+
+      if (error) throw error;
+      toast.success('Template saved!');
+    } catch (e) {
+      toast.error(`Save failed: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -102,6 +138,9 @@ export default function MappingPage() {
             </Button>
             <Button variant="outline" onClick={() => refinePlanWithAI()}>
               <RefreshCw className="mr-2 h-4 w-4" /> Improve
+            </Button>
+            <Button variant="outline" onClick={handleSaveTemplate} disabled={isSaving}>
+              <Save className="mr-2 h-4 w-4" /> {isSaving ? 'Saving…' : 'Save Template'}
             </Button>
             <Button onClick={handleExport} disabled={!canExport}>
               <Download className="mr-2 h-4 w-4" /> Export Kajabi Zip
