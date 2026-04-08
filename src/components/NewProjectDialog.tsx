@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
-import { Loader2, ImagePlus, X, Globe, Type } from 'lucide-react';
+import { useState, useRef, useCallback } from 'react';
+import { Loader2, ImagePlus, X, Globe, Type, Eye } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,8 @@ export default function NewProjectDialog({ open, onOpenChange, onCreated }: Prop
   const [description, setDescription] = useState('');
   const [images, setImages] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
+  const [progress, setProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,34 +46,67 @@ export default function NewProjectDialog({ open, onOpenChange, onCreated }: Prop
     }
 
     setCreating(true);
+    setProgress(10);
     try {
-      // Call AI to generate initial plan from references
+      let visionDesign = null;
+
+      // Step 1: If images provided, extract design via vision first
+      if (images.length > 0) {
+        setStatusMsg('Analyzing screenshot…');
+        setProgress(15);
+        const { data: visionData, error: visionErr } = await supabase.functions.invoke('ai-vision-extract', {
+          body: {
+            imageBase64: images[0],
+            referenceUrl: url.trim() || null,
+            context: description.trim() || name.trim(),
+          },
+        });
+        if (!visionErr && visionData?.design) {
+          visionDesign = visionData.design;
+          setProgress(35);
+          setStatusMsg('Design extracted — generating template…');
+        } else {
+          console.warn('Vision extraction failed, proceeding without:', visionErr || visionData?.error);
+          setProgress(25);
+          setStatusMsg('Generating template…');
+        }
+      } else {
+        setStatusMsg('Generating template…');
+        setProgress(20);
+      }
+
+      // Step 2: Call AI to generate initial plan, passing vision data if available
       const { data, error } = await supabase.functions.invoke('ai-generate', {
         body: {
           name: name.trim(),
           referenceUrl: url.trim() || null,
           referenceImages: images.length > 0 ? images : null,
           description: description.trim() || null,
+          visionDesign,
         },
       });
 
+      setProgress(85);
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
       // Save to DB
+      setStatusMsg('Saving project…');
+      setProgress(90);
       const { data: saved, error: saveErr } = await supabase
         .from('saved_templates')
         .insert({
           name: name.trim(),
           source_project_name: url.trim() || description.trim().slice(0, 50) || 'Custom Design',
           plan_json: { operations: data.operations },
-          extracted_design_json: data.extractedDesign || null,
+          extracted_design_json: data.extractedDesign || visionDesign || null,
         })
         .select('id')
         .single();
 
       if (saveErr) throw saveErr;
 
+      setProgress(100);
       toast.success('Project created — opening builder');
       onOpenChange(false);
       onCreated(saved.id);
@@ -81,6 +117,8 @@ export default function NewProjectDialog({ open, onOpenChange, onCreated }: Prop
       toast.error(`Failed: ${e instanceof Error ? e.message : e}`);
     } finally {
       setCreating(false);
+      setStatusMsg('');
+      setProgress(0);
     }
   };
 
