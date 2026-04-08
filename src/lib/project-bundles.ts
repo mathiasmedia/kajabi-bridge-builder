@@ -131,7 +131,36 @@ const StatsSection = () => (
   </section>
 );`,
 
-      'src/components/CoursesSection.tsx': `const CoursesSection = () => {
+      'src/components/CoursesSection.tsx': `import classSession from "@/assets/class-session.jpg";
+import basketProduct from "@/assets/basket-product.jpg";
+
+const courses = [
+  {
+    title: "Beginner Weave",
+    meta: "10ft · 2 Days",
+    description: "Learn the fundamentals of underwater reed selection, basic weave patterns, and breath-synchronized crafting.",
+    price: "$349",
+    image: classSession,
+    badge: "Most Popular",
+  },
+  {
+    title: "Advanced Patterns",
+    meta: "30ft · 5 Days",
+    description: "Master complex herringbone and spiral techniques while navigating coral formations. Includes night-weave session.",
+    price: "$899",
+    image: basketProduct,
+  },
+  {
+    title: "Master Artisan",
+    meta: "60ft · 2 Weeks",
+    description: "The ultimate certification. Deep-water weaving with kelp, pearl inlay, and a final exhibition piece judged by our panel.",
+    price: "$2,400",
+    image: classSession,
+    badge: "Limited Spots",
+  },
+];
+
+const CoursesSection = () => {
   return (
     <section className="py-24 px-6">
       <div className="max-w-6xl mx-auto">
@@ -142,17 +171,62 @@ const StatsSection = () => (
             From shallow-water fundamentals to deep-sea mastery — every course includes equipment, materials, and marine biologist supervision.
           </p>
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {courses.map((course) => (
+            <Card key={course.title} className="overflow-hidden bg-card border-border/40">
+              <img src={course.image} alt={course.title} className="w-full h-48 object-cover" />
+              <CardContent className="p-6">
+                <h3 className="font-display text-2xl font-bold mb-3">{course.title}</h3>
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-3">{course.meta}</p>
+                <p className="text-muted-foreground font-body mb-6">{course.description}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-primary font-display text-2xl font-bold">{course.price}</span>
+                  <span className="text-primary text-sm">Learn more →</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     </section>
   );
 };`,
+ 
+      'src/components/TestimonialsSection.tsx': `const testimonials = [
+  {
+    name: "Jordan Reed",
+    role: "Master Artisan Graduate, 2024",
+    quote: "I never thought I'd find my calling at 40 feet below sea level. Now I sell my baskets at galleries in Maui.",
+  },
+  {
+    name: "Priya Nair",
+    role: "Beginner Weave, Bali Campus",
+    quote: "The instructors are incredibly patient — even when a curious sea turtle unraveled my entire second basket.",
+  },
+  {
+    name: "Marcus Holm",
+    role: "Advanced Patterns, Maldives",
+    quote: "Worth every penny. The bioluminescent night-weave session alone changed my entire perspective on craft.",
+  },
+];
 
-      'src/components/TestimonialsSection.tsx': `const TestimonialsSection = () => (
+const TestimonialsSection = () => (
   <section className="py-24 px-6">
     <div className="max-w-6xl mx-auto">
       <div className="text-center mb-16">
         <p className="text-primary font-body text-sm tracking-[0.25em] uppercase mb-3">Testimonials</p>
-        <h2 className="font-display text-4xl md:text-5xl font-bold">What Our Divers Say</h2>
+        <h2 className="font-display text-4xl md:text-5xl font-bold mb-4">What Our Divers Say</h2>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {testimonials.map((testimonial) => (
+          <Card key={testimonial.name} className="bg-card border-border/40 p-6">
+            <p className="text-secondary-foreground italic font-body mb-6">“{testimonial.quote}”</p>
+            <div>
+              <p className="font-display text-lg font-bold">{testimonial.name}</p>
+              <p className="text-muted-foreground text-sm">{testimonial.role}</p>
+            </div>
+          </Card>
+        ))}
       </div>
     </div>
   </section>

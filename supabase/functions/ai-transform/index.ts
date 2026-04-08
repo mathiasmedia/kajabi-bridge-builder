@@ -298,7 +298,11 @@ CONTENT RULES:
 - ALL text content goes in block settings.text as rich HTML
 - Use <h1>/<h2> for main headings, <h4> for sub-headings, <p> for body
 - Use width to create multi-column layouts (width "4" = 3 columns, "6" = 2 columns)
-- Include ALL items from source (4 features = 4 feature blocks)
+- Include ALL items from source (4 features = 4 feature/card blocks)
+- NEVER compress multiple source items into one block
+- If items count is N, output at least N item blocks plus any heading/introduction block
+- For course/program sections, use one card or feature block per course with title, supporting details, description, and price when present
+- For testimonial sections, use one text or card block per testimonial with the quote and the person's name/role when present
 - Include buttons via use_btn="true" + btn_text + btn_action
 - Use actual source text, no placeholders
 - No external image URLs
