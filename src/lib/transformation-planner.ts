@@ -316,6 +316,7 @@ export function buildTransformationPlan(
             hide_image: 'true',
             text_align: 'center',
             width: '4',
+            own_row: 'false',
             background_color: darkCardBg,
             border_radius: '12',
             box_shadow: siteIsDark ? 'none' : 'medium',
@@ -419,21 +420,14 @@ a:hover { opacity: 0.85 !important; }
   padding: 14px 32px !important;
 }
 
-/* ── Scoped button colors per section ── */
-/* Hero CTA */
-.section:first-of-type .btn,
-.section--hero .btn {
-  background-color: ${primaryHex} !important;
-  color: ${bgHex} !important;
-}
-/* CTA band button */
-.cta-card + .btn, .cta-card ~ .btn,
-.section:nth-last-of-type(2) .btn {
+/* ── Button colors — apply primary to ALL buttons, then override outline ── */
+.btn, .btn-primary, [class*="btn-primary"], button[type="submit"] {
   background-color: ${primaryHex} !important;
   color: ${bgHex} !important;
 }
 /* Outline variant stays transparent everywhere */
 .btn-outline, [class*="btn-outline"] {
+  background-color: transparent !important;
   color: ${fgHex} !important;
 }
 
