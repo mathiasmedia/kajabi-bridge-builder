@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Brain, Loader2, Trash2, Star, Lightbulb,
-  Send, Wrench, Download, ImagePlus, X, FileArchive,
+  Send, Wrench, Download, ImagePlus, X, FileArchive, Undo2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +41,7 @@ export default function BuilderPage() {
   const [tweaking, setTweaking] = useState(false);
   const [tweakImage, setTweakImage] = useState<string | null>(null);
   const [tweakLog, setTweakLog] = useState<string[]>([]);
+  const [planHistory, setPlanHistory] = useState<any[]>([]);
   const [planVersion, setPlanVersion] = useState(0);
 
   useEffect(() => {
@@ -97,6 +98,8 @@ export default function BuilderPage() {
 
   const applyTweak = async (instruction: string, imageData?: string | null) => {
     if (!template) return;
+    // Save current plan for undo
+    setPlanHistory(prev => [...prev, template.plan_json]);
     setTweaking(true);
     setTweakLog(prev => [...prev, `🔧 ${instruction}${imageData ? ' 📷' : ''}`]);
     try {
@@ -148,6 +151,20 @@ export default function BuilderPage() {
     e.target.value = '';
   };
 
+  const handleUndo = async () => {
+    if (!template || planHistory.length === 0) return;
+    const previousPlan = planHistory[planHistory.length - 1];
+    setPlanHistory(prev => prev.slice(0, -1));
+    await supabase.from('saved_templates')
+      .update({ plan_json: previousPlan, ai_critique: null })
+      .eq('id', template.id);
+    setTemplate(prev => prev ? { ...prev, plan_json: previousPlan, ai_critique: null } : prev);
+    setCritique(null);
+    setPlanVersion(v => v + 1);
+    setTweakLog(prev => [...prev, '⏪ Undid last tweak']);
+    toast.success('Undone');
+  };
+
   const handleDelete = async () => {
     if (!template) return;
     const { error } = await supabase.from('saved_templates').delete().eq('id', template.id);
@@ -183,6 +200,9 @@ export default function BuilderPage() {
             )}
           </div>
           <div className="flex items-center gap-1.5">
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleUndo} disabled={planHistory.length === 0}>
+              <Undo2 className="mr-1 h-3 w-3" /> Undo
+            </Button>
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleExport}>
               <Download className="mr-1 h-3 w-3" /> Export Zip
             </Button>
