@@ -70,7 +70,7 @@ export async function runRenderCheck(
     let overridesCss = baseTheme.files['assets/overrides.css'] || '';
 
     for (const op of plan.operations) {
-      applyOperationToSettings(op, current, (css) => { overridesCss += '\n' + css; });
+      applyOperation(op, current, (css) => { overridesCss += '\n' + css; });
     }
 
     // Step 2: Build theme data structure for renderer
