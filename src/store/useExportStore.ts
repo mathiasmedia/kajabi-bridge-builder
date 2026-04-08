@@ -178,6 +178,29 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         }
       }
 
+      // ── Remap fabricated block IDs to actual theme block IDs ──
+      const sections = getThemeSections(baseTheme);
+      for (const op of operations) {
+        const opAny = op as any;
+        if ((op.type === 'replaceText' || op.type === 'updateBlockSetting') && opAny.sectionId && opAny.blockId) {
+          const section = sections[opAny.sectionId] as any;
+          if (section) {
+            const blockOrder = section.block_order || Object.keys(section.blocks || {});
+            const blockExists = opAny.blockId in (section.blocks || {});
+            if (!blockExists && blockOrder.length > 0) {
+              // Try to extract position from fabricated ID (e.g. "1575400116835_0" → index 0)
+              const posMatch = String(opAny.blockId).match(/_(\d+)$/);
+              const targetIndex = posMatch ? parseInt(posMatch[1], 10) : 0;
+              const actualBlockId = blockOrder[Math.min(targetIndex, blockOrder.length - 1)];
+              if (actualBlockId) {
+                console.log(`Remapping block ID ${opAny.blockId} → ${actualBlockId} in section ${opAny.sectionId}`);
+                opAny.blockId = actualBlockId;
+              }
+            }
+          }
+        }
+      }
+
       if (globalsData.cssOverrides && typeof globalsData.cssOverrides === 'string') {
         operations.push({
           type: 'addCssOverride',
