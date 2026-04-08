@@ -41,6 +41,7 @@ export default function BuilderPage() {
   const [tweaking, setTweaking] = useState(false);
   const [tweakImage, setTweakImage] = useState<string | null>(null);
   const [tweakLog, setTweakLog] = useState<string[]>([]);
+  const [planHistory, setPlanHistory] = useState<any[]>([]);
   const [planVersion, setPlanVersion] = useState(0);
 
   useEffect(() => {
