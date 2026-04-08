@@ -62,8 +62,9 @@ An image is attached. Analyze it with extreme precision:
 Return ONLY valid JSON: { "operations": [...], "changelog": "brief description of what changed" }`;
 
     let userContent: any;
+    const planStr = JSON.stringify(operations).slice(0, 12000);
     const textPart = `## Current Plan (${operations.length} operations)
-${JSON.stringify(operations, null, 2).slice(0, 20000)}
+${planStr}
 
 ## Extracted Design Summary
 Colors: ${JSON.stringify(extractedDesign?.colors?.slice(0, 8))}
