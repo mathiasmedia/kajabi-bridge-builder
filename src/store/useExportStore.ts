@@ -234,23 +234,43 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       // ── Post-processing: Deduplication ──
       const deduplicatedOps = deduplicateOperations(operations);
 
-      // ── Hide all original content sections & replace content_for_index ──
+      // ── Build content_for_index: keep modified existing sections + add new ones ──
       const existingContentIds = getContentForPage(baseTheme, currentProject.page).filter(Boolean);
 
+      // Find existing sections that were modified by globals (replaceText, updateSectionSetting, updateBlockSetting)
+      const modifiedExistingSections = new Set<string>();
+      for (const op of deduplicatedOps) {
+        const opAny = op as any;
+        if (
+          (op.type === 'updateSectionSetting' || op.type === 'updateBlockSetting' || op.type === 'replaceText') &&
+          opAny.sectionId &&
+          existingContentIds.includes(opAny.sectionId)
+        ) {
+          modifiedExistingSections.add(opAny.sectionId);
+        }
+      }
+
+      // Hide unmodified existing content sections
       for (const sectionId of existingContentIds) {
-        deduplicatedOps.push({ type: 'hideSection', sectionId });
+        if (!modifiedExistingSections.has(sectionId)) {
+          deduplicatedOps.push({ type: 'hideSection', sectionId });
+        }
       }
 
       const addedSectionIds = deduplicatedOps
         .filter((op): op is Extract<TransformationOperation, { type: 'addSection' }> => op.type === 'addSection')
         .map(op => op.sectionId);
 
+      // Build page content: modified existing sections first (preserving order), then new sections
+      const keptExistingIds = existingContentIds.filter(id => modifiedExistingSections.has(id));
+      const finalContentIds = [...keptExistingIds, ...addedSectionIds];
+
       const contentKey = currentProject.page === 'index' ? 'content_for_index' : `content_for_${currentProject.page}`;
       deduplicatedOps.push({
         type: 'updateGlobalSetting',
         key: contentKey,
-        value: addedSectionIds,
-        label: 'Replace page content with AI-generated sections',
+        value: finalContentIds,
+        label: 'Replace page content with modified + AI-generated sections',
       });
 
       // ── Ensure link_lists from nav items if no updateNavigation ops exist ──
