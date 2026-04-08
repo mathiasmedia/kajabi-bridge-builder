@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { useExportStore } from '@/store/useExportStore';
 import { applyPlanAndExport } from '@/lib/kajabi-exporter';
 import AppHeader from '@/components/AppHeader';
-import ThemePreview from '@/components/ThemePreview';
+import LiveThemePreview from '@/components/LiveThemePreview';
 
 interface SavedTemplate {
   id: string;
