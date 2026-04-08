@@ -14,10 +14,17 @@ import { useExportStore } from '@/store/useExportStore';
 import { applyPlanAndExport } from '@/lib/kajabi-exporter';
 import LiveThemePreview from '@/components/LiveThemePreview';
 
-/** Cached section map so we only parse the zip once */
+/** Cached section + block map so we only parse the zip once */
 let cachedBaseSections: Record<string, string> | null = null;
-async function getBaseSections(): Promise<Record<string, string>> {
-  if (cachedBaseSections) return cachedBaseSections;
+let cachedBlockMap: Record<string, { type: string; textPreview: string }[]> | null = null;
+
+interface BaseThemeInfo {
+  sections: Record<string, string>;
+  blockMap: Record<string, { type: string; textPreview: string }[]>;
+}
+
+async function getBaseThemeInfo(): Promise<BaseThemeInfo> {
+  if (cachedBaseSections && cachedBlockMap) return { sections: cachedBaseSections, blockMap: cachedBlockMap };
   try {
     const resp = await fetch('/base-themes/pro-template.zip');
     const buf = await resp.arrayBuffer();
@@ -28,16 +35,29 @@ async function getBaseSections(): Promise<Record<string, string>> {
       const sd = JSON.parse(await zip.files[sdFile].async('string'));
       const current = sd.current || sd;
       const indexSections: string[] = current.content_for_index || [];
-      const map: Record<string, string> = {};
+      const sectionMap: Record<string, string> = {};
+      const blockMap: Record<string, { blockId: string; type: string; textPreview: string }[]> = {};
       for (const secId of indexSections) {
         const sec = current.sections?.[secId];
-        if (sec) map[secId] = sec.name || sec.type || 'unknown';
+        if (!sec) continue;
+        sectionMap[secId] = sec.name || sec.type || 'unknown';
+        const blocks: { blockId: string; type: string; textPreview: string }[] = [];
+        const blockOrder = sec.block_order || [];
+        for (const blockId of blockOrder) {
+          const block = sec.blocks?.[blockId];
+          if (!block) continue;
+          const text = block.settings?.text || '';
+          const preview = text.replace(/<[^>]*>/g, '').slice(0, 80);
+          blocks.push({ blockId, type: block.type, textPreview: preview || `(${block.type} block)` });
+        }
+        blockMap[secId] = blocks;
       }
-      cachedBaseSections = map;
-      return map;
+      cachedBaseSections = sectionMap;
+      cachedBlockMap = blockMap;
+      return { sections: sectionMap, blockMap };
     }
-  } catch (e) { console.warn('Failed to load section map:', e); }
-  return {};
+  } catch (e) { console.warn('Failed to load base theme info:', e); }
+  return { sections: {}, blockMap: {} };
 }
 interface Template {
   id: string;
@@ -128,13 +148,14 @@ export default function BuilderPage() {
     setTweaking(true);
     setTweakLog(prev => [...prev, `🔧 ${instruction}${imageData ? ' 📷' : ''}`]);
     try {
-      const baseSections = await getBaseSections();
+      const { sections: baseSections, blockMap } = await getBaseThemeInfo();
 
       const body: any = {
         planJson: template.plan_json,
         extractedDesign: template.extracted_design_json,
         tweakInstruction: instruction,
         baseSections,
+        blockMap,
       };
       if (imageData) body.imageBase64 = imageData;
       const { data, error } = await supabase.functions.invoke('ai-tweak', { body });

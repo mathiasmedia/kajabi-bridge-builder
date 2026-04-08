@@ -444,7 +444,21 @@ Return ONLY valid JSON. No markdown.`;
     }
 
     // ── Merge results ───────────────────────────────────────────
-    let operations = structure.operations.filter((op: any) => op.type !== "addCssOverride");
+    // First, hide all default pro-template sections so only new ones show
+    const DEFAULT_SECTION_IDS = [
+      "1575400116835", "1575400209498", "1575400330498",
+      "1575400347498", "1575400358498", "1575400367498",
+    ];
+    const hideOps = DEFAULT_SECTION_IDS.map(id => ({
+      type: "hideSection",
+      sectionId: id,
+      label: `Hide default section ${id}`,
+    }));
+
+    let operations = [
+      ...hideOps,
+      ...structure.operations.filter((op: any) => op.type !== "addCssOverride"),
+    ];
     let extractedDesign = structure.extractedDesign || {};
 
     // If vision data is available, use it to enhance the CSS and design info
