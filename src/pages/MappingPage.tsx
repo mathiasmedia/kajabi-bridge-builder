@@ -270,9 +270,9 @@ function OperationRow({ item, index, onRemove }: { item: import('@/lib/kajabi-ex
         </Badge>
         <span className="text-sm font-medium flex-1 truncate">{item.label}</span>
         {item.json && (
-          <button onClick={() => setShowJson(!showJson)} className="text-muted-foreground hover:text-foreground" title="Toggle JSON">
-            {showJson ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          </button>
+          <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] font-mono text-muted-foreground" onClick={() => setShowJson(!showJson)}>
+            {showJson ? '▼ JSON' : '▶ JSON'}
+          </Button>
         )}
         <button
           onClick={() => onRemove(index)}
@@ -284,7 +284,7 @@ function OperationRow({ item, index, onRemove }: { item: import('@/lib/kajabi-ex
       </div>
       <pre className="text-[11px] text-muted-foreground mt-1 ml-7 whitespace-pre-wrap font-sans">{item.detail}</pre>
       {showJson && item.json && (
-        <pre className="text-[10px] text-muted-foreground mt-2 ml-7 whitespace-pre-wrap font-mono bg-muted/50 rounded p-2 max-h-[300px] overflow-auto">
+        <pre className="text-[10px] text-muted-foreground mt-2 ml-7 whitespace-pre-wrap font-mono bg-muted/50 rounded p-2 max-h-[400px] overflow-auto border">
           {item.json}
         </pre>
       )}
