@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Brain, Loader2, Trash2, FileJson, Star, AlertTriangle, CheckCircle, Lightbulb } from 'lucide-react';
+import { ArrowLeft, Brain, Loader2, Trash2, FileJson, Star, AlertTriangle, CheckCircle, Lightbulb, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useExportStore } from '@/store/useExportStore';
+import { hasProjectBundle } from '@/lib/project-bundles';
 import AppHeader from '@/components/AppHeader';
 
 interface SavedTemplate {
@@ -103,6 +105,34 @@ export default function TemplatesPage() {
     }
   };
 
+  const handleReExport = async (template: SavedTemplate) => {
+    if (!template.source_project_id) {
+      toast.error('No source project linked to this template');
+      return;
+    }
+    const store = useExportStore.getState();
+    // Create a new export project with the same source
+    store.createExportProject({
+      id: crypto.randomUUID(),
+      name: `Re-export ${template.source_project_name || 'Project'}`,
+      sourceProjectId: template.source_project_id,
+      sourceProjectName: template.source_project_name || '',
+      baseTheme: 'streamlined-home',
+      page: 'index',
+      notes: `Re-export based on template "${template.name}"`,
+      createdAt: new Date().toISOString(),
+      status: 'new',
+    });
+    // Load base theme + ingest
+    await store.loadBaseTheme('/base-themes/streamlined-home.zip');
+    await store.ingestProject({ projectId: template.source_project_id, page: 'index' });
+    const updated = useExportStore.getState();
+    if (updated.sourceFiles && !updated.error) {
+      updated.extractDesign();
+    }
+    navigate('/extract');
+  };
+
   const selected = templates.find(t => t.id === selectedId);
   const selectedCritique = selectedId ? critiques[selectedId] : null;
 
@@ -173,6 +203,13 @@ export default function TemplatesPage() {
                     <div className="flex items-center justify-between">
                       <CardTitle>{selected.name}</CardTitle>
                       <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleReExport(selected)}
+                        >
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          Re-export
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
