@@ -282,7 +282,7 @@ export function buildTransformationPlan(
     if (textBlock) {
       const eyebrowLabel = testimonialSection?.heading ? 'TESTIMONIALS' : 'TESTIMONIALS';
       const headingLabel = testimonialSection?.heading || 'What Our Divers Say';
-      const headingHtml = `<p style="color:${accentHexLocal}; font-size:12px; letter-spacing:0.25em; text-transform:uppercase; font-weight:500; margin-bottom:12px">${eyebrowLabel}</p>\n<h2>${headingLabel}</h2>`;
+      const headingHtml = `<p style="color:${accentHexLocal}; font-size:12px; letter-spacing:0.25em; text-transform:uppercase; font-weight:500; margin-bottom:12px">${eyebrowLabel}</p>\n<h2 style="color:${inlineFgHex}">${headingLabel}</h2>`;
       operations.push({ type: 'replaceText', sectionId, blockId: textBlock.id, key: 'text', value: headingHtml, label: 'Testimonials heading' });
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'width', value: '12', label: 'Testimonials heading width' });
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'text_align', value: 'center', label: 'Testimonials heading align' });
