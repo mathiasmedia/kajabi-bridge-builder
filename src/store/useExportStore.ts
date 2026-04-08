@@ -51,6 +51,8 @@ export const useExportStore = create<ExportStore>((set, get) => ({
   currentProject: null,
   workspaceProjects: [],
   sourceFiles: null,
+  sourceSnapshot: null,
+  ingestionWarnings: [],
   extractedDesign: null,
   extractionWarnings: [],
   baseTheme: null,
@@ -65,6 +67,30 @@ export const useExportStore = create<ExportStore>((set, get) => ({
   createExportProject: (project) => set({ currentProject: project, error: null }),
 
   setSourceFiles: (files) => set({ sourceFiles: files }),
+
+  ingestProject: async ({ projectId, page = 'index' }) => {
+    set({ isLoading: true, loadingMessage: 'Ingesting source project...' });
+    try {
+      const adapter = new BundledProjectAdapter();
+      if (!adapter.canIngest({ projectId })) {
+        throw new Error(`Project "${projectId}" not available for ingestion. Only bundled fixtures are currently supported.`);
+      }
+      const { snapshot, warnings } = await adapter.ingest({ projectId, page });
+      const validationErrors = validateSnapshot(snapshot);
+      if (validationErrors.length > 0) {
+        throw new Error(`Snapshot validation failed: ${validationErrors.join('; ')}`);
+      }
+      const sourceFiles = snapshotToSourceFiles(snapshot);
+      set({ sourceSnapshot: snapshot, ingestionWarnings: warnings, sourceFiles, isLoading: false });
+    } catch (e) {
+      set({ error: `Ingestion failed: ${e instanceof Error ? e.message : e}`, isLoading: false });
+    }
+  },
+
+  ingestSnapshot: (snapshot, warnings = []) => {
+    const sourceFiles = snapshotToSourceFiles(snapshot);
+    set({ sourceSnapshot: snapshot, ingestionWarnings: warnings, sourceFiles });
+  },
 
   loadBaseTheme: async (zipUrl: string) => {
     set({ isLoading: true, loadingMessage: 'Loading base Kajabi theme...' });
