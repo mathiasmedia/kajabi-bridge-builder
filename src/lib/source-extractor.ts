@@ -468,7 +468,7 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
   // ── Build items based on intent ──
   let items: ExtractedSection['items'] | undefined;
   if (arrayItems.length >= 2) {
-    items = arrayItems.map(raw => {
+    items = arrayItems.map((raw, idx) => {
       const item: NonNullable<ExtractedSection['items']>[0] = {};
       if (raw.value) item.value = raw.value;
       if (raw.label) item.heading = raw.label;
@@ -482,12 +482,20 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
       if (raw.price) item.price = raw.price;
       if (raw.meta && !item.body) item.body = raw.meta;
       else if (raw.meta && item.body) item.body = `${raw.meta} · ${item.body}`;
-      if (raw.image) item.image = raw.image;
       if (raw.icon) item.icon = raw.icon;
       if (raw.badge) item.body = item.body ? `${item.body} [${raw.badge}]` : raw.badge;
+      // Resolve image URLs for items
+      if (raw.image) {
+        // raw.image may be a JS variable name referencing an import
+        const resolvedUrl = resolveImageUrl(raw.image, content, files);
+        item.image = resolvedUrl || raw.image;
+      }
       return item;
     }).filter(item => item.heading || item.quote || item.value);
   }
+
+  // ── Media analysis ──
+  const media = analyzeMedia(intent, content, files, items);
 
   return {
     intent,
@@ -500,6 +508,7 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
     items,
     hasImages: hasImg,
     hasPricing: hasPrice,
+    media,
   };
 }
 
