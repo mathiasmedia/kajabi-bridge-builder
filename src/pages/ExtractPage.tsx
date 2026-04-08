@@ -1,15 +1,17 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Palette, Type, Layout, Image, MousePointer2, Loader2, Sparkles } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Palette, Type, Layout, Image, MousePointer2, Loader2, Sparkles, AlertTriangle, CheckCircle2, Info, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useExportStore } from '@/store/useExportStore';
 import AppHeader from '@/components/AppHeader';
+import type { ExtractedSection, ExtractionWarning } from '@/types';
 
 export default function ExtractPage() {
   const navigate = useNavigate();
-  const { currentProject, extractedDesign, isLoading, loadingMessage, error } = useExportStore();
+  const { currentProject, extractedDesign, extractionWarnings, isLoading, loadingMessage, error } = useExportStore();
 
   useEffect(() => {
     if (!currentProject) {
@@ -183,12 +185,33 @@ export default function ExtractPage() {
                     {extractedDesign.hero.ctaText && (
                       <Badge className="mt-2">{extractedDesign.hero.ctaText}</Badge>
                     )}
+                    {extractedDesign.hero.backgroundImage && (
+                      <p className="text-xs text-muted-foreground mt-2">📷 Background image detected</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* Sections */}
+            {/* Extraction Warnings */}
+            {extractionWarnings.length > 0 && (
+              <Card className="md:col-span-2 border-yellow-500/30">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base text-yellow-500">
+                    <AlertTriangle className="h-4 w-4" /> Extraction Warnings ({extractionWarnings.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-1.5">
+                    {extractionWarnings.map((w, i) => (
+                      <WarningRow key={i} warning={w} />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Sections with debug info */}
             <Card className="md:col-span-2">
               <CardHeader>
                 <CardTitle className="text-base">Sections ({extractedDesign.sections.length})</CardTitle>
@@ -197,13 +220,9 @@ export default function ExtractPage() {
                 {extractedDesign.sections.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No sections detected</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {extractedDesign.sections.map((section, i) => (
-                      <div key={section.id} className="flex items-center gap-3 rounded-md border px-3 py-2">
-                        <span className="text-xs text-muted-foreground font-mono w-6">{i + 1}</span>
-                        <Badge variant="outline">{section.type}</Badge>
-                        <span className="text-sm">{section.heading || 'Untitled'}</span>
-                      </div>
+                      <SectionDebugCard key={section.id} section={section} index={i} warnings={extractionWarnings.filter(w => w.sectionId === section.id)} />
                     ))}
                   </div>
                 )}
@@ -223,6 +242,7 @@ export default function ExtractPage() {
                     {extractedDesign.assets.map((asset, i) => (
                       <Badge key={i} variant="secondary" className="text-xs">
                         {asset.fileName}
+                        {asset.url && <span className="ml-1 text-primary">🔗</span>}
                       </Badge>
                     ))}
                   </div>
@@ -233,5 +253,100 @@ export default function ExtractPage() {
         )}
       </main>
     </div>
+  );
+}
+
+function WarningRow({ warning }: { warning: ExtractionWarning }) {
+  const icon = warning.severity === 'error' ? <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
+    : warning.severity === 'warning' ? <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
+    : <Info className="h-3.5 w-3.5 text-blue-400 shrink-0" />;
+  return (
+    <div className="flex items-start gap-2 text-xs">
+      {icon}
+      <span className="text-muted-foreground">{warning.message}</span>
+    </div>
+  );
+}
+
+function SectionDebugCard({ section, index, warnings }: { section: ExtractedSection; index: number; warnings: ExtractionWarning[] }) {
+  const confidenceColor = section.confidence >= 0.8 ? 'text-green-400' : section.confidence >= 0.5 ? 'text-yellow-400' : 'text-red-400';
+  const confidencePct = `${(section.confidence * 100).toFixed(0)}%`;
+
+  const flags = [
+    section.hasHeading && 'heading',
+    section.hasBody && 'body',
+    section.hasButtons && 'buttons',
+    section.hasImages && 'images',
+    section.hasStats && 'stats',
+    section.hasTestimonials && 'testimonials',
+    section.hasPricing && 'pricing',
+    section.hasRepeatedCards && `${section.repeatedItemCount} cards`,
+  ].filter(Boolean);
+
+  return (
+    <Collapsible>
+      <div className="rounded-md border px-3 py-2">
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground font-mono w-6">{index + 1}</span>
+            <Badge variant="outline" className="font-mono text-[11px]">{section.intent}</Badge>
+            <span className={`text-xs font-mono ${confidenceColor}`}>{confidencePct}</span>
+            <span className="text-sm flex-1 text-left">{section.heading || 'Untitled'}</span>
+            {warnings.length > 0 && <AlertTriangle className="h-3.5 w-3.5 text-yellow-500" />}
+            {section.repeatedItemCount > 0 && (
+              <Badge variant="secondary" className="text-[10px]">{section.repeatedItemCount} items</Badge>
+            )}
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="mt-3 pt-3 border-t space-y-2 text-xs">
+            {/* Source file */}
+            {section.sourceFile && (
+              <div><span className="text-muted-foreground">Source:</span> <span className="font-mono">{section.sourceFile}</span></div>
+            )}
+
+            {/* Evidence */}
+            <div>
+              <span className="text-muted-foreground">Evidence:</span>
+              <ul className="ml-4 mt-1 space-y-0.5 list-disc text-muted-foreground">
+                {section.evidence.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            </div>
+
+            {/* Flags */}
+            <div className="flex flex-wrap gap-1">
+              {flags.map((f, i) => (
+                <Badge key={i} variant="secondary" className="text-[10px]">{f}</Badge>
+              ))}
+            </div>
+
+            {/* Items preview */}
+            {section.items && section.items.length > 0 && (
+              <div>
+                <span className="text-muted-foreground">Items:</span>
+                <div className="ml-4 mt-1 space-y-1">
+                  {section.items.map((item, i) => (
+                    <div key={i} className="text-muted-foreground">
+                      {i + 1}. {item.value && <span className="text-primary font-mono">{item.value}</span>}
+                      {item.heading && <span className="font-medium text-foreground"> {item.heading}</span>}
+                      {item.quote && <span className="italic"> "{item.quote.slice(0, 60)}…"</span>}
+                      {item.price && <span className="text-primary"> {item.price}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Section-level warnings */}
+            {warnings.length > 0 && (
+              <div className="space-y-1 mt-2">
+                {warnings.map((w, i) => <WarningRow key={i} warning={w} />)}
+              </div>
+            )}
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
   );
 }
