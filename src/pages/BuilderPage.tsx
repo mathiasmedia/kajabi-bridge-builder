@@ -98,6 +98,8 @@ export default function BuilderPage() {
 
   const applyTweak = async (instruction: string, imageData?: string | null) => {
     if (!template) return;
+    // Save current plan for undo
+    setPlanHistory(prev => [...prev, template.plan_json]);
     setTweaking(true);
     setTweakLog(prev => [...prev, `🔧 ${instruction}${imageData ? ' 📷' : ''}`]);
     try {
