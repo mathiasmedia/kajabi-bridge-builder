@@ -269,11 +269,13 @@ function extractSections(files: SourceProjectFiles): ExtractedSection[] {
               const itemStr = m[1];
               const titleMatch = itemStr.match(/(?:title|heading|name|label)\s*:\s*["']([^"']+)["']/);
               const descMatch = itemStr.match(/(?:description|body|text|subtitle)\s*:\s*["']([^"']+)["']/);
+              const valueMatch = itemStr.match(/(?:value|stat|number|count|amount|price)\s*:\s*["']([^"']+)["']/);
               const iconMatch = itemStr.match(/(?:icon|image)\s*:\s*["']?(\w+)["']?/);
               return {
-                heading: titleMatch?.[1],
-                body: descMatch?.[1],
+                heading: titleMatch?.[1] || valueMatch?.[1],
+                body: descMatch?.[1] || (titleMatch && valueMatch ? titleMatch[1] : undefined),
                 icon: iconMatch?.[1],
+                value: valueMatch?.[1],
               };
             }).filter(item => item.heading || item.body);
           }
