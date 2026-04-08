@@ -139,6 +139,9 @@ export default function MappingPage() {
             <Button variant="outline" onClick={() => refinePlanWithAI()}>
               <RefreshCw className="mr-2 h-4 w-4" /> Improve
             </Button>
+            <Button variant="outline" onClick={handleSaveTemplate} disabled={isSaving}>
+              <Save className="mr-2 h-4 w-4" /> {isSaving ? 'Saving…' : 'Save Template'}
+            </Button>
             <Button onClick={handleExport} disabled={!canExport}>
               <Download className="mr-2 h-4 w-4" /> Export Kajabi Zip
             </Button>
