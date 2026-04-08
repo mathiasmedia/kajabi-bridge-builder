@@ -315,6 +315,15 @@ interface ComponentAnalysis {
   hasPricing: boolean;
 }
 
+function cleanJsxText(text: string): string {
+  return text
+    .replace(/<[^>]+>/g, '')
+    .replace(/\{["']\s*["']\}/g, ' ')
+    .replace(/\{[^}]*\}/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function analyzeComponent(name: string, content: string, files: SourceProjectFiles): ComponentAnalysis {
   const lower = name.toLowerCase();
   const evidence: string[] = [];
