@@ -123,24 +123,74 @@ function extractButtonStyle(files: SourceProjectFiles): ExtractedDesign['buttonS
 
 function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
   const navItems: Array<{ name: string; url: string }> = [];
+  const seen = new Set<string>();
   let logoText: string | undefined;
   
-  // Search for footer component for brand name (often contains the logo text)
+  const addNavItem = (name: string, url: string) => {
+    const key = `${name.toLowerCase()}|${url}`;
+    if (seen.has(key)) return;
+    if (!name || name.length >= 30) return;
+    // Skip non-nav items
+    if (/^[<{]|className|onClick|icon|svg/i.test(name)) return;
+    seen.add(key);
+    navItems.push({ name: name.trim(), url });
+  };
+
+  // 1. Extract from header/nav components
   for (const [path, content] of Object.entries(files.components)) {
-    if (path.toLowerCase().includes('footer')) {
-      const logoMatch = content.match(/font-display[^>]*>([^<]+)/);
-      if (logoMatch) logoText = logoMatch[1].trim();
+    const lower = path.toLowerCase();
+    
+    // Logo text from header or footer
+    if (lower.includes('header') || lower.includes('footer')) {
+      if (!logoText) {
+        const logoMatch = content.match(/(?:font-display|font-heading|font-bold[^>]*text-(?:xl|2xl|lg))[^>]*>([^<]+)/);
+        if (logoMatch) logoText = logoMatch[1].trim();
+      }
     }
-    // Search for navigation links
-    if (path.toLowerCase().includes('nav') || path.toLowerCase().includes('header') || path.toLowerCase().includes('footer')) {
-      const linkRegex = /(?:to|href)=["']([^"'#]+)["'][^>]*>([^<]+)</g;
-      let match;
-      while ((match = linkRegex.exec(content)) !== null) {
-        const name = match[2].trim();
-        if (name && name.length < 30) {
-          navItems.push({ name, url: match[1] });
+    
+    // Nav links from header/nav components
+    if (lower.includes('nav') || lower.includes('header')) {
+      // Array-style nav: const navLinks = [{ name: "Home", path: "/" }, ...]
+      const arrayMatch = content.match(/(?:navLinks|links|navItems|menuItems)\s*=\s*\[([\s\S]*?)\];/);
+      if (arrayMatch) {
+        const itemRegex = /name\s*:\s*["']([^"']+)["'][\s\S]*?(?:path|to|href|url)\s*:\s*["']([^"']+)["']/g;
+        let m;
+        while ((m = itemRegex.exec(arrayMatch[1])) !== null) {
+          addNavItem(m[1], m[2]);
         }
       }
+      
+      // Inline links: <Link to="/about">About</Link> or <a href="/about">About</a>
+      const linkRegex = /(?:to|href)=["']([^"'#]+)["'][^>]*>([^<{]+)</g;
+      let match;
+      while ((match = linkRegex.exec(content)) !== null) {
+        addNavItem(match[2], match[1]);
+      }
+    }
+  }
+
+  // 2. Fallback: extract routes from App.tsx to infer navigation
+  if (navItems.length === 0 && files.appTsx) {
+    const routeRegex = /path=["']([^"'*]+)["']/g;
+    let match;
+    while ((match = routeRegex.exec(files.appTsx)) !== null) {
+      const path = match[1];
+      if (path === '/') {
+        addNavItem('Home', '/');
+      } else {
+        const name = path.replace(/^\//, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        addNavItem(name, path);
+      }
+    }
+  }
+
+  // 3. Fallback: extract from inline index page nav patterns
+  if (navItems.length === 0) {
+    const indexPage = files.indexPage || '';
+    const linkRegex = /(?:to|href)=["']([^"'#]+)["'][^>]*>([^<{]+)</g;
+    let match;
+    while ((match = linkRegex.exec(indexPage)) !== null) {
+      addNavItem(match[2], match[1]);
     }
   }
   
