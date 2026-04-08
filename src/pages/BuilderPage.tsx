@@ -244,6 +244,33 @@ export default function BuilderPage() {
     toast.success('Undone');
   };
 
+  const handleRefImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !template) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      const updated = [...(template.reference_images || []), dataUrl];
+      await supabase.from('saved_templates')
+        .update({ reference_images: updated })
+        .eq('id', template.id);
+      setTemplate(prev => prev ? { ...prev, reference_images: updated } : prev);
+      toast.success('Reference image added');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const removeRefImage = async (idx: number) => {
+    if (!template) return;
+    const updated = template.reference_images.filter((_, i) => i !== idx);
+    await supabase.from('saved_templates')
+      .update({ reference_images: updated })
+      .eq('id', template.id);
+    setTemplate(prev => prev ? { ...prev, reference_images: updated } : prev);
+  };
+
   const handleDelete = async () => {
     if (!template) return;
     const { error } = await supabase.from('saved_templates').delete().eq('id', template.id);
