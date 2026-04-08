@@ -364,7 +364,11 @@ Block text must be rich HTML. Use width for column layouts.`;
         if (addSectionOp.section) {
           addSectionOp.section.type = "section";
         }
-        return jsonResponse({ operations: [addSectionOp] });
+        // Only accept if it actually has blocks — otherwise fall through to fallback
+        if (finalBlockCount > 0) {
+          return jsonResponse({ operations: [addSectionOp] });
+        }
+        console.warn(`ai-transform [section] AI returned 0 blocks, falling through to fallback`);
       }
 
       if (intent === 'footer') {
@@ -493,7 +497,50 @@ async function requestTransform({
                     label: { type: "string" },
                     menuId: { type: "string" },
                     links: { type: "array", items: { type: "object", properties: { name: { type: "string" }, url: { type: "string" } }, required: ["name", "url"] } },
-                    section: { type: "object" },
+                    section: {
+                      type: "object",
+                      description: "Full section definition with blocks",
+                      properties: {
+                        type: { type: "string", enum: ["section"] },
+                        name: { type: "string" },
+                        settings: {
+                          type: "object",
+                          properties: {
+                            bg_type: { type: "string", enum: ["none", "color", "image"] },
+                            background_color: { type: "string" },
+                            padding_desktop: { type: "object" },
+                            padding_mobile: { type: "object" },
+                            horizontal: { type: "string" },
+                            equal_height: { type: "string" },
+                          },
+                        },
+                        block_order: { type: "array", items: { type: "string" }, description: "Array of 13-digit block IDs matching keys in blocks" },
+                        blocks: {
+                          type: "object",
+                          description: "Map of 13-digit block ID to block object. MUST contain at least 1 block.",
+                          additionalProperties: {
+                            type: "object",
+                            properties: {
+                              type: { type: "string", enum: ["text", "feature", "card", "cta", "image"] },
+                              settings: {
+                                type: "object",
+                                properties: {
+                                  text: { type: "string", description: "Rich HTML content e.g. <h2>Title</h2><p>Body</p>" },
+                                  width: { type: "string", enum: ["3", "4", "6", "8", "12"] },
+                                  text_align: { type: "string", enum: ["left", "center", "right"] },
+                                  use_btn: { type: "string", enum: ["true", "false"] },
+                                  btn_text: { type: "string" },
+                                  btn_action: { type: "string" },
+                                  hide_image: { type: "string", enum: ["true", "false"] },
+                                },
+                              },
+                            },
+                            required: ["type", "settings"],
+                          },
+                        },
+                      },
+                      required: ["type", "name", "settings", "block_order", "blocks"],
+                    },
                     block: { type: "object" },
                     css: { type: "string" },
                   },
