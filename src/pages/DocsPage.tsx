@@ -54,11 +54,12 @@ const constraints = [
 ];
 
 const nextPriorities = [
-  'Make exported zips consistently valid across edge cases.',
-  'Improve section mapping quality and template selection.',
-  'Improve image transfer and intentional replacements.',
-  'Reduce CSS override bloat by mapping into native theme settings first.',
-  'Support indexing more than one bundled source project.',
+  'Export validity — make exported zips consistently importable across edge cases.',
+  'Project-to-project ingestion — replace hardcoded bundles with real source crawling.',
+  'Section/type mapping — improve how source sections map to Kajabi template types.',
+  'Image transfer — handle media intentionally instead of dropping or placeholdering it.',
+  'Preview fidelity — close the gap between the React preview and Kajabi Liquid rendering.',
+  'CSS override reduction — map more styling into native theme settings instead of brute-force CSS.',
 ];
 
 const pipelineSteps = [
@@ -185,16 +186,40 @@ export Kajabi zip`}</pre>
               <li key={item}>{item}</li>
             ))}
           </ul>
+
+          <h3>Where output quality usually fails (causal chain)</h3>
+          <pre>{`source extraction too shallow
+  → wrong section intent inferred
+    → AI picks wrong Kajabi section type
+      → sanitizer repairs structure but not meaning
+        → export imports into Kajabi but looks wrong`}</pre>
           <p>
-            Most of the product risk is in the translation gap between a flexible React source and a rigid Kajabi theme schema. The app can usually produce something, but not yet something consistently faithful.
+            The root cause is almost always upstream: if the extractor misreads what a source section is trying to do, every downstream step inherits that error. The sanitizer can fix malformed JSON but cannot fix a fundamentally wrong section mapping.
           </p>
 
           <h2>What we want to improve next</h2>
+          <p>Ranked by impact — this is the strict order we should follow:</p>
           <ol>
             {nextPriorities.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ol>
+
+          <h2>Source of truth hierarchy</h2>
+          <ol>
+            <li><strong>Kajabi import result</strong> — this is the only truth. If the zip imports and renders correctly in Kajabi, the export is good.</li>
+            <li><strong>Exported zip validity</strong> — well-formed <code>settings_data.json</code>, valid section types, correct <code>content_for_*</code> arrays. This is testable without Kajabi.</li>
+            <li><strong>React preview</strong> — a convenience for fast iteration. It is not authoritative and can diverge from actual Kajabi rendering in layout, typography, and block behavior.</li>
+          </ol>
+
+          <h2>Current architecture bottlenecks</h2>
+          <ul>
+            <li><strong>Source ingestion:</strong> hardcoded bundled files instead of real project crawling/indexing.</li>
+            <li><strong>Section type selection:</strong> AI generates against constrained Kajabi types but frequently invents types that don&apos;t exist.</li>
+            <li><strong>Preview gap:</strong> React-based preview vs. Liquid-based Kajabi rendering means what you see is not what you get.</li>
+            <li><strong>CSS override weight:</strong> heavy reliance on <code>overrides.css</code> instead of mapping into native theme settings.</li>
+            <li><strong>Media handling:</strong> images and richer media are the least mature part of the pipeline.</li>
+          </ul>
 
           <h2>Current architecture snapshot</h2>
           <ul>
