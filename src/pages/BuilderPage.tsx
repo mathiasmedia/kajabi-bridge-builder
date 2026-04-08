@@ -333,7 +333,41 @@ export default function BuilderPage() {
                 🔧 Tweak & Refine
               </h3>
 
-              {/* Critique results */}
+              {/* Reference images */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-medium text-muted-foreground">📸 Page References</h4>
+                  <button
+                    onClick={() => refImageInputRef.current?.click()}
+                    className="text-[10px] text-primary hover:underline"
+                  >
+                    + Add
+                  </button>
+                  <input ref={refImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleRefImageUpload} />
+                </div>
+                {template.reference_images.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {template.reference_images.map((img, i) => (
+                      <div key={i} className="relative group">
+                        <img src={img} alt={`ref-${i}`} className="h-14 w-14 object-cover rounded border border-border" />
+                        <button
+                          onClick={() => removeRefImage(i)}
+                          className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {template.extracted_design_json?.visionDesign && (
+                  <p className="text-[10px] text-muted-foreground">
+                    ✅ Brand extracted: {template.extracted_design_json.visionDesign.overallStyle || 'analyzed'}
+                  </p>
+                )}
+              </div>
+
+
               {critique && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
