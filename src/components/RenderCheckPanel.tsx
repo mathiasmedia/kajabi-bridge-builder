@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
-import { Eye, Loader2, CheckCircle2, XCircle, AlertTriangle, Info, ChevronDown, ChevronUp, Wrench, Zap, RotateCcw } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Eye, Loader2, CheckCircle2, XCircle, AlertTriangle, Info, ChevronDown, ChevronUp, Wrench, Zap, RotateCcw, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useExportStore } from '@/store/useExportStore';
 import type { ComparisonMismatch } from '@/lib/render-check-compare';
@@ -33,8 +32,16 @@ export default function RenderCheckPanel() {
     transformationPlan, refinementResult, previousScore,
     generateRefinements, applyRefinement, applyAllSafeRefinements,
   } = useExportStore();
-  const [showPreview, setShowPreview] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  const openPreviewTab = useCallback(() => {
+    if (!renderCheckResult?.renderedHtml) return;
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(renderCheckResult.renderedHtml);
+      win.document.close();
+    }
+  }, [renderCheckResult]);
 
   // Auto-generate refinements when render check completes
   useEffect(() => {
@@ -219,24 +226,15 @@ export default function RenderCheckPanel() {
 
             {/* Actions row */}
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="ghost" className="text-xs" onClick={() => setShowPreview(!showPreview)}>
-                {showPreview ? 'Hide' : 'Show'} Preview
-              </Button>
+              {result.renderedHtml && (
+                <Button size="sm" variant="ghost" className="text-xs" onClick={openPreviewTab}>
+                  <ExternalLink className="mr-1 h-3 w-3" /> Open Preview
+                </Button>
+              )}
               <Button size="sm" variant="outline" className="text-xs" onClick={runRenderCheck}>
                 <RotateCcw className="mr-1 h-3 w-3" /> Re-check
               </Button>
             </div>
-
-            {showPreview && result.renderedHtml && (
-              <ScrollArea className="h-[500px] w-full rounded border">
-                <iframe
-                  srcDoc={result.renderedHtml}
-                  className="h-[2000px] w-full border-0"
-                  sandbox="allow-same-origin"
-                  title="Kajabi Render Check Preview"
-                />
-              </ScrollArea>
-            )}
           </>
         )}
       </CardContent>
