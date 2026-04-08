@@ -211,9 +211,17 @@ ${JSON.stringify({
 ${JSON.stringify(themeStructure, null, 2)}
 ${heroBlockRef}
 
+${(() => {
+  const imgs = (extractedDesign?.assets || []).filter((a: any) => a.url && a.type === 'image');
+  return imgs.length > 0
+    ? `## Available images\n${imgs.map((a: any) => `- ${a.fileName}: ${a.url}`).join('\n')}\nUse the hero image as bg_image on the hero section (set bg_type="image").`
+    : '';
+})()}
+
 Generate operations for: header, footer, hero blocks, navigation menus, and CSS overrides.
 IMPORTANT: For the hero, you MUST generate replaceText ops targeting the exact block IDs listed above.
-IMPORTANT: Generate updateNavigation for "main-menu" and "about-menu" using the source nav items.`;
+IMPORTANT: Generate updateNavigation for "main-menu" and "about-menu" using the source nav items.
+${(extractedDesign?.assets || []).some((a: any) => a.url && a.fileName?.includes('hero')) ? 'IMPORTANT: Set the hero section bg_type="image" and bg_image to the hero image URL.' : ''}`;
 
   const result = await requestTransform({
     apiKey,
