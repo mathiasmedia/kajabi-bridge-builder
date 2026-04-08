@@ -594,9 +594,14 @@ Review, improve, and return the complete replacement operations array.`;
 function getBlockPatternForIntent(intent: SectionIntent): string {
   const patterns: Record<SectionIntent, string> = {
     'hero': `PATTERN for hero:
-- 1 text block (width "8"-"12"): <h1>Main Heading</h1><p style="font-size:20px">Subheading paragraph</p>
-- 1 cta block: btn_text, btn_action
-- Section: bg_type="color" or "image", background_color for dark bg`,
+- 1 text block (width "8"-"12"): Rich HTML heading with inline emphasis where source has it.
+  Example: <h1>Master the Art of <span style="color:#ACCENT">Underwater Basketweaving</span></h1>
+  <p style="font-size:20px">Subheading paragraph with full source text</p>
+- use_btn="true" with btn_text and btn_action for the primary CTA
+- If source has a secondary CTA, include it as a styled link in the text:
+  <p><a href="/secondary-url" style="font-size:16px; text-decoration:underline">Secondary CTA Text</a></p>
+- Section: bg_type="color" or "image", background_color for dark bg
+- CRITICAL: Preserve any pre-heading/eyebrow text as a separate <p> before the <h1>`,
 
     'stats': `PATTERN for stats:
 - Multiple feature blocks (width "3" or "4" each, hide_image="true")
@@ -610,24 +615,31 @@ function getBlockPatternForIntent(intent: SectionIntent): string {
 - Include ALL features from source, with use_btn if source has CTAs`,
 
     'program-cards': `PATTERN for program/course cards:
-- 1 text block (width "12"): <h2>Section Title</h2><p>Intro paragraph</p>
+- 1 text block (width "12", make_block="true"): <h2>Section Title</h2><p>Intro paragraph</p>
 - Multiple feature blocks (width "4" each, one per program/course):
-  - <h4>Course Title</h4><p>Description</p><p><strong>Price</strong></p>
+  - <h4>Course Title</h4><p class="meta">Duration/Level</p><p>Description</p><p><strong style="font-size:24px">Price</strong></p>
   - Include use_btn="true" + btn_text for CTAs when available
-  - Include image if available (do NOT set hide_image)
-- CRITICAL: One block per course/program. Do NOT merge multiple courses into one block.`,
+  - Include image if available (do NOT set hide_image="true")
+  - Set image_width="1000" for prominent card images
+- Section: equal_height="true"
+- CRITICAL: One block per course/program. Do NOT merge multiple courses into one block.
+- CRITICAL: Include badge labels like "Most Popular" or "Limited Spots" if they exist in the source.`,
 
     'testimonial-band': `PATTERN for testimonials:
-- 1 text block (width "12"): <h2>Section Title</h2>
-- Multiple feature blocks (width "4", one per testimonial):
-  - <p style="font-style:italic">"Quote text"</p><h4>Person Name</h4><p>Role/Title</p>
-  - hide_image="true"
-- CRITICAL: One block per testimonial. Each MUST have the actual quote text.`,
+- 1 text block (width "12", make_block="true"): <h2>Section Title</h2><p>Subtitle if present</p>
+- Multiple text blocks (width "4", one per testimonial):
+  - <p style="font-style:italic; font-size:16px">"Quote text — use the FULL quote from source"</p>
+  - <h4>Person Name</h4><p>Role/Title</p>
+- Section: equal_height="true"
+- CRITICAL: One block per testimonial. Each MUST have the actual quote text from source.
+- CRITICAL: Do NOT invent or shorten quotes. Use the full source quote.`,
 
     'cta-band': `PATTERN for CTA:
-- 1 text block (width "8", text_align "center"): <h2>CTA Heading</h2><p>Supporting text</p>
-- 1 cta block: btn_text, btn_action
-- CRITICAL: Must include a cta block with actual button text.`,
+- 1 text block (width "8", text_align "center"):
+  <h2>CTA Heading</h2><p>Supporting text</p>
+  use_btn="true", btn_text="Button Text", btn_action="/url"
+- Do NOT use a separate cta block. Keep button INSIDE the text block via use_btn.
+- CRITICAL: The heading, body, and button must be in the SAME block for unified background.`,
 
     'content-media-split': `PATTERN for content/media:
 - 1 text block (width "5"-"6"): heading + body + optional button
@@ -645,7 +657,7 @@ function getBlockPatternForIntent(intent: SectionIntent): string {
 
     'content': `PATTERN for content:
 - 1 text block (width "8"-"12"): <h2>Heading</h2><p>Body text</p>
-- Optional cta block with btn_text + btn_action`,
+- Optional: use_btn="true" with btn_text + btn_action (NOT a separate cta block)`,
   };
 
   return patterns[intent] || patterns['content'];
