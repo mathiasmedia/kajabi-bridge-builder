@@ -75,6 +75,8 @@ export const useExportStore = create<ExportStore>((set, get) => ({
   exportValidation: null,
   renderCheckResult: null,
   isRenderChecking: false,
+  refinementResult: null,
+  previousScore: null,
 
   setWorkspaceProjects: (projects) => set({ workspaceProjects: projects }),
 
