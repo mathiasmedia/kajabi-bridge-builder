@@ -168,7 +168,10 @@ Use actual source text, no placeholders.
 IMAGE RULES:
 - If available image URLs are provided, use them for hero backgrounds (bg_type="image", bg_image=URL)
 - For hero sections with a background image, set bg_type="image" and bg_image to the hero image URL
-- Only use the provided URLs — do NOT invent image URLs`;
+- Only use the provided URLs — do NOT invent image URLs${pastTemplateLearnings ? `
+
+LEARNINGS FROM PAST EXPORTS (apply these patterns and avoid these mistakes):
+${pastTemplateLearnings}` : ''}`;
 
 
   // Build explicit hero block reference so the AI can't get IDs wrong
