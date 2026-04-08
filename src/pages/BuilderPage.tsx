@@ -148,6 +148,25 @@ export default function BuilderPage() {
     setTweaking(true);
     setTweakLog(prev => [...prev, `🔧 ${instruction}${imageData ? ' 📷' : ''}`]);
     try {
+      // If image provided, extract design via vision first
+      let visionDesign = null;
+      if (imageData) {
+        setTweakLog(prev => [...prev, '👁️ Analyzing screenshot…']);
+        const { data: visionData, error: visionErr } = await supabase.functions.invoke('ai-vision-extract', {
+          body: {
+            imageBase64: imageData,
+            context: instruction,
+          },
+        });
+        if (!visionErr && visionData?.design) {
+          visionDesign = visionData.design;
+          setTweakLog(prev => [...prev, `✅ Design extracted: ${visionData.design.overallStyle || 'analyzed'}`]);
+        } else {
+          console.warn('Vision extraction failed, proceeding with raw image:', visionErr || visionData?.error);
+          setTweakLog(prev => [...prev, '⚠️ Vision extraction failed — using raw image']);
+        }
+      }
+
       const { sections: baseSections, blockMap } = await getBaseThemeInfo();
 
       const body: any = {
@@ -156,6 +175,7 @@ export default function BuilderPage() {
         tweakInstruction: instruction,
         baseSections,
         blockMap,
+        visionDesign,
       };
       if (imageData) body.imageBase64 = imageData;
       const { data, error } = await supabase.functions.invoke('ai-tweak', { body });
