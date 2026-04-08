@@ -283,7 +283,7 @@ ${tweakInstruction}`;
       for (const mod of patch.modify) {
         const idx = mod.index;
         if (idx >= 0 && idx < result.length && mod.changes) {
-          result[idx] = { ...result[idx], ...mod.changes };
+          result[idx] = deepMerge(result[idx], mod.changes);
         }
       }
     }

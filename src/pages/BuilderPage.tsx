@@ -14,31 +14,6 @@ import { useExportStore } from '@/store/useExportStore';
 import { applyPlanAndExport } from '@/lib/kajabi-exporter';
 import LiveThemePreview from '@/components/LiveThemePreview';
 
-/** Strip heavy block content from addSection ops to reduce payload to AI tweak */
-function compactPlanForTweak(plan: any): any {
-  if (!plan?.operations) return plan;
-  return {
-    ...plan,
-    operations: plan.operations.map((op: any) => {
-      if (op.type === 'addSection' && op.section?.blocks) {
-        // Keep block order and settings, but strip full block HTML to save tokens
-        const compactBlocks: Record<string, any> = {};
-        for (const [id, block] of Object.entries(op.section.blocks as Record<string, any>)) {
-          compactBlocks[id] = {
-            type: block.type,
-            settings: {
-              ...block.settings,
-              text: block.settings?.text ? block.settings.text.slice(0, 200) : undefined,
-            },
-          };
-        }
-        return { ...op, section: { ...op.section, blocks: compactBlocks } };
-      }
-      return op;
-    }),
-  };
-}
-
 /** Cached section + block map so we only parse the zip once */
 let cachedBaseSections: Record<string, string> | null = null;
 let cachedBlockMap: Record<string, { type: string; textPreview: string }[]> | null = null;
@@ -205,7 +180,7 @@ export default function BuilderPage() {
       const { sections: baseSections, blockMap } = await getBaseThemeInfo();
 
       const body: any = {
-        planJson: compactPlanForTweak(template.plan_json as any),
+        planJson: template.plan_json,
         extractedDesign: template.extracted_design_json,
         tweakInstruction: instruction,
         baseSections,
