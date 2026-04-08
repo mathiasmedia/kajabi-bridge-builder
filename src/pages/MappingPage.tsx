@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench } from 'lucide-react';
+import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,7 +28,7 @@ const OP_TYPE_COLORS: Record<string, string> = {
 
 export default function MappingPage() {
   const navigate = useNavigate();
-  const { currentProject, transformationPlan, extractedDesign, isLoading, loadingMessage, removeOperation, runExportValidation, exportValidation } = useExportStore();
+  const { currentProject, transformationPlan, extractedDesign, isLoading, loadingMessage, removeOperation, runExportValidation, exportValidation, refinePlanWithAI } = useExportStore();
 
   useEffect(() => {
     if (transformationPlan) {
@@ -89,6 +89,9 @@ export default function MappingPage() {
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => navigate('/extract')}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            </Button>
+            <Button variant="outline" onClick={() => refinePlanWithAI()}>
+              <RefreshCw className="mr-2 h-4 w-4" /> Improve
             </Button>
             <Button onClick={handleExport} disabled={!canExport}>
               <Download className="mr-2 h-4 w-4" /> Export Kajabi Zip
