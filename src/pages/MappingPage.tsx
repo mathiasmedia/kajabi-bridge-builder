@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useExportStore } from '@/store/useExportStore';
-import { generateChangeSummary } from '@/lib/kajabi-exporter';
+import { generateChangeSummary, type ChangeSummaryItem } from '@/lib/kajabi-exporter';
 import AppHeader from '@/components/AppHeader';
 import ThemePreview from '@/components/ThemePreview';
 
@@ -28,7 +28,17 @@ const OP_TYPE_COLORS: Record<string, string> = {
 
 export default function MappingPage() {
   const navigate = useNavigate();
-  const { currentProject, transformationPlan, extractedDesign, isLoading, loadingMessage, removeOperation, runExportValidation, exportValidation, refinePlanWithAI } = useExportStore();
+  const {
+    currentProject,
+    transformationPlan,
+    extractedDesign,
+    isLoading,
+    loadingMessage,
+    removeOperation,
+    runExportValidation,
+    exportValidation,
+    refinePlanWithAI,
+  } = useExportStore();
 
   useEffect(() => {
     if (transformationPlan) {
@@ -81,12 +91,12 @@ export default function MappingPage() {
     <div className="min-h-screen bg-background">
       <AppHeader />
       <main className="container py-8 animate-fade-in">
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6 flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-display font-bold">Transformation Plan</h2>
-            <p className="text-muted-foreground mt-1">{transformationPlan.operations.length} operations planned</p>
+            <h2 className="font-display text-2xl font-bold">Transformation Plan</h2>
+            <p className="mt-1 text-muted-foreground">{transformationPlan.operations.length} operations planned</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 justify-end">
             <Button variant="outline" onClick={() => navigate('/extract')}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
@@ -99,9 +109,8 @@ export default function MappingPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left column: Source + Validation + Warnings */}
-          <div className="space-y-4">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,400px)_minmax(0,1fr)] gap-6 items-start">
+          <div className="min-w-0 space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Source Project</CardTitle>
@@ -113,7 +122,7 @@ export default function MappingPage() {
                 <Separator className="my-3" />
                 {extractedDesign && (
                   <>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Extracted</p>
+                    <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Extracted</p>
                     <p>{extractedDesign.colors.length} colors</p>
                     <p>Heading: {extractedDesign.headingFont}</p>
                     <p>Body: {extractedDesign.bodyFont}</p>
@@ -124,10 +133,9 @@ export default function MappingPage() {
               </CardContent>
             </Card>
 
-            {/* Export Validation Report */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-base">
                   {exportValidation?.ready ? (
                     <ShieldCheck className="h-4 w-4 text-emerald-500" />
                   ) : (
@@ -149,11 +157,11 @@ export default function MappingPage() {
 
                     {exportValidation.errors.length > 0 && (
                       <div className="space-y-1">
-                        <p className="text-xs font-medium text-destructive uppercase tracking-wide">Errors</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-destructive">Errors</p>
                         {exportValidation.errors.map((e, i) => (
                           <div key={i} className="flex items-start gap-1.5 text-xs text-destructive">
-                            <X className="h-3 w-3 mt-0.5 shrink-0" />
-                            <span>{e}</span>
+                            <X className="mt-0.5 h-3 w-3 shrink-0" />
+                            <span className="break-words">{e}</span>
                           </div>
                         ))}
                       </div>
@@ -161,11 +169,11 @@ export default function MappingPage() {
 
                     {exportValidation.warnings.length > 0 && (
                       <div className="space-y-1">
-                        <p className="text-xs font-medium text-yellow-500 uppercase tracking-wide">Warnings</p>
+                        <p className="text-xs font-medium uppercase tracking-wide text-yellow-500">Warnings</p>
                         {exportValidation.warnings.map((w, i) => (
                           <div key={i} className="flex items-start gap-1.5 text-xs text-yellow-500/80">
-                            <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                            <span>{w}</span>
+                            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                            <span className="break-words">{w}</span>
                           </div>
                         ))}
                       </div>
@@ -173,15 +181,17 @@ export default function MappingPage() {
 
                     {exportValidation.autoFixes.length > 0 && (
                       <div className="space-y-1">
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                        <p className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                           <Wrench className="h-3 w-3" /> Auto-fixes ({exportValidation.autoFixes.length})
                         </p>
-                        {exportValidation.autoFixes.map((f, i) => (
-                          <div key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                            <Check className="h-3 w-3 mt-0.5 shrink-0 text-emerald-500" />
-                            <span>{f}</span>
-                          </div>
-                        ))}
+                        <div className="space-y-1">
+                          {exportValidation.autoFixes.map((f, i) => (
+                            <div key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                              <Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-500" />
+                              <span className="break-words">{f}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </>
@@ -192,7 +202,7 @@ export default function MappingPage() {
             {transformationPlan.validationWarnings.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
                     <AlertTriangle className="h-4 w-4 text-yellow-500" /> Plan Warnings
                   </CardTitle>
                 </CardHeader>
@@ -201,13 +211,13 @@ export default function MappingPage() {
                     {transformationPlan.validationWarnings.map((w, i) => (
                       <div key={i} className="flex items-start gap-2 text-sm">
                         {w.severity === 'error' ? (
-                          <X className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                          <X className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                         ) : w.severity === 'warning' ? (
-                          <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+                          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
                         ) : (
-                          <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                          <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                         )}
-                        <span>{w.message}</span>
+                        <span className="break-words">{w.message}</span>
                       </div>
                     ))}
                   </div>
@@ -215,17 +225,16 @@ export default function MappingPage() {
               </Card>
             )}
 
-            {/* Preview */}
-            <Card>
+            <Card className="min-w-0">
               <CardHeader>
                 <CardTitle className="text-base">Preview</CardTitle>
               </CardHeader>
               <CardContent className="p-2">
-                <ScrollArea className="h-[600px]">
+                <ScrollArea className="h-[600px] w-full">
                   {extractedDesign && transformationPlan ? (
                     <ThemePreview plan={transformationPlan} design={extractedDesign} />
                   ) : (
-                    <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
+                    <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
                       No preview available
                     </div>
                   )}
@@ -234,14 +243,13 @@ export default function MappingPage() {
             </Card>
           </div>
 
-          {/* Right column: Operations — full width, no truncation */}
-          <Card className="overflow-hidden min-w-0">
-            <CardHeader>
+          <Card className="min-w-0 max-w-full overflow-hidden">
+            <CardHeader className="pb-4">
               <CardTitle className="text-base">Operations ({changeSummary.length})</CardTitle>
             </CardHeader>
-            <CardContent className="p-0 min-w-0">
-              <ScrollArea className="h-[calc(100vh-200px)]">
-                <div className="p-3 space-y-1.5">
+            <CardContent className="min-w-0 max-w-full p-0">
+              <ScrollArea className="h-[calc(100vh-200px)] w-full">
+                <div className="min-w-0 space-y-2 p-3">
                   {changeSummary.map((item, i) => (
                     <OperationRow key={i} item={item} index={i} onRemove={removeOperation} />
                   ))}
@@ -255,34 +263,52 @@ export default function MappingPage() {
   );
 }
 
-function OperationRow({ item, index, onRemove }: { item: import('@/lib/kajabi-exporter').ChangeSummaryItem; index: number; onRemove: (i: number) => void }) {
+function OperationRow({ item, index, onRemove }: { item: ChangeSummaryItem; index: number; onRemove: (i: number) => void }) {
   const [showJson, setShowJson] = useState(false);
   const colorClass = OP_TYPE_COLORS[item.type] || 'bg-muted text-muted-foreground border-border';
 
   return (
-    <div className="rounded-md border px-3 py-2 group min-w-0 overflow-hidden">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="text-[10px] font-mono text-muted-foreground w-5 shrink-0 text-right">{index + 1}</span>
-        <Badge variant="outline" className={`text-[10px] font-mono shrink-0 border ${colorClass}`}>
-          {item.type}
-        </Badge>
-        <span className="text-sm font-medium flex-1 min-w-0 truncate">{item.label}</span>
-        {item.json && (
-          <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] font-mono text-muted-foreground shrink-0 whitespace-nowrap" onClick={() => setShowJson(!showJson)}>
-            {showJson ? '▼ JSON' : '▶ JSON'}
-          </Button>
-        )}
-        <button
-          onClick={() => onRemove(index)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-          title="Remove operation"
-        >
-          <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-        </button>
+    <div className="min-w-0 rounded-md border p-3">
+      <div className="flex items-start gap-3 min-w-0">
+        <span className="mt-1 shrink-0 text-right font-mono text-[10px] text-muted-foreground">{index + 1}</span>
+
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Badge variant="outline" className={`shrink-0 border font-mono text-[10px] ${colorClass}`}>
+              {item.type}
+            </Badge>
+            <span className="min-w-0 break-words text-sm font-medium">{item.label}</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {item.json && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 shrink-0 whitespace-nowrap px-2 font-mono text-[10px] text-muted-foreground"
+                onClick={() => setShowJson(!showJson)}
+              >
+                {showJson ? 'Hide JSON' : 'Show JSON'}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 shrink-0 whitespace-nowrap px-2 text-[10px] text-muted-foreground"
+              onClick={() => onRemove(index)}
+            >
+              Remove
+            </Button>
+          </div>
+        </div>
       </div>
-      <pre className="text-[11px] text-muted-foreground mt-1 ml-7 whitespace-pre-wrap font-sans">{item.detail}</pre>
+
+      <pre className="mt-2 ml-6 max-w-full overflow-x-auto whitespace-pre-wrap break-words font-sans text-[11px] text-muted-foreground">
+        {item.detail}
+      </pre>
+
       {showJson && item.json && (
-        <pre className="text-[10px] text-muted-foreground mt-2 ml-7 whitespace-pre-wrap font-mono bg-muted/50 rounded p-2 max-h-[400px] overflow-auto border">
+        <pre className="mt-2 ml-6 max-h-[420px] max-w-full overflow-auto break-all whitespace-pre-wrap rounded border bg-muted/50 p-2 font-mono text-[10px] text-muted-foreground">
           {item.json}
         </pre>
       )}
