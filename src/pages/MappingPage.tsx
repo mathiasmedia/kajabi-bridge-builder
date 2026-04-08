@@ -261,20 +261,20 @@ function OperationRow({ item, index, onRemove }: { item: import('@/lib/kajabi-ex
 
   return (
     <div className="rounded-md border px-3 py-2 group">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         <span className="text-[10px] font-mono text-muted-foreground w-5 shrink-0 text-right">{index + 1}</span>
         <Badge variant="outline" className={`text-[10px] font-mono shrink-0 border ${colorClass}`}>
           {item.type}
         </Badge>
-        <span className="text-sm font-medium flex-1 truncate">{item.label}</span>
+        <span className="text-sm font-medium flex-1 min-w-0 truncate">{item.label}</span>
         {item.json && (
-          <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] font-mono text-muted-foreground" onClick={() => setShowJson(!showJson)}>
+          <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] font-mono text-muted-foreground shrink-0 whitespace-nowrap" onClick={() => setShowJson(!showJson)}>
             {showJson ? '▼ JSON' : '▶ JSON'}
           </Button>
         )}
         <button
           onClick={() => onRemove(index)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
           title="Remove operation"
         >
           <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
