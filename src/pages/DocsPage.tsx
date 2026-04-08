@@ -34,6 +34,7 @@ const successCriteria = [
 ];
 
 const knownBadOutputs = [
+  '<strong>Latest observed (pre-fix):</strong> AI returned addSection operations with empty <code>section.settings</code>, <code>section.blocks</code>, and no <code>section.type</code>, causing 500 errors. The sanitizer repaired structure but could not invent content, so sections were rejected entirely. Also: <code>content_for_index</code> was occasionally stringified, and typography fell back to theme defaults instead of source fonts.',
   '<code>content_for_index</code> becomes a string instead of an array.',
   'Stringified JSON ends up inside section or block settings.',
   'AI generates empty/custom stub sections with no useful content.',
@@ -60,6 +61,34 @@ const nextPriorities = [
   'Image transfer — handle media intentionally instead of dropping or placeholdering it.',
   'Preview fidelity — close the gap between the React preview and Kajabi Liquid rendering.',
   'CSS override reduction — map more styling into native theme settings instead of brute-force CSS.',
+];
+
+const sanitizerScope = {
+  canFix: [
+    'Stringified arrays and objects (e.g. content_for_index as a string instead of an array).',
+    'Stringified JSON inside section or block settings.',
+    'Missing or non-numeric section/block IDs — regenerated as valid 13-digit strings.',
+    'Empty stub sections with no type — removed from sections and content_for_* arrays.',
+    'Block arrays converted to the required object format.',
+    'Trailing commas, unbalanced braces, and other malformed JSON from AI output.',
+  ],
+  cannotFix: [
+    'Wrong semantic mapping — if the AI chose the wrong Kajabi section type, the sanitizer cannot correct the intent.',
+    'Weak or placeholder content — the sanitizer repairs structure, not meaning.',
+    'Missing media intent — if the source had images and the AI dropped them, nothing restores that.',
+    'Bad content hierarchy — if blocks are in the wrong order or headings are mismatched, sanitization does not help.',
+    'Template-specific field mismatches — if a Liquid template expects a specific key name and the AI used a different one, the sanitizer does not know.',
+  ],
+};
+
+const mvpDone = [
+  'Exported zip imports into Kajabi without errors or manual repair.',
+  'Homepage structure visibly resembles the source Lovable project.',
+  'Hero, header, and footer map correctly in content and styling direction.',
+  'No malformed settings_data.json (arrays stay arrays, objects stay objects).',
+  'No empty stub sections in the exported theme.',
+  'No broken content_for_* values (always valid ordered arrays of section IDs).',
+  'Fonts and primary brand colors transfer correctly.',
 ];
 
 const pipelineSteps = [
@@ -141,6 +170,19 @@ export default function DocsPage() {
           <ul>
             {knownBadOutputs.map((item) => (
               <li key={item} dangerouslySetInnerHTML={{ __html: item }} />
+            ))}
+          </ul>
+
+          <h2>What the sanitizer can and cannot fix</h2>
+          <div className="not-prose grid gap-4 md:grid-cols-2">
+            <StatusCard title="Can fix (structural)" items={sanitizerScope.canFix} />
+            <StatusCard title="Cannot fix (semantic)" items={sanitizerScope.cannotFix} />
+          </div>
+
+          <h2>Current definition of done (MVP)</h2>
+          <ul>
+            {mvpDone.map((item) => (
+              <li key={item}>{item}</li>
             ))}
           </ul>
 
