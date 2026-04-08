@@ -53,11 +53,14 @@ An image is attached. Analyze it with extreme precision:
 - addSection: { type, sectionId, section:{type,settings,blocks,block_order}, label }
 - addBlock: { type, sectionId, blockId, block:{type,settings}, label }
 
-## IMPORTANT
-- Do NOT add sections that aren't requested or visible in the reference
-- Do NOT duplicate existing sections
-- When modifying, change existing operations rather than adding parallel ones
+## CRITICAL RULES
+- NEVER add new sections unless the user EXPLICITLY asks for a new section
+- NEVER add default/placeholder sections like "Amazing Feature", "Lorem ipsum", etc.
+- NEVER duplicate existing sections or operations
+- When modifying, change existing operations in-place rather than adding parallel ones
 - Merge CSS changes into the existing addCssOverride rather than adding a second one
+- The number of operations returned should be similar to the input (±5 operations)
+- If the tweak is about colors/fonts/text, ONLY modify the relevant operations — leave everything else untouched
 
 Return ONLY valid JSON: { "operations": [...], "changelog": "brief description of what changed" }`;
 
