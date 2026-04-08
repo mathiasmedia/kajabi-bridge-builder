@@ -197,20 +197,24 @@ function extractHero(files: SourceProjectFiles): ExtractedDesign['hero'] | undef
   
   // Fallback: check index page directly
   const indexPage = files.indexPage || files.pages['src/pages/Index.tsx'] || '';
-  const h1Match = indexPage.match(/<h1[^>]*>([^<]+)</);
-  const pMatch = indexPage.match(/<p[^>]*>([^<]{10,})/);
-  const btnMatch = indexPage.match(/(?:Button|button|CTA)[^>]*>([^<]+)</);
+  const h1Match = indexPage.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
+  const pMatch = indexPage.match(/<p[^>]*>([\s\S]{10,}?)<\/p>/);
+  const btnMatch = indexPage.match(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/);
   
   if (h1Match || pMatch) {
     return {
-      heading: h1Match?.[1]?.trim() || 'Welcome',
-      subheading: pMatch?.[1]?.trim(),
+      heading: h1Match ? cleanJsx(h1Match[1]) : 'Welcome',
+      subheading: pMatch ? cleanJsx(pMatch[1]) : undefined,
       ctaText: btnMatch?.[1]?.trim(),
       ctaUrl: '/',
     };
   }
   
   return undefined;
+
+  function cleanJsx(text: string) {
+    return text.replace(/<[^>]+>/g, '').replace(/\{[^}]*\}/g, '').replace(/\s+/g, ' ').trim();
+  }
 }
 
 function extractSectionsV2(files: SourceProjectFiles): { sections: ExtractedSection[]; warnings: ExtractionWarning[] } {
