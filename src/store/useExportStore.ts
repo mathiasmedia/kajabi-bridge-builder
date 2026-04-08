@@ -224,6 +224,25 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         heroBlockMap,
       };
 
+      // ── Fetch past template learnings ──
+      let pastTemplateLearnings = '';
+      try {
+        const { data: pastTemplates } = await supabase
+          .from('saved_templates')
+          .select('source_project_name, ai_critique, plan_json')
+          .not('ai_critique', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(3);
+        if (pastTemplates && pastTemplates.length > 0) {
+          pastTemplateLearnings = pastTemplates.map((t: any) => {
+            const critique = JSON.parse(t.ai_critique);
+            return `### ${t.source_project_name} (score: ${critique.score}/10)\nPatterns: ${(critique.patterns || []).map((p: any) => p.name + ': ' + p.description).join('; ')}\nIssues to avoid: ${(critique.issues || []).map((i: any) => i.description + ' → ' + i.fix).join('; ')}`;
+          }).join('\n\n');
+        }
+      } catch (e) {
+        console.warn('Failed to fetch past templates:', e);
+      }
+
       // ── Step 1: Globals (header, footer, hero, navigation, CSS) ──
       const nonHeroSections = extractedDesign.sections.filter(s => {
         // Use intent as primary driver
@@ -241,7 +260,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       set({ isLoading: true, loadingMessage: `Step 1/${totalSteps}: Generating global styles, header, footer, hero & navigation...` });
 
       const { data: globalsData, error: globalsError } = await supabase.functions.invoke('ai-transform', {
-        body: { ...sharedBody, step: 'globals' },
+        body: { ...sharedBody, step: 'globals', pastTemplateLearnings },
       });
 
       if (globalsError) throw new Error(globalsError.message || 'Globals step failed');
