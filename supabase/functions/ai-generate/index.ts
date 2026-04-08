@@ -272,17 +272,28 @@ Return valid JSON:
 - A heading that introduces content below it (e.g. "Is Your Brand Holding You Back?" above 3 feature cards) must be in the SAME section as the cards — NOT a separate section.
 - Don't create single-block sections for headings that belong with adjacent content.
 
-### Multi-Column Layouts (side-by-side content)
-- To create a 2-column layout (e.g. text on left, image on right), use the section setting: "columns": 2
-- Blocks fill columns sequentially: block 1 → column 1, block 2 → column 2
-- Within a column, block "width" is relative to the column (use "12" for full column width)
-- Example: text+CTA left, image right → columns: 2, block1 (text, width "12"), block2 (cta, width "12"), block3 (image, width "12")
-  - Blocks 1-2 go to column 1, block 3 to column 2 (Kajabi fills columns evenly)
+### Multi-Column / Side-by-Side Layouts
+- There is NO "columns" section setting. Kajabi uses a Bootstrap-style 12-column grid.
+- All blocks in a section render inside a single flex-wrap .row container.
+- Each block gets a CSS class col-{width} which determines how wide it is (out of 12).
+- To put blocks side-by-side, give them widths that ADD UP to 12 or less:
+  - Text left + image right → text block width "6", image block width "6"
+  - Text left (wider) + image right → text block width "7", image block width "5"
+  - 3 equal cards → each block width "4" (4+4+4=12)
+  - 4 equal cards → each block width "3" (3+3+3+3=12)
+- If widths add up to MORE than 12, blocks wrap to the next row.
+- For full-width content (heading, CTA), use width "12".
+- Example: "Your Brand Elevated" section with text+CTA left and image right:
+  - block1: text (width "6", contains heading + paragraph + button via use_btn)
+  - block2: image (width "6")
+  - Both sit side-by-side because 6+6=12.
 
 ### Block Width
-- Width is "1" to "12" (Bootstrap grid) relative to the container/column
-- For 3 equal cards in a single-column section: each block width "4"
+- Width is "1" to "12" (Bootstrap grid) — controls how many of 12 columns the block occupies
+- Blocks in the same section share the same .row — their widths determine layout
+- For 3 equal cards in a section: each block width "4"
 - For full-width text: width "12"
+- For 2-column layout: use "6" + "6", or "5" + "7", etc.
 
 ## SECTION SETTINGS
 All sections use type: "section". Available settings:
@@ -290,7 +301,6 @@ All sections use type: "section". Available settings:
 - padding_mobile: { top: number, bottom: number, left: number, right: number }
 - vertical: "top" | "center" | "bottom" | "stretch" (row vertical alignment)
 - horizontal: "left" | "center" | "right" (row horizontal alignment)
-- columns: 1 | 2 (number of columns — use 2 for side-by-side layouts)
 - background_color: hex color (ONLY for intentionally dark/colored sections — see rules above)
 - bg_type: "color" | "image" | "video"
 - bg_image: URL for background image
