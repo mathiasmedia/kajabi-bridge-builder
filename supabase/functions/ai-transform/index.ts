@@ -885,13 +885,13 @@ function buildFallbackSection(sourceSection: any, intent: SectionIntent): any | 
   }
 
   // CTA block
-  if (sourceSection?.ctaText) {
+  if (ctaText) {
     const ctaId = createNumericId();
     blocks[ctaId] = {
       type: "cta",
       settings: {
-        btn_text: sourceSection.ctaText,
-        btn_action: sourceSection.ctaUrl || "/",
+        btn_text: ctaText,
+        btn_action: ctaUrl,
         width: "8",
         text_align: "center",
       },
