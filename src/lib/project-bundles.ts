@@ -269,6 +269,12 @@ const TestimonialsSection = () => (
       'src/assets/class-session.jpg',
     ],
 
+    imageUrls: {
+      'src/assets/hero-underwater.jpg': 'https://qvkqcrjykswbiqvrxhks.supabase.co/storage/v1/object/public/theme-assets/woven-waves/hero-underwater.jpg',
+      'src/assets/basket-product.jpg': 'https://qvkqcrjykswbiqvrxhks.supabase.co/storage/v1/object/public/theme-assets/woven-waves/basket-product.jpg',
+      'src/assets/class-session.jpg': 'https://qvkqcrjykswbiqvrxhks.supabase.co/storage/v1/object/public/theme-assets/woven-waves/class-session.jpg',
+    },
+
     pages: {
       'src/pages/Index.tsx': `import HeroSection from "@/components/HeroSection";
 import CoursesSection from "@/components/CoursesSection";

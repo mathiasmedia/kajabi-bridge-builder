@@ -10,6 +10,7 @@ export interface SourceProjectFiles {
   appTsx?: string;
   components: Record<string, string>;
   assets: string[];
+  imageUrls?: Record<string, string>; // asset path → public URL in storage bucket
   pages: Record<string, string>;
 }
 
@@ -160,12 +161,10 @@ function extractHero(files: SourceProjectFiles): ExtractedDesign['hero'] | undef
   // Check hero components first
   for (const [path, content] of Object.entries(files.components)) {
     if (path.toLowerCase().includes('hero')) {
-      // Extract text content from JSX, handling expressions like {"text"}
       const h1Match = content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
       const pMatch = content.match(/<p[^>]*>([\s\S]{10,}?)<\/p>/);
       const btnMatch = content.match(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/);
       
-      // Clean JSX text: remove tags, expressions, extra whitespace
       const cleanJsx = (text: string) => text
         .replace(/<[^>]+>/g, '')
         .replace(/\{["']\s*["']\}/g, ' ')
@@ -176,12 +175,18 @@ function extractHero(files: SourceProjectFiles): ExtractedDesign['hero'] | undef
       const heading = h1Match ? cleanJsx(h1Match[1]) : undefined;
       const subheading = pMatch ? cleanJsx(pMatch[1]) : undefined;
       
+      // Look for hero background image reference
+      const imgImportMatch = content.match(/import\s+\w+\s+from\s+["'](@\/assets\/[^"']+)["']/);
+      const heroImagePath = imgImportMatch?.[1]?.replace('@/', 'src/');
+      const heroImageUrl = heroImagePath ? files.imageUrls?.[heroImagePath] : undefined;
+      
       if (heading || subheading) {
         return {
           heading: heading || 'Welcome',
           subheading: subheading,
           ctaText: btnMatch?.[1]?.trim(),
           ctaUrl: '/',
+          backgroundImage: heroImageUrl,
         };
       }
     }
@@ -376,6 +381,7 @@ function extractAssets(files: SourceProjectFiles): ExtractedAsset[] {
     sourcePath: path,
     fileName: path.split('/').pop() || path,
     type: 'image' as const,
+    url: files.imageUrls?.[path],
   }));
 }
 

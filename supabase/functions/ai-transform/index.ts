@@ -162,7 +162,13 @@ You MUST use the EXACT block IDs from the theme structure. Do NOT fabricate or i
 The block IDs are the keys under each section's "blocks" object in the theme structure below.
 
 ID FORMAT: 13-digit numeric-only strings.
-Use actual source text, no placeholders. No external image URLs.`;
+Use actual source text, no placeholders.
+
+IMAGE RULES:
+- If available image URLs are provided, use them for hero backgrounds (bg_type="image", bg_image=URL)
+- For hero sections with a background image, set bg_type="image" and bg_image to the hero image URL
+- Only use the provided URLs — do NOT invent image URLs`;
+
 
   // Build explicit hero block reference so the AI can't get IDs wrong
   let heroBlockRef = '';
@@ -205,9 +211,17 @@ ${JSON.stringify({
 ${JSON.stringify(themeStructure, null, 2)}
 ${heroBlockRef}
 
+${(() => {
+  const imgs = (extractedDesign?.assets || []).filter((a: any) => a.url && a.type === 'image');
+  return imgs.length > 0
+    ? `## Available images\n${imgs.map((a: any) => `- ${a.fileName}: ${a.url}`).join('\n')}\nUse the hero image as bg_image on the hero section (set bg_type="image").`
+    : '';
+})()}
+
 Generate operations for: header, footer, hero blocks, navigation menus, and CSS overrides.
 IMPORTANT: For the hero, you MUST generate replaceText ops targeting the exact block IDs listed above.
-IMPORTANT: Generate updateNavigation for "main-menu" and "about-menu" using the source nav items.`;
+IMPORTANT: Generate updateNavigation for "main-menu" and "about-menu" using the source nav items.
+${(extractedDesign?.assets || []).some((a: any) => a.url && a.fileName?.includes('hero')) ? 'IMPORTANT: Set the hero section bg_type="image" and bg_image to the hero image URL.' : ''}`;
 
   const result = await requestTransform({
     apiKey,
@@ -328,7 +342,14 @@ CONTENT RULES:
 - For testimonial sections, use one text or card block per testimonial with the quote and the person's name/role when present
 - Include buttons via use_btn="true" + btn_text + btn_action
 - Use actual source text, no placeholders
-- No external image URLs
+
+IMAGE RULES:
+- If available image URLs are provided below, USE them in appropriate blocks
+- For "image" blocks: set settings.image to the URL, settings.image_alt to a description
+- For "feature" blocks with images: set settings.image to the URL (do NOT set hide_image)
+- For section backgrounds: set bg_type="image" and bg_image to the URL
+- Match images to sections contextually (hero bg → hero image, product shots → course cards, etc.)
+- Only use the provided URLs — do NOT invent image URLs
 
 ID FORMAT: 13-digit numeric-only strings.
 FOOTER RULE: If this is a footer section, return {"operations":[],"cssOverrides":""}.${dedupWarning}`;
@@ -346,9 +367,18 @@ FOOTER RULE: If this is a footer section, return {"operations":[],"cssOverrides"
       }).join('\n')}\n\nYou MUST create one feature/card/text block per item above. Do NOT use placeholder text like "Card Title" or "Lorem ipsum".`
     : '';
 
+  // Build available images reference
+  const availableImages = (extractedDesign?.assets || [])
+    .filter((a: any) => a.url && a.type === 'image')
+    .map((a: any) => `- ${a.fileName}: ${a.url} (from source: ${a.sourcePath})`);
+  const imageContext = availableImages.length > 0
+    ? `\n\n## Available images (use these URLs in image/feature blocks or section bg_image)\n${availableImages.join('\n')}`
+    : '';
+
   const userPrompt = `## Source section to recreate
 ${JSON.stringify(sectionToGenerate, null, 2)}
 ${itemsDetail}
+${imageContext}
 
 ## Source section content
 - Intent: ${intent}
@@ -371,7 +401,8 @@ ${JSON.stringify({
 Create ONE addSection with type "section" and rich content blocks.
 Remember: section settings do NOT have heading/subheading/text fields. Put ALL content in blocks.
 Block text must be rich HTML. Use width for column layouts.
-CRITICAL: Use the ACTUAL text from the items list above. Never use generic placeholder text.`;
+CRITICAL: Use the ACTUAL text from the items list above. Never use generic placeholder text.
+${availableImages.length > 0 ? 'IMPORTANT: Use the available image URLs where contextually appropriate (hero backgrounds, course/feature cards, etc.).' : ''}`;
 
   const models = ["google/gemini-2.5-flash", "google/gemini-3-flash-preview"];
   let lastError = "";
