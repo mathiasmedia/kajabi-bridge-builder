@@ -5,6 +5,7 @@ import { extractDesignFromSource, type SourceProjectFiles } from '@/lib/source-e
 import { buildTransformationPlan } from '@/lib/transformation-planner';
 import { applyPlanAndExport } from '@/lib/kajabi-exporter';
 import { preValidateExport, type ValidationResult } from '@/lib/kajabi-exporter';
+import { getRuleForIntent, validateMappingQuality } from '@/lib/intent-mapping';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ExportStore {
@@ -174,10 +175,11 @@ export const useExportStore = create<ExportStore>((set, get) => ({
 
       // ── Step 1: Globals (header, footer, hero, navigation, CSS) ──
       const nonHeroSections = extractedDesign.sections.filter(s => {
-        if (s.type === 'hero') return false;
-        const heading = (s.heading || '').toLowerCase();
-        const type = (s.type || '').toLowerCase();
-        if (type === 'content' && (heading.includes('footer') || heading === 'footer')) return false;
+        // Use intent as primary driver
+        if (s.intent === 'hero') return false;
+        if (s.intent === 'footer_like') return false;
+        const rule = getRuleForIntent(s.intent);
+        if (rule.excludeFromContent) return false;
         return true;
       });
       const totalSteps = 1 + nonHeroSections.length;
@@ -308,6 +310,12 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         throw new Error('AI returned no valid operations across all steps. Please try again.');
       }
 
+      // ── Quality guards ──
+      const mappingWarnings = validateMappingQuality(extractedDesign.sections, deduplicatedOps);
+      if (mappingWarnings.length > 0) {
+        console.warn('Mapping quality warnings:', mappingWarnings);
+      }
+
       const plan: TransformationPlan = {
         sourceProjectId: currentProject.sourceProjectId,
         sourceProjectName: currentProject.sourceProjectName,
@@ -315,7 +323,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         baseThemeId: 'streamlined-home',
         extractedDesign,
         operations: deduplicatedOps,
-        validationWarnings: [],
+        validationWarnings: mappingWarnings,
       };
 
       set({ transformationPlan: plan, isLoading: false });

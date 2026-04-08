@@ -268,8 +268,12 @@ async function handleSectionStep(apiKey: string, body: any) {
   }
 
   const sectionContext = findSectionSourceContext(sourceFiles, sectionToGenerate);
-  const intent = classifySectionIntent(sectionToGenerate);
+  // Use upstream intent from extractor (primary), fall back to local classification
+  const intent: SectionIntent = mapUpstreamIntent(sectionToGenerate.intent) || classifySectionIntent(sectionToGenerate);
   const blockPattern = getBlockPatternForIntent(intent);
+
+  // Build richness requirements based on intent + upstream metadata
+  const richnessGuard = buildRichnessGuard(intent, sectionToGenerate);
 
   const dedupWarning = existingSectionHeadings.length > 0
     ? `\n\nDEDUPLICATION: These headings already exist. Do NOT repeat them:\n${existingSectionHeadings.map((h: string) => `- "${h}"`).join("\n")}\nIf already covered, return {"operations":[],"cssOverrides":""}.`
@@ -380,12 +384,20 @@ ${JSON.stringify(sectionToGenerate, null, 2)}
 ${itemsDetail}
 ${imageContext}
 
-## Source section content
+## Semantic intent (PRIMARY DRIVER — follow this)
 - Intent: ${intent}
+- Confidence: ${sectionToGenerate.confidence ?? 'unknown'}
+- Evidence: ${(sectionToGenerate.evidence || []).join('; ') || 'none'}
+- Flags: hasHeading=${sectionToGenerate.hasHeading ?? false}, hasBody=${sectionToGenerate.hasBody ?? false}, hasButtons=${sectionToGenerate.hasButtons ?? false}, hasImages=${sectionToGenerate.hasImages ?? false}, hasStats=${sectionToGenerate.hasStats ?? false}, hasTestimonials=${sectionToGenerate.hasTestimonials ?? false}, hasPricing=${sectionToGenerate.hasPricing ?? false}, hasRepeatedCards=${sectionToGenerate.hasRepeatedCards ?? false}
+- Repeated items: ${sectionToGenerate.repeatedItemCount ?? 0}
+
+## Source section content
 - Heading: ${sectionToGenerate.heading || "none"}
 - Body: ${sectionToGenerate.body || "none"}
 - CTA: ${sectionToGenerate.ctaText || "none"} → ${sectionToGenerate.ctaUrl || "none"}
 - Items count: ${sectionToGenerate.items?.length || 0}
+
+${richnessGuard}
 
 ## Relevant source code
 ${sectionContext}
@@ -584,22 +596,35 @@ function getBlockPatternForIntent(intent: SectionIntent): string {
 - Section: bg_type="color" or "image", background_color for dark bg`,
 
     'stats': `PATTERN for stats:
-- Multiple feature blocks (width "4" each, hide_image="true")
-- Each: <h4>Number/Stat</h4><p>Description</p>
+- Multiple feature blocks (width "3" or "4" each, hide_image="true")
+- Each feature block: <h4>Number/Value</h4><p>Label/Description</p>
+- CRITICAL: Every stat MUST have a numeric value in <h4> and a label in <p>. Never output label-only blocks.
 - Section: equal_height="true"`,
 
-    'feature-grid': `PATTERN for features/programs:
+    'feature-grid': `PATTERN for features:
 - 1 text block (width "12"): <h2>Section Title</h2><p>Intro text</p>
 - Multiple feature blocks (width "4" or "6" each): <h4>Feature Title</h4><p>Description</p>
 - Include ALL features from source, with use_btn if source has CTAs`,
 
+    'program-cards': `PATTERN for program/course cards:
+- 1 text block (width "12"): <h2>Section Title</h2><p>Intro paragraph</p>
+- Multiple feature blocks (width "4" each, one per program/course):
+  - <h4>Course Title</h4><p>Description</p><p><strong>Price</strong></p>
+  - Include use_btn="true" + btn_text for CTAs when available
+  - Include image if available (do NOT set hide_image)
+- CRITICAL: One block per course/program. Do NOT merge multiple courses into one block.`,
+
     'testimonial-band': `PATTERN for testimonials:
 - 1 text block (width "12"): <h2>Section Title</h2>
-- Multiple text or card blocks (width "4" or "6"): "<p style="font-style:italic">Quote</p><p><strong>Name</strong></p>"`,
+- Multiple feature blocks (width "4", one per testimonial):
+  - <p style="font-style:italic">"Quote text"</p><h4>Person Name</h4><p>Role/Title</p>
+  - hide_image="true"
+- CRITICAL: One block per testimonial. Each MUST have the actual quote text.`,
 
     'cta-band': `PATTERN for CTA:
 - 1 text block (width "8", text_align "center"): <h2>CTA Heading</h2><p>Supporting text</p>
-- 1 cta block: btn_text, btn_action`,
+- 1 cta block: btn_text, btn_action
+- CRITICAL: Must include a cta block with actual button text.`,
 
     'content-media-split': `PATTERN for content/media:
 - 1 text block (width "5"-"6"): heading + body + optional button
@@ -609,6 +634,11 @@ function getBlockPatternForIntent(intent: SectionIntent): string {
 
     'heading-separator': `PATTERN for heading separator:
 - 1 text block (width "8"-"12"): <h2>Heading</h2>`,
+
+    'faq': `PATTERN for FAQ:
+- 1 text block (width "12"): <h2>FAQ Heading</h2>
+- Multiple text blocks (width "12" each) for Q&A pairs: <h4>Question?</h4><p>Answer text</p>
+- If an accordion block type is available, use that instead.`,
 
     'content': `PATTERN for content:
 - 1 text block (width "8"-"12"): <h2>Heading</h2><p>Body text</p>
@@ -1030,7 +1060,77 @@ function normalizeBlock(block: any): { type: string; settings: Record<string, an
 
 // ── Intent classification ──
 
-type SectionIntent = 'hero' | 'stats' | 'feature-grid' | 'testimonial-band' | 'cta-band' | 'content-media-split' | 'footer' | 'heading-separator' | 'content';
+type SectionIntent = 'hero' | 'stats' | 'feature-grid' | 'program-cards' | 'testimonial-band' | 'cta-band' | 'content-media-split' | 'footer' | 'heading-separator' | 'faq' | 'content';
+
+/** Map upstream extractor intent (snake_case) to edge function intent (kebab-case) */
+function mapUpstreamIntent(upstreamIntent: string | undefined): SectionIntent | null {
+  if (!upstreamIntent) return null;
+  const map: Record<string, SectionIntent> = {
+    'hero': 'hero',
+    'stats': 'stats',
+    'feature_grid': 'feature-grid',
+    'program_cards': 'program-cards',
+    'testimonial_band': 'testimonial-band',
+    'cta_band': 'cta-band',
+    'content_media_split': 'content-media-split',
+    'heading_divider': 'heading-separator',
+    'faq': 'faq',
+    'footer_like': 'footer',
+    'unknown': 'content',
+  };
+  return map[upstreamIntent] || null;
+}
+
+/** Build richness requirements string based on intent + section flags */
+function buildRichnessGuard(intent: SectionIntent, section: any): string {
+  const lines: string[] = ['## RICHNESS REQUIREMENTS (MANDATORY)'];
+
+  switch (intent) {
+    case 'stats':
+      lines.push('- You MUST create one feature block per stat item with the numeric VALUE in an <h4> and the LABEL in a <p>.');
+      lines.push('- Heading-only output is INVALID for stats. Each block must have value + label.');
+      lines.push(`- Expected block count: ${section.items?.length || 4} stat blocks.`);
+      break;
+    case 'program-cards':
+      lines.push('- You MUST create one feature/card block per program/course item.');
+      lines.push('- Each block MUST include: title, description, and price (if available).');
+      lines.push('- Do NOT collapse multiple programs into one text block.');
+      lines.push(`- Expected block count: 1 heading block + ${section.items?.length || 3} item blocks.`);
+      break;
+    case 'testimonial-band':
+      lines.push('- You MUST create one text/feature block per testimonial.');
+      lines.push('- Each block MUST include the quote text (in italics) and the person\'s name.');
+      lines.push('- Do NOT output a heading-only testimonial section.');
+      lines.push(`- Expected block count: 1 heading block + ${section.items?.length || 3} testimonial blocks.`);
+      break;
+    case 'cta-band':
+      lines.push('- You MUST include a heading + body text block AND a cta block with btn_text.');
+      lines.push('- If the source has CTA text/action, preserve it.');
+      break;
+    case 'faq':
+      lines.push('- Create one accordion block or multiple text blocks for Q&A pairs.');
+      lines.push('- If accordion block type is available, prefer it.');
+      lines.push('- Each Q&A should have the question as a heading and the answer as body text.');
+      if (section.items?.length) {
+        lines.push(`- Expected: ${section.items.length} Q&A items.`);
+      }
+      break;
+    case 'content-media-split':
+      lines.push('- Create a text block (width "5"-"6") + image block (width "5"-"6") side by side.');
+      break;
+    case 'feature-grid':
+      lines.push('- Create one feature block per item. Include title + description in each.');
+      lines.push(`- Expected block count: 1 heading block + ${section.items?.length || 3} feature blocks.`);
+      break;
+    case 'heading-separator':
+      lines.push('- A single text block with the heading is acceptable ONLY for true dividers.');
+      break;
+    default:
+      lines.push('- Include all meaningful content from the source. Do not produce thin/placeholder blocks.');
+  }
+
+  return lines.join('\n');
+}
 
 function classifySectionIntent(section: any): SectionIntent {
   const type = String(section?.type || '').toLowerCase();
@@ -1038,14 +1138,19 @@ function classifySectionIntent(section: any): SectionIntent {
   const hasItems = Array.isArray(section?.items) && section.items.length > 0;
   const hasBody = typeof section?.body === 'string' && section.body.length > 20;
   const hasCta = typeof section?.ctaText === 'string' && section.ctaText.trim().length > 0;
+  const hasStats = section?.hasStats === true;
+  const hasTestimonials = section?.hasTestimonials === true;
+  const hasPricing = section?.hasPricing === true;
 
   if (type === 'hero') return 'hero';
-  if (type === 'testimonials' || heading.includes('testimonial') || heading.includes('what our') || heading.includes('reviews')) return 'testimonial-band';
+  if (hasTestimonials || type === 'testimonials' || heading.includes('testimonial') || heading.includes('what our') || heading.includes('reviews')) return 'testimonial-band';
   if (heading.includes('footer') || type === 'footer') return 'footer';
+  if (hasStats || heading.includes('stat') || heading.includes('number') || heading.includes('impact') || heading.includes('result')) return 'stats';
+  if (hasPricing || heading.includes('program') || heading.includes('course') || heading.includes('service')) return 'program-cards';
   if ((type === 'cta' || heading.includes('ready to') || heading.includes('get started') || heading.includes('sign up')) && !hasItems) return 'cta-band';
-  if (type === 'features' || heading.includes('feature') || heading.includes('program') || heading.includes('course') || heading.includes('service')) return 'feature-grid';
+  if (type === 'faq' || heading.includes('faq') || heading.includes('frequently')) return 'faq';
+  if (type === 'features' || heading.includes('feature')) return 'feature-grid';
   if (hasItems && !hasCta) return 'feature-grid';
-  if (heading.includes('stat') || heading.includes('number') || heading.includes('impact') || heading.includes('result')) return 'stats';
   if (type === 'content' && !hasBody && !hasItems && !hasCta) return 'heading-separator';
   if (section?.image || heading.includes('about')) return 'content-media-split';
   if (hasCta && !hasItems) return 'cta-band';
