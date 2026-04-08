@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { useExportStore } from '@/store/useExportStore';
 import { applyPlanAndExport } from '@/lib/kajabi-exporter';
 import AppHeader from '@/components/AppHeader';
-import ThemePreview from '@/components/ThemePreview';
+import LiveThemePreview from '@/components/LiveThemePreview';
 
 interface SavedTemplate {
   id: string;
@@ -286,19 +286,10 @@ export default function TemplatesPage() {
                       <CardTitle className="text-base">Theme Preview</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <ScrollArea className="h-[520px]">
-                        {selected.extracted_design_json ? (
-                          <ThemePreview
-                            key={`${selected.id}-${planVersion}`}
-                            plan={selected.plan_json}
-                            design={selected.extracted_design_json}
-                          />
-                        ) : (
-                          <div className="py-12 text-center text-muted-foreground text-sm">
-                            No design data saved
-                          </div>
-                        )}
-                      </ScrollArea>
+                      <LiveThemePreview
+                        key={`${selected.id}-${planVersion}`}
+                        plan={selected.plan_json}
+                      />
                     </CardContent>
                   </Card>
 
