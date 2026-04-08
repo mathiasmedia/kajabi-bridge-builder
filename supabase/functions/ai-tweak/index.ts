@@ -106,17 +106,14 @@ Apply the tweak and return the modified operations array as JSON.`;
 
     if (!response.ok) {
       const status = response.status;
-      if (status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limited — try again shortly" }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (status === 402) {
-        return new Response(JSON.stringify({ error: "Credits exhausted" }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      throw new Error(`AI gateway error: ${status}`);
+      const errText = await response.text();
+      console.error("AI gateway error:", status, errText);
+      const msg = status === 429 ? "Rate limited — try again shortly" 
+        : status === 402 ? "Credits exhausted" 
+        : `AI gateway error: ${status}`;
+      return new Response(JSON.stringify({ error: msg }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const data = await response.json();
