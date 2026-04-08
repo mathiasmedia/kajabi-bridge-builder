@@ -587,6 +587,13 @@ function analyzeInlineSection(
   const btnMatch = content.match(/<Button[^>]*>([A-Za-z][^<]{1,40})/);
   const ctaText = btnMatch?.[1]?.trim();
 
+  // Detect icon/checklist presence
+  const hasIcons = usedArrayItems.some(it => it.icon);
+  const hasChecklist = /CheckCircle|Check\b/i.test(content) || (content.match(/<li[\s>]/g) || []).length >= 2;
+  // Detect dual CTAs
+  const allBtnMatches = [...content.matchAll(/<Button[^>]*>([A-Za-z][^<]{1,40})/g)];
+  const secondaryCtaText = allBtnMatches[1]?.[1]?.trim();
+
   // Intent classification using comment hints + structural signals
   if (commentLower.includes('hero') || hasH1) {
     intent = 'hero';
@@ -601,6 +608,14 @@ function analyzeInlineSection(
       evidence.push('Comment indicates testimonials');
       confidence = 0.95;
     }
+  } else if (hasMap && usedArrayItems.length >= 2 && hasIcons && usedArrayItems.some(it => it.title || it.heading) && !hasQuote && !hasPrice) {
+    intent = 'icon_card_row';
+    confidence = 0.9;
+    evidence.push(`${usedArrayItems.length} repeated items with icon + heading`);
+    if (commentLower.includes('problem') || commentLower.includes('feature')) {
+      evidence.push('Comment indicates icon-card section');
+      confidence = 0.95;
+    }
   } else if (hasMap && usedArrayItems.length >= 2 && usedArrayItems.some(it => it.title && it.description) && !hasQuote) {
     intent = hasPrice ? 'program_cards' : 'feature_grid';
     confidence = 0.85;
@@ -608,6 +623,11 @@ function analyzeInlineSection(
     if (commentLower.includes('problem') || commentLower.includes('feature')) {
       evidence.push('Comment indicates feature/problem section');
     }
+  } else if (hasChecklist && hasH2 && hasButton) {
+    intent = 'content_media_split';
+    confidence = 0.8;
+    evidence.push('Contains heading + checklist + CTA');
+    if (commentLower.includes('solution')) { evidence.push('Comment indicates solution section'); confidence = 0.9; }
   } else if (hasButton && hasH2 && !hasMap && content.length < 2000) {
     intent = 'cta_band';
     confidence = 0.8;
