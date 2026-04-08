@@ -240,6 +240,10 @@ Create exactly ONE addSection operation that faithfully recreates a source secti
 CRITICAL KAJABI SCHEMA RULES:
 - Section type MUST be "section" (the only type that supports rich content blocks)
 - Section settings: bg_type ("none"|"color"|"image"), background_color, padding_desktop, padding_mobile, full_width, vertical, horizontal, equal_height
+- IMPORTANT: Always set bg_type="color" and background_color on EVERY section. Use the source design's background color for that section.
+  Kajabi auto-applies "background-light" or "background-dark" classes based on the background_color, which adjusts text color automatically.
+  For dark designs, use a dark background_color (e.g. "#0b1214"). For light designs, use a light color (e.g. "#ffffff").
+- Section does NOT have heading, subheading, or text settings! ALL content goes in BLOCKS.
 - Section does NOT have heading, subheading, or text settings! ALL content goes in BLOCKS.
 
 VALID BLOCK TYPES: text, feature, card, cta, image
