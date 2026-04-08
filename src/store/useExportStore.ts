@@ -310,6 +310,12 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         throw new Error('AI returned no valid operations across all steps. Please try again.');
       }
 
+      // ── Quality guards ──
+      const mappingWarnings = validateMappingQuality(extractedDesign.sections, deduplicatedOps);
+      if (mappingWarnings.length > 0) {
+        console.warn('Mapping quality warnings:', mappingWarnings);
+      }
+
       const plan: TransformationPlan = {
         sourceProjectId: currentProject.sourceProjectId,
         sourceProjectName: currentProject.sourceProjectName,
@@ -317,7 +323,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         baseThemeId: 'streamlined-home',
         extractedDesign,
         operations: deduplicatedOps,
-        validationWarnings: [],
+        validationWarnings: mappingWarnings,
       };
 
       set({ transformationPlan: plan, isLoading: false });
