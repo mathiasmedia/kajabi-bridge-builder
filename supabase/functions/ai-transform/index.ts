@@ -332,97 +332,71 @@ Create ONE addSection with type "section" and rich content blocks.
 Remember: section settings do NOT have heading/subheading/text fields. Put ALL content in blocks.
 Block text must be rich HTML. Use width for column layouts.`;
 
-  const models = ["google/gemini-3-flash-preview", "google/gemini-2.5-flash"];
+  const models = ["google/gemini-2.5-flash", "google/gemini-3-flash-preview"];
   let lastError = "";
 
   for (const model of models) {
-    try {
-      const result = await requestTransform({
-        apiKey,
-        model,
-        systemPrompt,
-        userPrompt,
-        maxTokens: 12000,
-      });
+    // Each model gets up to 2 attempts
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const result = await requestTransform({
+          apiKey,
+          model,
+          systemPrompt,
+          userPrompt,
+          maxTokens: 12000,
+        });
 
-      const fr = result.finishReason ?? "unknown";
-      console.log(`ai-transform [section:${sectionToGenerate.type}] [${model}] finish_reason=${fr}`);
+        const fr = result.finishReason ?? "unknown";
+        console.log(`ai-transform [section:${sectionToGenerate.type}] [${model}] attempt=${attempt} finish_reason=${fr}`);
 
-      // Detect truncation
-      if (fr === "length" || fr === "max_tokens") {
-        console.warn(`ai-transform [section] TRUNCATED — increasing token limit won't help here, using fallback`);
-        lastError = "Response truncated";
-        continue;
-      }
+        // Detect truncation — retry with same model once
+        if (fr === "length" || fr === "max_tokens") {
+          console.warn(`ai-transform [section] TRUNCATED on attempt ${attempt}`);
+          lastError = "Response truncated";
+          continue;
+        }
 
-      // Log raw AI output for debugging
-      const rawOps = result.parsed?.operations;
-      if (Array.isArray(rawOps)) {
-        for (const op of rawOps) {
-          if (op?.type === "addSection") {
-            const blocksType = op.section?.blocks === null ? 'null' : Array.isArray(op.section?.blocks) ? 'array' : typeof op.section?.blocks;
-            const blockCount = isPlainObject(op.section?.blocks) ? Object.keys(op.section.blocks).length : (Array.isArray(op.section?.blocks) ? op.section.blocks.length : 0);
-            const blockOrderLen = Array.isArray(op.section?.block_order) ? op.section.block_order.length : 0;
-            console.log(`ai-transform [section] RAW addSection: blocksType=${blocksType}, blocks=${blockCount}, block_order=${blockOrderLen}, sectionType=${op.section?.type}`);
-            // Log a snippet of the raw section for debugging
-            console.log(`ai-transform [section] RAW section keys: ${Object.keys(op.section || {}).join(',')}`);
-            console.log(`ai-transform [section] RAW blocks snapshot: ${JSON.stringify(op.section?.blocks).slice(0, 500)}`);
-            if (blockCount > 0) {
-              const firstBlock = Array.isArray(op.section.blocks) ? op.section.blocks[0] : Object.values(op.section.blocks)[0];
-              console.log(`ai-transform [section] RAW first block: ${JSON.stringify(firstBlock).slice(0, 300)}`);
-            }
+        // Log raw tool call for debugging
+        const rawToolArgs = result.rawToolCallArgs;
+        if (rawToolArgs) {
+          console.log(`ai-transform [section] raw tool args snippet: ${rawToolArgs.slice(0, 300)}`);
+        }
+
+        const parsed = normalizeTransformPayload(result.parsed, availableSectionTypes);
+        const addSectionOp = parsed.operations.find((op: any) => op.type === "addSection");
+
+        if (addSectionOp) {
+          const finalBlockCount = Object.keys(addSectionOp.section?.blocks || {}).length;
+          console.log(`ai-transform [section] NORMALIZED addSection: blocks=${finalBlockCount}`);
+          if (addSectionOp.section) {
+            addSectionOp.section.type = "section";
           }
+          if (finalBlockCount > 0) {
+            return jsonResponse({ operations: [addSectionOp] });
+          }
+          // Blocks are empty — retry
+          console.warn(`ai-transform [section] AI returned 0 blocks on attempt ${attempt}, retrying...`);
+          lastError = "AI returned section with 0 blocks";
+          continue;
         }
-      }
 
-      const parsed = normalizeTransformPayload(result.parsed, availableSectionTypes);
-      const addSectionOp = parsed.operations.find((op: any) => op.type === "addSection");
-
-      if (addSectionOp) {
-        const finalBlockCount = Object.keys(addSectionOp.section?.blocks || {}).length;
-        console.log(`ai-transform [section] NORMALIZED addSection: blocks=${finalBlockCount}`);
-        if (addSectionOp.section) {
-          addSectionOp.section.type = "section";
+        if (intent === 'footer') {
+          return jsonResponse({ operations: [] });
         }
-        // Only accept if it actually has blocks — otherwise fall through to fallback
-        if (finalBlockCount > 0) {
-          return jsonResponse({ operations: [addSectionOp] });
-        }
-        console.warn(`ai-transform [section] AI returned 0 blocks, falling through to fallback`);
-      }
 
-      if (intent === 'footer') {
-        return jsonResponse({ operations: [] });
+        lastError = "No valid addSection operation produced";
+        console.warn(`ai-transform [section] [${model}] ${lastError}`, JSON.stringify(result.parsed).slice(0, 500));
+        break; // Don't retry same model if it produced wrong output type
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        console.warn(`ai-transform [section] [${model}] attempt=${attempt} failed: ${lastError}`);
+        if (attempt < 2) continue;
       }
-
-      // Try to build from raw response
-      const rawAddSection = Array.isArray(result.parsed?.operations)
-        ? result.parsed.operations.find((op: any) => op?.type === "addSection")
-        : null;
-      if (rawAddSection) {
-        const finalized = finalizeGeneratedSection(rawAddSection, sectionToGenerate);
-        if (finalized) {
-          console.log(`ai-transform [section] used finalizeGeneratedSection fallback`);
-          return jsonResponse({ operations: [finalized] });
-        }
-      }
-
-      lastError = "No valid addSection operation produced";
-      console.warn(`ai-transform [section] [${model}] ${lastError}`, JSON.stringify(result.parsed).slice(0, 500));
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err);
-      console.warn(`ai-transform [section] [${model}] failed: ${lastError}`);
     }
   }
 
-  // Last resort: build a fallback section from extracted data
-  const fallback = buildFallbackSection(sectionToGenerate, intent);
-  if (fallback) {
-    console.log(`ai-transform [section] using fallback for "${sectionToGenerate.heading || sectionToGenerate.type}"`);
-    return jsonResponse({ operations: [fallback] });
-  }
-
-  return jsonResponse({ error: `Failed to generate section: ${lastError}` }, 500);
+  return jsonResponse({ error: `Failed to generate section "${sectionToGenerate.heading || sectionToGenerate.type}": ${lastError}` }, 500);
 }
 
 // ── Block pattern templates ──
