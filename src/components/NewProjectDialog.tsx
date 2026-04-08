@@ -99,7 +99,10 @@ export default function NewProjectDialog({ open, onOpenChange, onCreated }: Prop
           name: name.trim(),
           source_project_name: url.trim() || description.trim().slice(0, 50) || 'Custom Design',
           plan_json: { operations: data.operations },
-          extracted_design_json: data.extractedDesign || visionDesign || null,
+          extracted_design_json: {
+            ...(data.extractedDesign || {}),
+            ...(visionDesign ? { visionDesign } : {}),
+          },
         })
         .select('id')
         .single();

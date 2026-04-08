@@ -148,8 +148,8 @@ export default function BuilderPage() {
     setTweaking(true);
     setTweakLog(prev => [...prev, `🔧 ${instruction}${imageData ? ' 📷' : ''}`]);
     try {
-      // If image provided, extract design via vision first
-      let visionDesign = null;
+      // Use previously extracted design if available, or extract from new image
+      let visionDesign = template.extracted_design_json?.visionDesign || null;
       if (imageData) {
         setTweakLog(prev => [...prev, '👁️ Analyzing screenshot…']);
         const { data: visionData, error: visionErr } = await supabase.functions.invoke('ai-vision-extract', {
@@ -160,11 +160,19 @@ export default function BuilderPage() {
         });
         if (!visionErr && visionData?.design) {
           visionDesign = visionData.design;
-          setTweakLog(prev => [...prev, `✅ Design extracted: ${visionData.design.overallStyle || 'analyzed'}`]);
+          // Persist the vision extraction so future tweaks can reuse it
+          const updatedDesign = { ...template.extracted_design_json, visionDesign: visionData.design };
+          await supabase.from('saved_templates')
+            .update({ extracted_design_json: updatedDesign })
+            .eq('id', template.id);
+          setTemplate(prev => prev ? { ...prev, extracted_design_json: updatedDesign } : prev);
+          setTweakLog(prev => [...prev, `✅ Design extracted & saved: ${visionData.design.overallStyle || 'analyzed'}`]);
         } else {
           console.warn('Vision extraction failed, proceeding with raw image:', visionErr || visionData?.error);
           setTweakLog(prev => [...prev, '⚠️ Vision extraction failed — using raw image']);
         }
+      } else if (visionDesign) {
+        setTweakLog(prev => [...prev, '📋 Using previously extracted design']);
       }
 
       const { sections: baseSections, blockMap } = await getBaseThemeInfo();
