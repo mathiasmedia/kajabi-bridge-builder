@@ -48,6 +48,29 @@ export default function HomePage() {
     }
   };
 
+  const handleStartDefault = async () => {
+    setCreatingDefault(true);
+    try {
+      const { data: saved, error } = await supabase
+        .from('saved_templates')
+        .insert({
+          name: 'Untitled Project',
+          source_project_name: 'Default Template',
+          plan_json: { operations: [] },
+          extracted_design_json: null,
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+      toast.success('Project created');
+      navigate(`/builder/${saved.id}`);
+    } catch (e) {
+      toast.error(`Failed: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setCreatingDefault(false);
+    }
+  };
+
   const getCritiqueScore = (critique: string | null) => {
     if (!critique) return null;
     try { return JSON.parse(critique).score; } catch { return null; }
