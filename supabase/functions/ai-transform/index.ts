@@ -184,7 +184,7 @@ IMPORTANT: Generate updateNavigation for "main-menu" and "about-menu" using the 
     model: "google/gemini-3-flash-preview",
     systemPrompt,
     userPrompt,
-    maxTokens: 8000,
+    maxTokens: 12000,
   });
 
   console.log(`ai-transform [globals] finish_reason=${result.finishReason ?? "unknown"}`);
