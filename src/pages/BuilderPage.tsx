@@ -89,6 +89,7 @@ export default function BuilderPage() {
   const [tweakLog, setTweakLog] = useState<string[]>([]);
   const [planHistory, setPlanHistory] = useState<any[]>([]);
   const [planVersion, setPlanVersion] = useState(0);
+  const refImageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!id) return;
