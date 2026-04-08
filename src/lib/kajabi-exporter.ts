@@ -312,20 +312,22 @@ export interface ChangeSummaryItem {
 }
 
 export function generateChangeSummary(plan: TransformationPlan): ChangeSummaryItem[] {
+  const opJson = (op: any) => JSON.stringify(op, null, 2);
+
   return plan.operations.map(op => {
     switch (op.type) {
-      case 'updateGlobalSetting': return { type: op.type, label: op.label, detail: `Key: ${op.key} → ${typeof op.value === 'string' ? op.value : JSON.stringify(op.value).slice(0, 80)}` };
-      case 'updateSectionSetting': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Key: ${op.key} → ${typeof op.value === 'string' ? op.value : JSON.stringify(op.value).slice(0, 60)}` };
-      case 'updateBlockSetting': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Block: ${op.blockId} · Key: ${op.key}` };
-      case 'replaceText': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Block: ${op.blockId} · ${op.value.slice(0, 60)}…` };
-      case 'hideSection': return { type: op.type, label: `Hide section`, detail: `Section ID: ${op.sectionId}` };
-      case 'showSection': return { type: op.type, label: `Show section`, detail: `Section ID: ${op.sectionId}` };
-      case 'updateNavigation': return { type: op.type, label: `Update navigation`, detail: `Menu: ${op.menuId} · ${op.links.length} links: ${op.links.map(l => l.name).join(', ')}` };
-      case 'addCssOverride': return { type: op.type, label: op.label, detail: `${op.css.length} chars of CSS` };
-      case 'replaceLogo': return { type: op.type, label: `Replace logo`, detail: `File: ${op.fileName}` };
-      case 'replaceImage': return { type: op.type, label: `Replace image`, detail: `Target: ${op.target} · File: ${op.fileName}` };
-      case 'moveSection': return { type: op.type, label: `Move section`, detail: `Section: ${op.sectionId}${op.afterSectionId ? ` after ${op.afterSectionId}` : ''}` };
-      case 'addAsset': return { type: op.type, label: `Add asset`, detail: `File: ${op.fileName}` };
+      case 'updateGlobalSetting': return { type: op.type, label: op.label, detail: `Key: ${op.key} → ${typeof op.value === 'string' ? op.value : JSON.stringify(op.value).slice(0, 80)}`, json: opJson(op) };
+      case 'updateSectionSetting': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Key: ${op.key} → ${typeof op.value === 'string' ? op.value : JSON.stringify(op.value).slice(0, 60)}`, json: opJson(op) };
+      case 'updateBlockSetting': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Block: ${op.blockId} · Key: ${op.key}`, json: opJson(op) };
+      case 'replaceText': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Block: ${op.blockId} · ${op.value.slice(0, 60)}…`, json: opJson(op) };
+      case 'hideSection': return { type: op.type, label: `Hide section`, detail: `Section ID: ${op.sectionId}`, json: opJson(op) };
+      case 'showSection': return { type: op.type, label: `Show section`, detail: `Section ID: ${op.sectionId}`, json: opJson(op) };
+      case 'updateNavigation': return { type: op.type, label: `Update navigation`, detail: `Menu: ${op.menuId} · ${op.links.length} links: ${op.links.map(l => l.name).join(', ')}`, json: opJson(op) };
+      case 'addCssOverride': return { type: op.type, label: op.label, detail: `${op.css.length} chars of CSS`, json: opJson(op) };
+      case 'replaceLogo': return { type: op.type, label: `Replace logo`, detail: `File: ${op.fileName}`, json: opJson(op) };
+      case 'replaceImage': return { type: op.type, label: `Replace image`, detail: `Target: ${op.target} · File: ${op.fileName}`, json: opJson(op) };
+      case 'moveSection': return { type: op.type, label: `Move section`, detail: `Section: ${op.sectionId}${op.afterSectionId ? ` after ${op.afterSectionId}` : ''}`, json: opJson(op) };
+      case 'addAsset': return { type: op.type, label: `Add asset`, detail: `File: ${op.fileName}`, json: opJson(op) };
       case 'addSection': {
         const blocks = op.section?.blocks || {};
         const blockEntries = Object.entries(blocks);
@@ -342,16 +344,15 @@ export function generateChangeSummary(plan: TransformationPlan): ChangeSummaryIt
           if (btnText) desc += ` [btn: ${btnText}]`;
           return `  ${i + 1}. ${desc}`;
         });
-        const jsonDump = JSON.stringify({ sectionId: op.sectionId, type: op.section.type, settings: op.section.settings, block_order: op.section.block_order, blocks: op.section.blocks }, null, 2);
         return { 
           type: op.type, 
           label: op.label, 
           detail: `${blockEntries.length} blocks · bg: ${bgColor}\n${blockDetails.join('\n')}`,
-          json: jsonDump,
+          json: opJson({ sectionId: op.sectionId, type: op.section.type, settings: op.section.settings, block_order: op.section.block_order, blocks: op.section.blocks }),
         };
       }
-      case 'addBlock': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Block: ${op.blockId} · Type: ${op.block.type}` };
-      default: return { type: 'unknown', label: 'Unknown operation', detail: '' };
+      case 'addBlock': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Block: ${op.blockId} · Type: ${op.block.type}`, json: opJson(op) };
+      default: return { type: 'unknown', label: 'Unknown operation', detail: '', json: opJson(op) };
     }
   });
 }
