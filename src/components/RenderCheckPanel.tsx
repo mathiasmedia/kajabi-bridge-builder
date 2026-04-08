@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { useExportStore } from '@/store/useExportStore';
 import type { ComparisonMismatch } from '@/lib/render-check-compare';
 import type { RefinementSuggestion } from '@/lib/render-check-refinement';
+import type { ExpectedRenderModel } from '@/lib/render-check-expectations';
 
 const SEVERITY_ICON: Record<string, React.ReactNode> = {
   error: <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />,
