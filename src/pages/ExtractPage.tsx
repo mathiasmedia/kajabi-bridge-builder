@@ -81,6 +81,13 @@ export default function ExtractPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Ingestion Summary */}
+            {sourceSnapshot && (
+              <div className="md:col-span-2">
+                <IngestionSummary snapshot={sourceSnapshot} warnings={ingestionWarnings} />
+              </div>
+            )}
+
             {/* Colors */}
             <Card>
               <CardHeader>
