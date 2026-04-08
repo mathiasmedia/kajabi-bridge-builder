@@ -1,5 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+/** Deep merge b into a — preserves nested objects like section.blocks */
+function deepMerge(a: any, b: any): any {
+  if (!b || typeof b !== 'object' || Array.isArray(b)) return b;
+  const result = { ...a };
+  for (const key of Object.keys(b)) {
+    if (
+      result[key] && typeof result[key] === 'object' && !Array.isArray(result[key]) &&
+      typeof b[key] === 'object' && !Array.isArray(b[key])
+    ) {
+      result[key] = deepMerge(result[key], b[key]);
+    } else {
+      result[key] = b[key];
+    }
+  }
+  return result;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
@@ -283,7 +300,7 @@ ${tweakInstruction}`;
       for (const mod of patch.modify) {
         const idx = mod.index;
         if (idx >= 0 && idx < result.length && mod.changes) {
-          result[idx] = { ...result[idx], ...mod.changes };
+          result[idx] = deepMerge(result[idx], mod.changes);
         }
       }
     }
