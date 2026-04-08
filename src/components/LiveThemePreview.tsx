@@ -90,6 +90,13 @@ export default function LiveThemePreview({ plan, baseTheme: providedTheme, class
   <style>${result.coreCss}</style>
   <style>${result.styles}</style>
   <style>${overridesCss}</style>
+  <style>
+    header, .header, .site-header, nav.header-navigation,
+    footer, .footer, .site-footer,
+    .kajabi-head, .kajabi-footer,
+    [data-section-type="header"], [data-section-type="footer"],
+    #header, #footer { display: none !important; }
+  </style>
 </head>
 <body>
 ${result.html}
