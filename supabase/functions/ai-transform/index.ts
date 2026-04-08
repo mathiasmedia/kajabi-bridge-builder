@@ -600,6 +600,7 @@ function getBlockPatternForIntent(intent: SectionIntent): string {
 - use_btn="true" with btn_text and btn_action for the primary CTA
 - If source has a secondary CTA, include it as a styled link in the text:
   <p><a href="/secondary-url" style="font-size:16px; text-decoration:underline">Secondary CTA Text</a></p>
+- If source has an eyebrow/pre-heading, include it as: <p style="text-transform:uppercase; letter-spacing:0.2em; font-size:14px">Eyebrow Text</p>
 - Section: bg_type="color" or "image", background_color for dark bg
 - CRITICAL: Preserve any pre-heading/eyebrow text as a separate <p> before the <h1>`,
 
@@ -613,6 +614,18 @@ function getBlockPatternForIntent(intent: SectionIntent): string {
 - 1 text block (width "12"): <h2>Section Title</h2><p>Intro text</p>
 - Multiple feature blocks (width "4" or "6" each): <h4>Feature Title</h4><p>Description</p>
 - Include ALL features from source, with use_btn if source has CTAs`,
+
+    'icon-card-row': `PATTERN for icon card row:
+- 1 text block (width "12", make_block="true"): <h2>Section Title</h2><p>Intro text</p>
+- Multiple feature blocks (width "4" each, one per icon card):
+  - <h4>Card Title</h4><p>Description text</p>
+  - If source has icons: you can reference them in text or use a decorative emoji/symbol as placeholder
+  - Set background_color, box_shadow="medium", border_radius="12" for card shell appearance
+  - Set padding_desktop={"top":"24","right":"24","bottom":"24","left":"24"}
+  - Set hide_image="true" (icons are inline, not image blocks)
+- Section: equal_height="true"
+- CRITICAL: One block per card. Do NOT merge multiple cards into one text block.
+- CRITICAL: These are distinct CARDS with visual separation, not plain text columns.`,
 
     'program-cards': `PATTERN for program/course cards:
 - 1 text block (width "12", make_block="true"): <h2>Section Title</h2><p>Intro paragraph</p>
@@ -638,12 +651,19 @@ function getBlockPatternForIntent(intent: SectionIntent): string {
 - 1 text block (width "8", text_align "center"):
   <h2>CTA Heading</h2><p>Supporting text</p>
   use_btn="true", btn_text="Button Text", btn_action="/url"
+- If source has TWO CTAs: include the secondary CTA as a styled link below the button:
+  <p><a href="/secondary-url" style="font-size:16px; text-decoration:underline">Secondary CTA Text</a></p>
 - Do NOT use a separate cta block. Keep button INSIDE the text block via use_btn.
 - CRITICAL: The heading, body, and button must be in the SAME block for unified background.`,
 
-    'content-media-split': `PATTERN for content/media:
-- 1 text block (width "5"-"6"): heading + body + optional button
-- 1 image block (width "5"-"6"): image, image_alt`,
+    'content-media-split': `PATTERN for content/media split:
+- 1 text block (width "5"-"6"): heading + body text + optional checklist
+  - If source has a checklist/bullet list, preserve as: <ul><li>✓ Item 1</li><li>✓ Item 2</li></ul>
+  - Do NOT collapse checklist items into a single paragraph
+  - Include use_btn="true" + btn_text if source has a CTA
+- 1 image block (width "5"-"6"): image, image_alt
+  - If no image URL is available, use a styled text block as visual placeholder
+- CRITICAL: Preserve BOTH sides of the split. Do not collapse into centered text.`,
 
     'footer': `Return empty operations.`,
 
@@ -1075,7 +1095,7 @@ function normalizeBlock(block: any): { type: string; settings: Record<string, an
 
 // ── Intent classification ──
 
-type SectionIntent = 'hero' | 'stats' | 'feature-grid' | 'program-cards' | 'testimonial-band' | 'cta-band' | 'content-media-split' | 'footer' | 'heading-separator' | 'faq' | 'content';
+type SectionIntent = 'hero' | 'stats' | 'feature-grid' | 'icon-card-row' | 'program-cards' | 'testimonial-band' | 'cta-band' | 'content-media-split' | 'footer' | 'heading-separator' | 'faq' | 'content';
 
 /** Map upstream extractor intent (snake_case) to edge function intent (kebab-case) */
 function mapUpstreamIntent(upstreamIntent: string | undefined): SectionIntent | null {
@@ -1084,6 +1104,7 @@ function mapUpstreamIntent(upstreamIntent: string | undefined): SectionIntent | 
     'hero': 'hero',
     'stats': 'stats',
     'feature_grid': 'feature-grid',
+    'icon_card_row': 'icon-card-row',
     'program_cards': 'program-cards',
     'testimonial_band': 'testimonial-band',
     'cta_band': 'cta-band',
@@ -1119,8 +1140,19 @@ function buildRichnessGuard(intent: SectionIntent, section: any): string {
       lines.push(`- Expected block count: 1 heading block + ${section.items?.length || 3} testimonial blocks.`);
       break;
     case 'cta-band':
-      lines.push('- You MUST include a heading + body text block AND a cta block with btn_text.');
+      lines.push('- You MUST include a heading + body text block with use_btn="true" and btn_text.');
       lines.push('- If the source has CTA text/action, preserve it.');
+      if (section.secondaryCtaText) {
+        lines.push(`- Source has a secondary CTA: "${section.secondaryCtaText}". Include it as a styled link below the primary CTA.`);
+      }
+      break;
+    case 'icon-card-row':
+      lines.push('- You MUST create one feature block per icon card item.');
+      lines.push('- Each block MUST include: title in <h4> and description in <p>.');
+      lines.push('- Set background_color, box_shadow="medium", border_radius="12" on each card block.');
+      lines.push('- Set hide_image="true" since icons are represented inline.');
+      lines.push('- Do NOT collapse multiple icon cards into one text block.');
+      lines.push(`- Expected block count: 1 heading block + ${section.items?.length || 3} card blocks.`);
       break;
     case 'faq':
       lines.push('- IMPORTANT: FAQ MUST only be generated if the source has real Q&A content.');
@@ -1134,7 +1166,14 @@ function buildRichnessGuard(intent: SectionIntent, section: any): string {
       }
       break;
     case 'content-media-split':
-      lines.push('- Create a text block (width "5"-"6") + image block (width "5"-"6") side by side.');
+      lines.push('- Create a text block (width "5"-"6") with heading, body, and checklist/bullets if present.');
+      lines.push('- Create an image block (width "5"-"6") for the visual side.');
+      if (section.hasChecklist) {
+        lines.push('- Source has checklist items. Preserve them as <ul><li>✓ Item</li></ul>, NOT as a plain paragraph.');
+      }
+      if (section.secondaryCtaText) {
+        lines.push(`- Source has a secondary CTA: "${section.secondaryCtaText}". Include as styled link.`);
+      }
       break;
     case 'feature-grid':
       lines.push('- Create one feature block per item. Include title + description in each.');
@@ -1209,12 +1248,12 @@ function classifySectionIntent(section: any): SectionIntent {
   if (heading.includes('footer') || type === 'footer') return 'footer';
   if (hasStats || heading.includes('stat') || heading.includes('number') || heading.includes('impact') || heading.includes('result')) return 'stats';
   if (hasPricing || heading.includes('program') || heading.includes('course') || heading.includes('service')) return 'program-cards';
-  if ((type === 'cta' || heading.includes('ready to') || heading.includes('get started') || heading.includes('sign up')) && !hasItems) return 'cta-band';
-  // FAQ removed from fallback classification — requires strong upstream evidence only
+  if (section?.hasIcons && hasItems) return 'icon-card-row';
+  if ((type === 'cta' || heading.includes('ready to') || heading.includes('get started') || heading.includes('sign up') || heading.includes('stand out')) && !hasItems) return 'cta-band';
   if (type === 'features' || heading.includes('feature')) return 'feature-grid';
   if (hasItems && !hasCta) return 'feature-grid';
   if (type === 'content' && !hasBody && !hasItems && !hasCta) return 'heading-separator';
-  if (section?.image || heading.includes('about')) return 'content-media-split';
+  if (section?.hasChecklist || section?.image || heading.includes('about') || heading.includes('elevated')) return 'content-media-split';
   if (hasCta && !hasItems) return 'cta-band';
   return 'content';
 }

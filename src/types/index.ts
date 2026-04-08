@@ -30,15 +30,23 @@ export interface ExtractedDesign {
     logoText?: string;
     logoImage?: string;
     sticky: boolean;
+    /** Right-side action buttons (e.g. "Book a Call", "Free Guide") */
+    actionButtons?: Array<{ text: string; url: string; variant?: 'primary' | 'outline' }>;
   };
   hero?: {
     heading: string;
     subheading?: string;
     ctaText?: string;
     ctaUrl?: string;
+    secondaryCtaText?: string;
+    secondaryCtaUrl?: string;
     backgroundImage?: string;
     backgroundColor?: string;
     textColor?: string;
+    /** Eyebrow/pre-heading text above the main heading */
+    eyebrow?: string;
+    /** Inline emphasis info (e.g. which word, accent color) */
+    emphasisWord?: string;
   };
   sections: ExtractedSection[];
   footer: {
@@ -48,6 +56,9 @@ export interface ExtractedDesign {
     copyright?: string;
     socialLinks?: Array<{ platform: string; url: string }>;
     linkGroups?: Record<string, Array<{ name: string; url: string }>>;
+    /** Brand description displayed in footer */
+    description?: string;
+    logoText?: string;
   };
   assets: ExtractedAsset[];
 }
@@ -62,6 +73,7 @@ export type SectionIntent =
   | 'hero'
   | 'stats'
   | 'feature_grid'
+  | 'icon_card_row'
   | 'program_cards'
   | 'testimonial_band'
   | 'cta_band'
@@ -100,6 +112,8 @@ export interface ExtractedSection {
   body?: string;
   ctaText?: string;
   ctaUrl?: string;
+  secondaryCtaText?: string;
+  secondaryCtaUrl?: string;
   image?: string;
   backgroundImage?: string;
   backgroundColor?: string;
@@ -130,6 +144,10 @@ export interface ExtractedSection {
   hasTestimonials: boolean;
   hasPricing: boolean;
   hasRepeatedCards: boolean;
+  /** Items have icon fields */
+  hasIcons?: boolean;
+  /** Section has checklist/bullet items */
+  hasChecklist?: boolean;
   // Media intent metadata
   mediaIntent: MediaIntent;
   mediaConfidence: number;

@@ -48,6 +48,10 @@ export function applyStreamlinedHomeRecipes(
       return applyTestimonialRecipe(op, matchingSection!, warnings);
     }
 
+    if (intent === 'icon_card_row') {
+      return applyIconCardRowRecipe(op, matchingSection!, warnings);
+    }
+
     // Apply own-row recipe to all sections for blocks that need vertical stacking
     return applyOwnRowRecipe(op, warnings);
   });
@@ -291,6 +295,42 @@ function applyTestimonialRecipe(
     ...op,
     section: { ...op.section, settings, blocks, block_order: blockOrder },
   };
+}
+
+// ── Icon Card Row Recipe ────────────────────────────────────────────────
+
+function applyIconCardRowRecipe(
+  op: Extract<TransformationOperation, { type: 'addSection' }>,
+  section: ExtractedSection,
+  warnings: ValidationWarning[],
+): TransformationOperation {
+  const blocks = { ...op.section.blocks };
+  const blockOrder = [...(op.section.block_order || [])];
+  let hasCardShell = false;
+
+  for (const bid of blockOrder) {
+    const block = blocks[bid];
+    if (!block) continue;
+    if (block.type === 'text' && block.settings.width === '12') continue;
+
+    if (block.type === 'text' || block.type === 'feature') {
+      block.settings.background_color = block.settings.background_color || '#FFFFFF';
+      block.settings.box_shadow = block.settings.box_shadow || 'medium';
+      block.settings.border_radius = block.settings.border_radius || '12';
+      block.settings.padding_desktop = block.settings.padding_desktop || { top: '24', right: '24', bottom: '24', left: '24' };
+      block.settings.padding_mobile = block.settings.padding_mobile || { top: '20', right: '20', bottom: '20', left: '20' };
+      if (block.type === 'feature') block.settings.hide_image = 'true';
+      hasCardShell = true;
+    }
+  }
+
+  if (!hasCardShell) {
+    warnings.push({ severity: 'warning', message: 'Icon card row rendered without card shell — source has distinct icon cards but output is plain text columns', target: section.id });
+  }
+
+  const settings = { ...op.section.settings };
+  settings.equal_height = 'true';
+  return { ...op, section: { ...op.section, settings, blocks, block_order: blockOrder } };
 }
 
 // ── CTA Band Recipe v2 ─────────────────────────────────────────────────
@@ -557,12 +597,13 @@ function findMatchingExtractedSection(
   // Try keyword match
   const intentKeywords: Record<string, string[]> = {
     program_cards: ['program', 'course', 'depth', 'offering'],
-    cta_band: ['cta', 'plunge', 'ready', 'call to action', 'get started'],
-    testimonial_band: ['testimonial', 'diver', 'founder', 'review', 'what our'],
+    cta_band: ['cta', 'plunge', 'ready', 'call to action', 'get started', 'stand out'],
+    testimonial_band: ['testimonial', 'diver', 'founder', 'review', 'what our', 'loved'],
     stats: ['stat', 'number', 'metric'],
     hero: ['hero'],
     feature_grid: ['feature', 'problem', 'solution'],
-    content_media_split: ['content', 'media', 'split', 'elevated'],
+    icon_card_row: ['icon', 'problem', 'holding', 'challenge', 'benefit'],
+    content_media_split: ['content', 'media', 'split', 'elevated', 'brand', 'solution'],
   };
 
   for (const s of sections) {

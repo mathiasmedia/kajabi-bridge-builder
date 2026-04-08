@@ -195,27 +195,22 @@ function refineAgainstSource(
 }
 
 function findMatchingSource(label: string, sections: ExtractedSection[]): ExtractedSection | undefined {
-  // Intent keywords for matching
   const intentKeywords: Record<string, string[]> = {
     hero: ['hero'],
     stats: ['stat', 'number', 'metric'],
     feature_grid: ['feature', 'problem', 'solution', 'service'],
+    icon_card_row: ['icon', 'problem', 'holding', 'challenge', 'benefit'],
     program_cards: ['program', 'course', 'depth', 'offering', 'pricing'],
     testimonial_band: ['testimonial', 'review', 'social proof', 'loved', 'diver', 'founder', 'what our'],
     cta_band: ['cta', 'plunge', 'ready', 'call to action', 'get started', 'stand out'],
-    content_media_split: ['content', 'media', 'split', 'elevated', 'brand'],
+    content_media_split: ['content', 'media', 'split', 'elevated', 'brand', 'solution'],
     faq: ['faq', 'question', 'asked'],
   };
 
   for (const s of sections) {
-    // Direct heading match
     if (s.heading && label.includes(s.heading.toLowerCase().slice(0, 20))) return s;
-
-    // Intent keyword match
     const keywords = intentKeywords[s.intent] || [];
     if (keywords.some(kw => label.includes(kw))) return s;
-
-    // Intent name match
     if (label.includes(s.intent.replace('_', ' '))) return s;
   }
 

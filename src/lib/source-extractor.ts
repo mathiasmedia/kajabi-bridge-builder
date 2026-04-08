@@ -1,5 +1,6 @@
 import type { ExtractedDesign, ExtractedColor, ExtractedSection, ExtractedAsset, SectionIntent, ExtractionWarning, MediaIntent, ImageTarget, ImageTargetRole } from '@/types';
 
+
 // Source project extractor - analyzes a Lovable project's code to extract design information
 // This runs in the browser and uses cross-project tools via the store
 
@@ -123,14 +124,15 @@ function extractButtonStyle(files: SourceProjectFiles): ExtractedDesign['buttonS
 
 function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
   const navItems: Array<{ name: string; url: string }> = [];
+  const actionButtons: Array<{ text: string; url: string; variant?: 'primary' | 'outline' }> = [];
   const seen = new Set<string>();
   let logoText: string | undefined;
+  let sticky = false;
   
   const addNavItem = (name: string, url: string) => {
     const key = `${name.toLowerCase()}|${url}`;
     if (seen.has(key)) return;
     if (!name || name.length >= 30) return;
-    // Skip non-nav items
     if (/^[<{]|className|onClick|icon|svg/i.test(name)) return;
     seen.add(key);
     navItems.push({ name: name.trim(), url });
@@ -148,8 +150,10 @@ function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
       }
     }
     
-    // Nav links from header/nav/footer components
-    if (lower.includes('nav') || lower.includes('header') || lower.includes('footer')) {
+    if (lower.includes('nav') || lower.includes('header')) {
+      // Detect sticky header
+      if (/sticky\s+top-0|fixed\s+top-0/i.test(content)) sticky = true;
+
       // Array-style nav: const navLinks = [{ name: "Home", path: "/" }, ...]
       const arrayMatch = content.match(/(?:navLinks|links|navItems|menuItems)\s*=\s*\[([\s\S]*?)\];/);
       if (arrayMatch) {
@@ -160,18 +164,38 @@ function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
         }
       }
       
-      // Inline links (including href="#" placeholder links from footers)
+      // Inline links
       const linkRegex = /(?:to|href)=["']([^"']+)["'][^>]*>([^<{]+)</g;
       let match;
       while ((match = linkRegex.exec(content)) !== null) {
         const url = match[1];
         const name = match[2].trim();
-        addNavItem(name, url === '#' ? '/' : url);
+        if (name && name.length < 30 && !/icon|svg|className/i.test(name)) {
+          addNavItem(name, url === '#' ? '/' : url);
+        }
+      }
+
+      // Detect action buttons in header (right-side CTAs)
+      // Pattern: <Link to="/..."><Button ...>Text</Button></Link>
+      // Typically after the nav section, often in a div with hidden md:flex
+      const actionBtnRegex = /<Link\s+to=["']([^"']+)["'][^>]*>\s*<Button[^>]*(?:variant=["']([^"']+)["'])?[^>]*>([^<]+)<\/Button>/g;
+      let abm;
+      while ((abm = actionBtnRegex.exec(content)) !== null) {
+        const url = abm[1];
+        const variant = abm[2];
+        const text = abm[3].trim();
+        if (text && text.length < 30 && !navItems.some(n => n.name === text)) {
+          actionButtons.push({
+            text,
+            url,
+            variant: variant === 'outline' ? 'outline' : 'primary',
+          });
+        }
       }
     }
   }
 
-  // 2. Fallback: extract routes from App.tsx to infer navigation
+  // 2. Fallback: extract routes from App.tsx
   if (navItems.length === 0 && files.appTsx) {
     const routeRegex = /path=["']([^"'*]+)["']/g;
     let match;
@@ -208,7 +232,8 @@ function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
       { name: 'About', url: '/about' },
     ],
     logoText,
-    sticky: false,
+    sticky,
+    actionButtons: actionButtons.length > 0 ? actionButtons : undefined,
   };
 }
 
@@ -218,7 +243,8 @@ function extractHero(files: SourceProjectFiles): ExtractedDesign['hero'] | undef
     if (path.toLowerCase().includes('hero')) {
       const h1Match = content.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
       const pMatch = content.match(/<p[^>]*>([\s\S]{10,}?)<\/p>/);
-      const btnMatch = content.match(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/);
+      // Extract all Button components
+      const btnMatches = [...content.matchAll(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/g)];
       
       const cleanJsx = (text: string) => text
         .replace(/<[^>]+>/g, '')
@@ -229,6 +255,18 @@ function extractHero(files: SourceProjectFiles): ExtractedDesign['hero'] | undef
       
       const heading = h1Match ? cleanJsx(h1Match[1]) : undefined;
       const subheading = pMatch ? cleanJsx(pMatch[1]) : undefined;
+
+      // Detect eyebrow text (small text above h1)
+      let eyebrow: string | undefined;
+      const eyebrowMatch = content.match(/<p[^>]*(?:tracking|uppercase|text-sm|text-xs)[^>]*>([^<]+)<\/p>\s*(?:<[^h]|[\s\S]*?)<h1/);
+      if (eyebrowMatch) eyebrow = cleanJsx(eyebrowMatch[1]);
+
+      // Detect inline emphasis (e.g. text-gradient, accent-colored span)
+      let emphasisWord: string | undefined;
+      if (h1Match) {
+        const spanMatch = h1Match[1].match(/<span[^>]*(?:text-gradient|text-accent|text-primary|accent)[^>]*>([^<]+)<\/span>/);
+        if (spanMatch) emphasisWord = cleanJsx(spanMatch[1]);
+      }
       
       // Look for hero background image reference
       const imgImportMatch = content.match(/import\s+\w+\s+from\s+["'](@\/assets\/[^"']+)["']/);
@@ -239,9 +277,13 @@ function extractHero(files: SourceProjectFiles): ExtractedDesign['hero'] | undef
         return {
           heading: heading || 'Welcome',
           subheading: subheading,
-          ctaText: btnMatch?.[1]?.trim(),
+          ctaText: btnMatches[0]?.[1]?.trim(),
           ctaUrl: '/',
+          secondaryCtaText: btnMatches[1]?.[1]?.trim(),
+          secondaryCtaUrl: btnMatches[1] ? '/' : undefined,
           backgroundImage: heroImageUrl,
+          eyebrow,
+          emphasisWord,
         };
       }
     }
@@ -249,16 +291,37 @@ function extractHero(files: SourceProjectFiles): ExtractedDesign['hero'] | undef
   
   // Fallback: check index page directly
   const indexPage = files.indexPage || files.pages['src/pages/Index.tsx'] || '';
-  const h1Match = indexPage.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
-  const pMatch = indexPage.match(/<p[^>]*>([\s\S]{10,}?)<\/p>/);
-  const btnMatch = indexPage.match(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/);
+
+  // Try inline hero section
+  const heroSectionMatch = indexPage.match(/\{\/\*\s*Hero\s*(?:Section)?\s*\*\/\}\s*<section[\s>]([\s\S]*?)<\/section>/);
+  const heroContent = heroSectionMatch?.[1] || indexPage;
+
+  const h1Match = heroContent.match(/<h1[^>]*>([\s\S]*?)<\/h1>/);
+  const pMatch = heroContent.match(/<p[^>]*>([\s\S]{10,}?)<\/p>/);
+  const btnMatches = [...heroContent.matchAll(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/g)];
   
   if (h1Match || pMatch) {
+    // Detect eyebrow
+    let eyebrow: string | undefined;
+    const eyebrowMatch = heroContent.match(/<span[^>]*(?:text-sm|text-xs)[^>]*>([^<]+)<\/span>\s*(?:[\s\S]*?)<h1/);
+    if (eyebrowMatch) eyebrow = cleanJsx(eyebrowMatch[1]);
+
+    // Detect emphasis
+    let emphasisWord: string | undefined;
+    if (h1Match) {
+      const spanMatch = h1Match[1].match(/<span[^>]*(?:text-gradient|accent)[^>]*>([^<]+)<\/span>/);
+      if (spanMatch) emphasisWord = cleanJsx(spanMatch[1]);
+    }
+
     return {
       heading: h1Match ? cleanJsx(h1Match[1]) : 'Welcome',
       subheading: pMatch ? cleanJsx(pMatch[1]) : undefined,
-      ctaText: btnMatch?.[1]?.trim(),
+      ctaText: btnMatches[0]?.[1]?.trim(),
       ctaUrl: '/',
+      secondaryCtaText: btnMatches[1]?.[1]?.trim(),
+      secondaryCtaUrl: btnMatches[1] ? '/' : undefined,
+      eyebrow,
+      emphasisWord,
     };
   }
   
@@ -318,6 +381,7 @@ function extractSectionsV2(files: SourceProjectFiles): { sections: ExtractedSect
       body: analysis.body,
       ctaText: analysis.ctaText,
       ctaUrl: analysis.ctaUrl,
+      secondaryCtaText: analysis.secondaryCtaText,
       items: analysis.items,
       intent: analysis.intent,
       confidence: analysis.confidence,
@@ -332,6 +396,8 @@ function extractSectionsV2(files: SourceProjectFiles): { sections: ExtractedSect
       hasTestimonials: analysis.intent === 'testimonial_band',
       hasPricing: analysis.hasPricing,
       hasRepeatedCards: (analysis.items?.length || 0) >= 2,
+      hasIcons: analysis.hasIcons,
+      hasChecklist: analysis.hasChecklist,
       mediaIntent: analysis.media.mediaIntent,
       mediaConfidence: analysis.media.mediaConfidence,
       mediaEvidence: analysis.media.mediaEvidence,
@@ -390,9 +456,12 @@ interface ComponentAnalysis {
   body?: string;
   ctaText?: string;
   ctaUrl?: string;
+  secondaryCtaText?: string;
   items?: ExtractedSection['items'];
   hasImages: boolean;
   hasPricing: boolean;
+  hasIcons?: boolean;
+  hasChecklist?: boolean;
   media: MediaAnalysis;
 }
 
@@ -438,6 +507,7 @@ function extractInlineSections(indexPage: string, files: SourceProjectFiles): { 
       body: analysis.body,
       ctaText: analysis.ctaText,
       ctaUrl: analysis.ctaUrl,
+      secondaryCtaText: analysis.secondaryCtaText,
       items: analysis.items,
       intent: analysis.intent,
       confidence: analysis.confidence,
@@ -451,6 +521,8 @@ function extractInlineSections(indexPage: string, files: SourceProjectFiles): { 
       hasTestimonials: analysis.intent === 'testimonial_band',
       hasPricing: analysis.hasPricing,
       hasRepeatedCards: (analysis.items?.length || 0) >= 2,
+      hasIcons: analysis.hasIcons,
+      hasChecklist: analysis.hasChecklist,
       mediaIntent: analysis.media.mediaIntent,
       mediaConfidence: analysis.media.mediaConfidence,
       mediaEvidence: analysis.media.mediaEvidence,
@@ -515,6 +587,13 @@ function analyzeInlineSection(
   const btnMatch = content.match(/<Button[^>]*>([A-Za-z][^<]{1,40})/);
   const ctaText = btnMatch?.[1]?.trim();
 
+  // Detect icon/checklist presence
+  const hasIcons = usedArrayItems.some(it => it.icon);
+  const hasChecklist = /CheckCircle|Check\b/i.test(content) || (content.match(/<li[\s>]/g) || []).length >= 2;
+  // Detect dual CTAs
+  const allBtnMatches = [...content.matchAll(/<Button[^>]*>([A-Za-z][^<]{1,40})/g)];
+  const secondaryCtaText = allBtnMatches[1]?.[1]?.trim();
+
   // Intent classification using comment hints + structural signals
   if (commentLower.includes('hero') || hasH1) {
     intent = 'hero';
@@ -529,6 +608,14 @@ function analyzeInlineSection(
       evidence.push('Comment indicates testimonials');
       confidence = 0.95;
     }
+  } else if (hasMap && usedArrayItems.length >= 2 && hasIcons && usedArrayItems.some(it => it.title || it.heading) && !hasQuote && !hasPrice) {
+    intent = 'icon_card_row';
+    confidence = 0.9;
+    evidence.push(`${usedArrayItems.length} repeated items with icon + heading`);
+    if (commentLower.includes('problem') || commentLower.includes('feature')) {
+      evidence.push('Comment indicates icon-card section');
+      confidence = 0.95;
+    }
   } else if (hasMap && usedArrayItems.length >= 2 && usedArrayItems.some(it => it.title && it.description) && !hasQuote) {
     intent = hasPrice ? 'program_cards' : 'feature_grid';
     confidence = 0.85;
@@ -536,6 +623,11 @@ function analyzeInlineSection(
     if (commentLower.includes('problem') || commentLower.includes('feature')) {
       evidence.push('Comment indicates feature/problem section');
     }
+  } else if (hasChecklist && hasH2 && hasButton) {
+    intent = 'content_media_split';
+    confidence = 0.8;
+    evidence.push('Contains heading + checklist + CTA');
+    if (commentLower.includes('solution')) { evidence.push('Comment indicates solution section'); confidence = 0.9; }
   } else if (hasButton && hasH2 && !hasMap && content.length < 2000) {
     intent = 'cta_band';
     confidence = 0.8;
@@ -584,9 +676,12 @@ function analyzeInlineSection(
     body,
     ctaText,
     ctaUrl: ctaText ? '/' : undefined,
+    secondaryCtaText,
     items,
     hasImages: hasImg,
     hasPricing: hasPrice,
+    hasIcons,
+    hasChecklist,
     media,
   };
 }
@@ -625,6 +720,14 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
   const ctaText = btnMatch?.[1]?.trim();
 
   // ── Intent classification ──
+
+  // Detect icon presence in items
+  const hasIcons = arrayItems.some(it => it.icon);
+  // Detect checklist/bullet pattern
+  const hasChecklist = /CheckCircle|Check\b|checklist|bullet/i.test(content) || (content.match(/<li[\s>]/g) || []).length >= 2;
+  // Detect dual CTAs
+  const btnMatches = [...content.matchAll(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/g)];
+  const secondaryCtaText = btnMatches[1]?.[1]?.trim();
 
   // HERO: has h1, usually first section, background image
   if (lower.includes('hero') || (hasH1 && hasImg)) {
@@ -665,6 +768,17 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
     }
   }
 
+  // ICON CARD ROW: repeated items with icon + title + description, no price/quote
+  else if (hasMap && arrayItems.length >= 2 && hasIcons && arrayItems.some(it => it.title || it.heading) && !hasPrice && !hasQuote) {
+    intent = 'icon_card_row';
+    confidence = 0.9;
+    evidence.push(`${arrayItems.length} repeated items with icon + heading pattern`);
+    if (lower.includes('problem') || lower.includes('feature') || lower.includes('benefit')) {
+      evidence.push(`Component name suggests icon cards`);
+      confidence = 0.95;
+    }
+  }
+
   // FEATURE GRID: repeated items with title/body but no price
   else if (hasMap && arrayItems.length >= 2 && arrayItems.some(it => it.title || it.heading)) {
     intent = 'feature_grid';
@@ -701,11 +815,12 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
     evidence.push('Component is a footer');
   }
 
-  // CONTENT MEDIA SPLIT: image + text side by side
+  // CONTENT MEDIA SPLIT: image + text side by side (or checklist + visual)
   else if (hasImg && hasH2 && !hasMap) {
     intent = 'content_media_split';
     confidence = 0.6;
     evidence.push('Contains image + heading without repeated items');
+    if (hasChecklist) { evidence.push('Contains checklist/bullet items'); confidence = 0.75; }
   }
 
   // HEADING DIVIDER: just a heading, minimal content
@@ -770,6 +885,9 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
     hasImages: hasImg,
     hasPricing: hasPrice,
     media,
+    secondaryCtaText,
+    hasIcons,
+    hasChecklist,
   };
 }
 
@@ -910,6 +1028,7 @@ function intentToLegacyType(intent: SectionIntent): ExtractedSection['type'] {
     case 'hero': return 'hero';
     case 'stats': return 'content';
     case 'feature_grid': return 'features';
+    case 'icon_card_row': return 'features';
     case 'program_cards': return 'features';
     case 'testimonial_band': return 'testimonials';
     case 'cta_band': return 'cta';
@@ -924,7 +1043,9 @@ function intentToLegacyType(intent: SectionIntent): ExtractedSection['type'] {
 function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
   let copyright: string | undefined;
   let logoText: string | undefined;
+  let description: string | undefined;
   const linkGroups: Record<string, Array<{ name: string; url: string }>> = {};
+  const socialLinks: Array<{ platform: string; url: string }> = [];
   
   // Try to extract from footer component
   for (const [path, content] of Object.entries(files.components)) {
@@ -935,9 +1056,26 @@ function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
     
     const copyrightMatch = content.match(/©\s*\d{4}\s*([^<"]+)/);
     if (copyrightMatch) copyright = `© ${copyrightMatch[0].trim()}`;
+
+    // Extract brand description (paragraph near logo in footer)
+    const descMatch = content.match(/(?:max-w-|leading-relaxed|text-primary-foreground)[^>]*>\s*([^<]{20,200})/);
+    if (descMatch) description = descMatch[1].trim();
+    
+    // Extract social links
+    const socialRegex = /href=["'](https?:\/\/(?:instagram|linkedin|twitter|facebook|youtube|tiktok)[^"']+)["']/gi;
+    let sm;
+    while ((sm = socialRegex.exec(content)) !== null) {
+      const url = sm[1];
+      const platform = url.match(/(?:instagram|linkedin|twitter|facebook|youtube|tiktok)/i)?.[0]?.toLowerCase() || 'link';
+      if (!socialLinks.some(s => s.platform === platform)) {
+        socialLinks.push({ platform, url });
+      }
+    }
+    // Also detect mailto
+    const mailMatch = content.match(/href=["'](mailto:[^"']+)["']/);
+    if (mailMatch) socialLinks.push({ platform: 'email', url: mailMatch[1] });
     
     // Extract link groups from footer
-    // Pattern: footerLinks = { company: [...], resources: [...] }
     const groupRegex = /(\w+)\s*:\s*\[\s*((?:\{[^}]*\}\s*,?\s*)+)\]/g;
     let gMatch;
     while ((gMatch = groupRegex.exec(content)) !== null) {
@@ -952,7 +1090,7 @@ function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
       if (links.length > 0) linkGroups[groupName] = links;
     }
     
-    // Fallback: inline links (including href="#" placeholder links)
+    // Fallback: inline links
     if (Object.keys(linkGroups).length === 0) {
       const inlineLinks: Array<{ name: string; url: string }> = [];
       const linkRegex = /(?:to|href)=["']([^"']+)["'][^>]*>([^<{]+)</g;
@@ -962,8 +1100,8 @@ function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
         const url = lm[1];
         if (name && name.length < 30 && !/icon|svg|className/i.test(name)) {
           inlineLinks.push({ name, url: url === '#' ? '/' : url });
+        }
       }
-    }
       if (inlineLinks.length > 0) linkGroups['main'] = inlineLinks;
     }
   }
@@ -981,7 +1119,10 @@ function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
     textColor: '#ffffff',
     columns: Object.keys(linkGroups).length > 1 ? Object.keys(linkGroups).length + 1 : 2,
     copyright: copyright || `© ${new Date().getFullYear()} ${logoText || ''} All rights reserved.`.trim(),
+    socialLinks: socialLinks.length > 0 ? socialLinks : undefined,
     linkGroups: Object.keys(linkGroups).length > 0 ? linkGroups : undefined,
+    description,
+    logoText,
   };
 }
 

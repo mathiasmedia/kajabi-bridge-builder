@@ -142,8 +142,8 @@ describe('Semantic extraction — Brand Brilliance Studio (inline sections)', ()
     expect(testimonials!.items![0].quote).toBeDefined();
   });
 
-  it('identifies feature/problem section with 3 items', () => {
-    const features = design.sections.find(s => s.intent === 'feature_grid');
+  it('identifies icon_card_row or feature_grid problem section with 3 items', () => {
+    const features = design.sections.find(s => s.intent === 'feature_grid' || s.intent === 'icon_card_row');
     expect(features).toBeDefined();
     expect(features!.items?.length).toBe(3);
   });
