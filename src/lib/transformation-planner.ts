@@ -252,6 +252,7 @@ export function buildTransformationPlan(
             image_width: '1000',
             text_align: 'center',
             width: '4',
+            own_row: 'false',
             background_color: darkCardBg,
             border_radius: '12',
             box_shadow: siteIsDark ? 'none' : 'medium',
