@@ -22,6 +22,7 @@ export default function HomePage() {
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
+  const [creatingDefault, setCreatingDefault] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -44,6 +45,29 @@ export default function HomePage() {
     else {
       setProjects(prev => prev.filter(p => p.id !== id));
       toast.success('Project deleted');
+    }
+  };
+
+  const handleStartDefault = async () => {
+    setCreatingDefault(true);
+    try {
+      const { data: saved, error } = await supabase
+        .from('saved_templates')
+        .insert({
+          name: 'Untitled Project',
+          source_project_name: 'Default Template',
+          plan_json: { operations: [] },
+          extracted_design_json: null,
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+      toast.success('Project created');
+      navigate(`/builder/${saved.id}`);
+    } catch (e) {
+      toast.error(`Failed: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setCreatingDefault(false);
     }
   };
 
@@ -70,9 +94,15 @@ export default function HomePage() {
               Create Kajabi templates from any reference design
             </p>
           </div>
-          <Button size="lg" onClick={() => setShowNew(true)}>
-            <Plus className="mr-2 h-5 w-5" /> New Project
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="lg" onClick={handleStartDefault} disabled={creatingDefault}>
+              {creatingDefault ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileArchive className="mr-2 h-5 w-5" />}
+              Start with Default
+            </Button>
+            <Button size="lg" onClick={() => setShowNew(true)}>
+              <Plus className="mr-2 h-5 w-5" /> New Project
+            </Button>
+          </div>
         </div>
 
         {loading ? (

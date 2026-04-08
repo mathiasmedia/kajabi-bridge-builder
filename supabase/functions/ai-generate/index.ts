@@ -386,7 +386,7 @@ Return ONLY valid JSON. No markdown.`;
 
     // Launch all passes in parallel
     const passes: Promise<{ content: string; finishReason: string }>[] = [
-      callLovableAI(LOVABLE_API_KEY, "google/gemini-2.5-flash-lite", structurePrompt, structureUser, 8192),
+      callLovableAI(LOVABLE_API_KEY, "google/gemini-2.5-flash", structurePrompt, structureUser, 16384),
       callLovableAI(LOVABLE_API_KEY, "google/gemini-2.5-flash", cssPrompt, cssUser, 4096),
     ];
 
