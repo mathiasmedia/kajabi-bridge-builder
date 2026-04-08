@@ -308,6 +308,7 @@ export interface ChangeSummaryItem {
   type: string;
   label: string;
   detail: string;
+  json?: string;
 }
 
 export function generateChangeSummary(plan: TransformationPlan): ChangeSummaryItem[] {
