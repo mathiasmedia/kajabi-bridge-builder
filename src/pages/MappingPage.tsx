@@ -256,3 +256,38 @@ export default function MappingPage() {
     </div>
   );
 }
+
+function OperationRow({ item, index, onRemove }: { item: import('@/lib/kajabi-exporter').ChangeSummaryItem; index: number; onRemove: (i: number) => void }) {
+  const [showJson, setShowJson] = useState(false);
+  const colorClass = OP_TYPE_COLORS[item.type] || 'bg-muted text-muted-foreground border-border';
+
+  return (
+    <div className="rounded-md border px-3 py-2 group">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-mono text-muted-foreground w-5 shrink-0 text-right">{index + 1}</span>
+        <Badge variant="outline" className={`text-[10px] font-mono shrink-0 border ${colorClass}`}>
+          {item.type}
+        </Badge>
+        <span className="text-sm font-medium flex-1 truncate">{item.label}</span>
+        {item.json && (
+          <button onClick={() => setShowJson(!showJson)} className="text-muted-foreground hover:text-foreground" title="Toggle JSON">
+            {showJson ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </button>
+        )}
+        <button
+          onClick={() => onRemove(index)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          title="Remove operation"
+        >
+          <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+        </button>
+      </div>
+      <pre className="text-[11px] text-muted-foreground mt-1 ml-7 whitespace-pre-wrap font-sans">{item.detail}</pre>
+      {showJson && item.json && (
+        <pre className="text-[10px] text-muted-foreground mt-2 ml-7 whitespace-pre-wrap font-mono bg-muted/50 rounded p-2 max-h-[300px] overflow-auto">
+          {item.json}
+        </pre>
+      )}
+    </div>
+  );
+}
