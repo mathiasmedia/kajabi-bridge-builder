@@ -9,6 +9,7 @@ import { getRuleForIntent, validateMappingQuality, shouldGenerateSection } from 
 import { supabase } from '@/integrations/supabase/client';
 import type { SourceProjectSnapshot, IngestionWarning } from '@/lib/ingestion';
 import { snapshotToSourceFiles, validateSnapshot, BundledProjectAdapter } from '@/lib/ingestion';
+import { applyStreamlinedHomeRecipes } from '@/lib/theme-recipes/streamlined-home';
 
 interface ExportStore {
   // State
@@ -290,7 +291,16 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       }
 
       // ── Post-processing: Deduplication ──
-      const deduplicatedOps = deduplicateOperations(operations);
+      let deduplicatedOps = deduplicateOperations(operations);
+
+      // ── Theme-specific recipe layer ──
+      if (currentProject.baseTheme === 'streamlined-home') {
+        const recipeResult = applyStreamlinedHomeRecipes(deduplicatedOps, extractedDesign.sections);
+        deduplicatedOps = recipeResult.operations;
+        if (recipeResult.warnings.length > 0) {
+          console.log('Theme recipe adjustments:', recipeResult.warnings);
+        }
+      }
 
       // ── Build content_for_index: keep modified existing sections + add new ones ──
       const existingContentIds = getContentForPage(baseTheme, currentProject.page).filter(Boolean);
