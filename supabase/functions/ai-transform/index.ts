@@ -479,20 +479,15 @@ async function requestTransform({
 }: {
   apiKey: string; model: string; systemPrompt: string; userPrompt: string; maxTokens: number;
 }) {
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      max_completion_tokens: maxTokens,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      tools: [{
+  const maxRetries = 3;
+  const requestBody = JSON.stringify({
+    model,
+    max_completion_tokens: maxTokens,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    tools: [{
         type: "function",
         function: {
           name: "apply_transformations",
@@ -573,20 +568,54 @@ async function requestTransform({
         },
       }],
       tool_choice: { type: "function", function: { name: "apply_transformations" } },
-    }),
-  });
+    });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error("AI gateway error:", response.status, errText);
-    if (response.status === 429) throw new Error("Rate limited, please try again shortly.");
-    if (response.status === 402) throw new Error("Credits exhausted. Add funds in Settings > Workspace > Usage.");
-    throw new Error(`AI gateway returned ${response.status}: ${errText}`);
+  let lastError = "";
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: requestBody,
+      });
+
+      if (response.ok) {
+        const aiResult = await response.json();
+        const parsed = parseAiResponse(aiResult);
+        return { parsed, finishReason: aiResult.choices?.[0]?.finish_reason ?? null };
+      }
+
+      const errText = await response.text();
+      console.error(`AI gateway error (attempt ${attempt}/${maxRetries}):`, response.status, errText);
+
+      if (response.status === 429) throw new Error("Rate limited, please try again shortly.");
+      if (response.status === 402) throw new Error("Credits exhausted. Add funds in Settings > Workspace > Usage.");
+
+      // Retry on 5xx errors
+      if (response.status >= 500 && attempt < maxRetries) {
+        lastError = `AI gateway returned ${response.status}: ${errText}`;
+        const delay = attempt * 2000; // 2s, 4s backoff
+        console.log(`Retrying in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+
+      throw new Error(`AI gateway returned ${response.status}: ${errText}`);
+    } catch (e) {
+      if (e instanceof Error && (e.message.includes("Rate limited") || e.message.includes("Credits exhausted"))) throw e;
+      lastError = e instanceof Error ? e.message : String(e);
+      if (attempt < maxRetries) {
+        const delay = attempt * 2000;
+        console.log(`Retrying after error in ${delay}ms: ${lastError}`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+    }
   }
-
-  const aiResult = await response.json();
-  const parsed = parseAiResponse(aiResult);
-  return { parsed, finishReason: aiResult.choices?.[0]?.finish_reason ?? null };
+  throw new Error(`AI gateway failed after ${maxRetries} attempts: ${lastError}`);
 }
 
 function parseAiResponse(aiResult: any): TransformPayload {
