@@ -11,6 +11,7 @@ import type { SourceProjectSnapshot, IngestionWarning } from '@/lib/ingestion';
 import { snapshotToSourceFiles, validateSnapshot, BundledProjectAdapter } from '@/lib/ingestion';
 import { applyStreamlinedHomeRecipes } from '@/lib/theme-recipes/streamlined-home';
 import { runRefinementPass } from '@/lib/refinement-pass';
+import { runRenderCheck, type RenderCheckOutput } from '@/lib/renderer-integration';
 
 interface ExportStore {
   // State
@@ -27,6 +28,8 @@ interface ExportStore {
   loadingMessage: string;
   error: string | null;
   exportValidation: ValidationResult | null;
+  renderCheckResult: RenderCheckOutput | null;
+  isRenderChecking: boolean;
 
   // Actions
   setWorkspaceProjects: (projects: WorkspaceProject[]) => void;
@@ -46,6 +49,7 @@ interface ExportStore {
   reset: () => void;
   setError: (error: string | null) => void;
   setLoading: (loading: boolean, message?: string) => void;
+  runRenderCheck: () => Promise<void>;
 }
 
 
