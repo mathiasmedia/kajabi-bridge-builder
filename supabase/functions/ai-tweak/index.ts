@@ -157,17 +157,12 @@ ${tweakInstruction}`;
       userContent = textPart;
     }
 
-    // Use OpenAI GPT-4o for image tweaks if available, otherwise Gemini
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    const useOpenAI = imageBase64 && OPENAI_API_KEY;
-    
-    const apiUrl = useOpenAI 
-      ? "https://api.openai.com/v1/chat/completions"
-      : "https://ai.gateway.lovable.dev/v1/chat/completions";
-    const apiKey = useOpenAI ? OPENAI_API_KEY : LOVABLE_API_KEY;
-    const model = useOpenAI ? "gpt-4o" : (imageBase64 ? "google/gemini-2.5-flash" : "google/gemini-2.5-flash");
+    // Always use Lovable AI gateway — supports images via Gemini
+    const apiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+    const apiKey = LOVABLE_API_KEY;
+    const model = imageBase64 ? "google/gemini-2.5-pro" : "google/gemini-2.5-flash";
 
-    console.log(`Tweak using ${model}${useOpenAI ? ' (OpenAI)' : ' (Lovable AI)'}`);
+    console.log(`Tweak using ${model} (Lovable AI)`);
 
     const response = await fetch(apiUrl, {
       method: "POST",
@@ -177,7 +172,7 @@ ${tweakInstruction}`;
       },
       body: JSON.stringify({
         model,
-        max_tokens: 4096,
+        max_tokens: imageBase64 ? 16384 : 8192,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent },
