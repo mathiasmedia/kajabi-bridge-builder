@@ -151,11 +151,9 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         availableSectionTypes,
       };
 
-      // ── Step 1: Globals (header, footer, hero, CSS) ──
-      // Filter out footer-like sections from non-hero sections
+      // ── Step 1: Globals (header, footer, hero, navigation, CSS) ──
       const nonHeroSections = extractedDesign.sections.filter(s => {
         if (s.type === 'hero') return false;
-        // Skip footer-like sections — they're handled by layout
         const heading = (s.heading || '').toLowerCase();
         const type = (s.type || '').toLowerCase();
         if (type === 'content' && (heading.includes('footer') || heading === 'footer')) return false;
@@ -163,7 +161,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       });
       const totalSteps = 1 + nonHeroSections.length;
 
-      set({ isLoading: true, loadingMessage: `Step 1/${totalSteps}: Generating global styles, header, footer & hero...` });
+      set({ isLoading: true, loadingMessage: `Step 1/${totalSteps}: Generating global styles, header, footer, hero & navigation...` });
 
       const { data: globalsData, error: globalsError } = await supabase.functions.invoke('ai-transform', {
         body: { ...sharedBody, step: 'globals' },
@@ -189,6 +187,14 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       }
 
       // ── Step 2+: One call per non-hero section ──
+      // Track existing headings for deduplication
+      const existingSectionHeadings: string[] = [];
+      
+      // Collect headings from globals (hero heading)
+      if (extractedDesign.hero?.heading) {
+        existingSectionHeadings.push(extractedDesign.hero.heading);
+      }
+
       for (let i = 0; i < nonHeroSections.length; i++) {
         const section = nonHeroSections[i];
         const stepNum = i + 2;
@@ -201,12 +207,13 @@ export const useExportStore = create<ExportStore>((set, get) => ({
             ...sharedBody,
             step: 'section',
             sectionToGenerate: section,
+            existingSectionHeadings,
           },
         });
 
         if (sectionError) {
           console.warn(`Section "${section.type}" failed:`, sectionError.message);
-          continue; // Skip failed sections, don't abort
+          continue;
         }
         if (sectionData?.error) {
           console.warn(`Section "${section.type}" returned error:`, sectionData.error);
@@ -216,32 +223,47 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         if (Array.isArray(sectionData?.operations)) {
           for (const op of sectionData.operations) {
             operations.push(op as TransformationOperation);
+            // Track heading for dedup
+            if (op.type === 'addSection' && op.section?.settings?.heading) {
+              existingSectionHeadings.push(op.section.settings.heading);
+            }
           }
         }
       }
 
+      // ── Post-processing: Deduplication ──
+      const deduplicatedOps = deduplicateOperations(operations);
+
       // ── Hide all original content sections & replace content_for_index ──
       const existingContentIds = getContentForPage(baseTheme, currentProject.page).filter(Boolean);
 
-      // Hide every original content section so the exported theme only shows AI-generated ones
       for (const sectionId of existingContentIds) {
-        operations.push({ type: 'hideSection', sectionId });
+        deduplicatedOps.push({ type: 'hideSection', sectionId });
       }
 
-      const addedSectionIds = operations
+      const addedSectionIds = deduplicatedOps
         .filter((op): op is Extract<TransformationOperation, { type: 'addSection' }> => op.type === 'addSection')
         .map(op => op.sectionId);
 
-      // Replace (not append) content_for_index with only the new sections
       const contentKey = currentProject.page === 'index' ? 'content_for_index' : `content_for_${currentProject.page}`;
-      operations.push({
+      deduplicatedOps.push({
         type: 'updateGlobalSetting',
         key: contentKey,
         value: addedSectionIds,
         label: 'Replace page content with AI-generated sections',
       });
 
-      if (operations.length === 0) {
+      // ── Ensure link_lists from nav items if no updateNavigation ops exist ──
+      const hasNavOps = deduplicatedOps.some(op => op.type === 'updateNavigation');
+      if (!hasNavOps && extractedDesign.header?.navItems?.length > 0) {
+        deduplicatedOps.push({
+          type: 'updateNavigation',
+          menuId: 'main-menu',
+          links: extractedDesign.header.navItems,
+        } as TransformationOperation);
+      }
+
+      if (deduplicatedOps.length === 0) {
         throw new Error('AI returned no valid operations across all steps. Please try again.');
       }
 
@@ -251,7 +273,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         sourcePage: currentProject.page,
         baseThemeId: 'streamlined-home',
         extractedDesign,
-        operations,
+        operations: deduplicatedOps,
         validationWarnings: [],
       };
 
@@ -315,3 +337,63 @@ export const useExportStore = create<ExportStore>((set, get) => ({
   setError: (error) => set({ error }),
   setLoading: (isLoading, loadingMessage = '') => set({ isLoading, loadingMessage }),
 }));
+
+// ── Deduplication pass ────────────────────────────────────────────────
+
+function deduplicateOperations(operations: TransformationOperation[]): TransformationOperation[] {
+  const result: TransformationOperation[] = [];
+  const seenHeadings = new Set<string>();
+  const seenSectionIds = new Set<string>();
+
+  for (const op of operations) {
+    if (op.type === 'addSection') {
+      // Skip duplicate section IDs
+      if (seenSectionIds.has(op.sectionId)) {
+        console.warn(`Dedup: skipping duplicate section ID "${op.sectionId}"`);
+        continue;
+      }
+
+      // Skip sections with duplicate headings
+      const heading = op.section?.settings?.heading;
+      if (heading && typeof heading === 'string') {
+        const normalizedHeading = heading.trim().toLowerCase();
+        if (seenHeadings.has(normalizedHeading)) {
+          console.warn(`Dedup: skipping section with duplicate heading "${heading}"`);
+          continue;
+        }
+        seenHeadings.add(normalizedHeading);
+      }
+
+      // Skip footer-like sections in content arrays
+      const sectionName = (op.section?.name || '').toLowerCase();
+      const sectionType = (op.section?.type || '').toLowerCase();
+      if (sectionName.includes('footer') || sectionType === 'footer') {
+        console.warn(`Dedup: skipping footer-like section "${op.label}"`);
+        continue;
+      }
+
+      // Skip heading-only sections when the section should be richer
+      const blocks = op.section?.blocks || {};
+      const blockValues = Object.values(blocks);
+      const hasSubstantiveBlocks = blockValues.some((b: any) => {
+        const s = b?.settings || {};
+        return (s.text && s.text.length > 20) || s.btn_text || s.btn_action || s.button_label;
+      });
+      if (blockValues.length <= 1 && !hasSubstantiveBlocks && heading) {
+        // Check if it's truly just a heading with no body — only skip if section label suggests richer content
+        const label = (op.label || '').toLowerCase();
+        const isExpectedRich = ['stat', 'feature', 'program', 'testimonial', 'course', 'service'].some(k => label.includes(k));
+        if (isExpectedRich) {
+          console.warn(`Dedup: skipping thin section "${op.label}" (expected richer content)`);
+          continue;
+        }
+      }
+
+      seenSectionIds.add(op.sectionId);
+    }
+
+    result.push(op);
+  }
+
+  return result;
+}

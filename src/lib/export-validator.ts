@@ -96,10 +96,20 @@ function addSemanticQualityWarnings(
   warnings: string[],
 ) {
   const sections = current.sections || {};
+  const headingCounts = new Map<string, string[]>();
+  const ctaLabelCounts = new Map<string, string[]>();
 
   for (const [id, rawSection] of Object.entries(sections)) {
     const section = rawSection as any;
     if (!section || !section.type) continue;
+
+    // Track headings for duplicate detection
+    const heading = section.settings?.heading;
+    if (heading && typeof heading === 'string') {
+      const normalized = heading.trim().toLowerCase();
+      if (!headingCounts.has(normalized)) headingCounts.set(normalized, []);
+      headingCounts.get(normalized)!.push(id);
+    }
 
     // Warn: heading-only section (no body/buttons/images in any block)
     const blocks = section.blocks || {};
@@ -112,9 +122,24 @@ function addSemanticQualityWarnings(
       warnings.push(`Section "${id}" appears to be heading-only with no body content.`);
     }
 
+    // Track CTA labels for duplicate detection
+    for (const block of blockValues) {
+      const b = block as any;
+      const btnLabel = b?.settings?.btn_text || b?.settings?.button_label;
+      if (btnLabel && typeof btnLabel === 'string') {
+        const normalized = btnLabel.trim().toLowerCase();
+        if (!ctaLabelCounts.has(normalized)) ctaLabelCounts.set(normalized, []);
+        ctaLabelCounts.get(normalized)!.push(id);
+      }
+    }
+
     // Warn: page_content used as generic homepage section
     if (section.type === 'page_content') {
-      warnings.push(`Section "${id}" uses "page_content" type which is typically not ideal for homepage sections.`);
+      // Check if it's in a homepage content array
+      const inHomepage = Array.isArray(current.content_for_index) && current.content_for_index.includes(id);
+      if (inHomepage) {
+        warnings.push(`Section "${id}" uses "page_content" type as a homepage section — consider a more specific type.`);
+      }
     }
 
     // Warn: footer-like content in content_for_*
@@ -126,6 +151,27 @@ function addSemanticQualityWarnings(
           warnings.push(`Footer-like section "${id}" is in ${key} — footers should be layout-level, not page content.`);
         }
       }
+    }
+
+    // Warn: section with too little content for its intent
+    const name = (section.name || '').toLowerCase();
+    const isExpectedRich = ['stat', 'feature', 'program', 'testimonial', 'course', 'service'].some(k => name.includes(k) || sectionType.includes(k));
+    if (isExpectedRich && blockValues.length <= 1) {
+      warnings.push(`Section "${id}" (${section.name}) has only ${blockValues.length} block(s) but its intent suggests richer content.`);
+    }
+  }
+
+  // Warn: duplicate headings
+  for (const [heading, ids] of headingCounts) {
+    if (ids.length > 1) {
+      warnings.push(`Duplicate heading "${heading}" found in sections: ${ids.join(', ')}.`);
+    }
+  }
+
+  // Warn: duplicate CTA labels
+  for (const [label, ids] of ctaLabelCounts) {
+    if (ids.length > 2) {
+      warnings.push(`CTA label "${label}" repeated across ${ids.length} sections.`);
     }
   }
 
