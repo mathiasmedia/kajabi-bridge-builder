@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench, RefreshCw, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +8,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useExportStore } from '@/store/useExportStore';
 import { generateChangeSummary, type ChangeSummaryItem } from '@/lib/kajabi-exporter';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import AppHeader from '@/components/AppHeader';
 import RenderCheckPanel from '@/components/RenderCheckPanel';
 
