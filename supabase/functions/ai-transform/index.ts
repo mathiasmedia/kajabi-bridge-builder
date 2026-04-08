@@ -697,7 +697,16 @@ function normalizeTransformPayload(
   parsed: TransformPayload,
   availableSectionTypes: string[],
 ): Required<TransformPayload> {
-  const operations = Array.isArray(parsed?.operations) ? parsed.operations : [];
+  // Handle case where AI returns a single addSection directly (not wrapped in operations array)
+  let operations: any[];
+  if (Array.isArray(parsed?.operations)) {
+    operations = parsed.operations;
+  } else if ((parsed as any)?.type === 'addSection') {
+    // AI returned a single operation directly
+    operations = [parsed];
+  } else {
+    operations = [];
+  }
   const cssOverrides = typeof parsed?.cssOverrides === "string" ? parsed.cssOverrides : "";
 
   const normalizedOperations = operations.filter((op: any) => {
