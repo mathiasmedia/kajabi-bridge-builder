@@ -63,6 +63,7 @@ export default function MappingPage() {
   }
 
   const changeSummary = transformationPlan ? generateChangeSummary(transformationPlan) : [];
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleExport = async () => {
     if (!canExport) return;
@@ -74,6 +75,39 @@ export default function MappingPage() {
       a.download = `${currentProject.name.replace(/\s+/g, '-').toLowerCase()}-kajabi-theme.zip`;
       a.click();
       URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!transformationPlan || !currentProject) return;
+    setIsSaving(true);
+    try {
+      // Upload zip to storage
+      let zipPath: string | null = null;
+      const blob = await useExportStore.getState().exportZip();
+      if (blob) {
+        const fileName = `${currentProject.id}-${Date.now()}.zip`;
+        const { error: uploadError } = await supabase.storage
+          .from('theme-assets')
+          .upload(`templates/${fileName}`, blob, { contentType: 'application/zip' });
+        if (!uploadError) zipPath = `templates/${fileName}`;
+      }
+
+      const { error } = await supabase.from('saved_templates').insert({
+        name: currentProject.name,
+        source_project_id: currentProject.sourceProjectId,
+        source_project_name: currentProject.sourceProjectName,
+        plan_json: transformationPlan as any,
+        extracted_design_json: extractedDesign as any,
+        zip_storage_path: zipPath,
+      });
+
+      if (error) throw error;
+      toast.success('Template saved!');
+    } catch (e) {
+      toast.error(`Save failed: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
