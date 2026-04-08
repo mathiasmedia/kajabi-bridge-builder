@@ -197,7 +197,12 @@ IMPORTANT: Generate updateNavigation for "main-menu" and "about-menu" using the 
   console.log(`ai-transform [globals] finish_reason=${result.finishReason ?? "unknown"}`);
 
   const parsed = normalizeTransformPayload(result.parsed, availableSectionTypes);
-  parsed.operations = parsed.operations.filter((op: any) => op.type !== "addSection");
+  // Remove addSection ops (not allowed in globals) and global background_color (use per-section instead)
+  parsed.operations = parsed.operations.filter((op: any) => {
+    if (op.type === 'addSection') return false;
+    if (op.type === 'updateGlobalSetting' && op.key === 'background_color') return false;
+    return true;
+  });
 
   if (parsed.operations.length === 0 && !parsed.cssOverrides) {
     return jsonResponse({ error: "AI returned no valid global operations. Please retry." }, 500);
