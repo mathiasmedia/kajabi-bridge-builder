@@ -73,9 +73,11 @@ export default function LiveThemePreview({ plan, baseTheme: providedTheme, class
         const current = settingsData.current;
         let overridesCss = theme.files['assets/overrides.css'] || '';
 
+        console.log(`[LivePreview] Applying ${plan.operations.length} operations`);
         for (const op of plan.operations) {
           applyOperation(op, current, (css) => { overridesCss += '\n' + css; });
         }
+        if (overridesCss.trim()) console.log('[LivePreview] Override CSS length:', overridesCss.length);
 
         const themeData = buildThemeDataForRenderer(theme, settingsData, overridesCss);
         const result = await renderPageFromData(themeData, 'index');
