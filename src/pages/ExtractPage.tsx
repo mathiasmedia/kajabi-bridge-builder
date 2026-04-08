@@ -321,6 +321,30 @@ function SectionDebugCard({ section, index, warnings }: { section: ExtractedSect
               ))}
             </div>
 
+            {/* Media intent */}
+            <div>
+              <span className="text-muted-foreground">Media:</span>{' '}
+              <Badge variant="outline" className="text-[10px] font-mono">{section.mediaIntent}</Badge>
+              <span className={`text-xs font-mono ml-2 ${section.mediaConfidence >= 0.8 ? 'text-green-400' : 'text-yellow-400'}`}>
+                {(section.mediaConfidence * 100).toFixed(0)}%
+              </span>
+              {section.mediaEvidence.length > 0 && (
+                <ul className="ml-4 mt-1 space-y-0.5 list-disc text-muted-foreground text-xs">
+                  {section.mediaEvidence.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
+              )}
+              {section.imageTargets.length > 0 && (
+                <div className="ml-4 mt-1 space-y-0.5 text-xs">
+                  {section.imageTargets.map((t, i) => (
+                    <div key={i} className="text-muted-foreground">
+                      <Badge variant="secondary" className="text-[9px] mr-1">{t.role}</Badge>
+                      {t.url && <span className="font-mono text-[10px] truncate max-w-[200px] inline-block align-bottom">{t.url.split('/').pop()}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Items preview */}
             {section.items && section.items.length > 0 && (
               <div>
