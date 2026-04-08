@@ -435,7 +435,63 @@ function getBlockPatternForIntent(intent: SectionIntent): string {
   return patterns[intent] || patterns['content'];
 }
 
-// ── Shared utilities ───────────────────────────────────────────────────
+// ── Plain JSON request (no tool calling — avoids additionalProperties blocks bug) ──
+
+async function requestJsonTransform({
+  apiKey, model, systemPrompt, userPrompt, maxTokens,
+}: {
+  apiKey: string; model: string; systemPrompt: string; userPrompt: string; maxTokens: number;
+}) {
+  const maxRetries = 3;
+  const requestBody = JSON.stringify({
+    model,
+    max_completion_tokens: maxTokens,
+    messages: [
+      { role: "system", content: systemPrompt + "\n\nRespond with ONLY a JSON object. No markdown, no code fences, just raw JSON." },
+      { role: "user", content: userPrompt },
+    ],
+    response_format: { type: "json_object" },
+  });
+
+  let lastError = "";
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: requestBody,
+      });
+
+      if (response.ok) {
+        const aiResult = await response.json();
+        const content = aiResult.choices?.[0]?.message?.content || "";
+        if (!content?.trim()) throw new Error("AI returned empty response");
+        const parsed = extractJson(content);
+        return { parsed, finishReason: aiResult.choices?.[0]?.finish_reason ?? null };
+      }
+
+      const errText = await response.text();
+      if (response.status === 429) throw new Error("Rate limited, please try again shortly.");
+      if (response.status === 402) throw new Error("Credits exhausted.");
+      if (response.status >= 500 && attempt < maxRetries) {
+        lastError = `AI gateway returned ${response.status}`;
+        await new Promise(r => setTimeout(r, attempt * 2000));
+        continue;
+      }
+      throw new Error(`AI gateway returned ${response.status}: ${errText}`);
+    } catch (e) {
+      if (e instanceof Error && (e.message.includes("Rate limited") || e.message.includes("Credits exhausted"))) throw e;
+      lastError = e instanceof Error ? e.message : String(e);
+      if (attempt < maxRetries) { await new Promise(r => setTimeout(r, attempt * 2000)); continue; }
+    }
+  }
+  throw new Error(`AI gateway failed after ${maxRetries} attempts: ${lastError}`);
+}
+
+
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
