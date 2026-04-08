@@ -90,6 +90,102 @@ function parseJSON(content: string): any {
   } catch { return null; }
 }
 
+// ── KAJABI MARKUP REFERENCE ─────────────────────────────────────────────
+// This teaches the AI exactly how Kajabi renders HTML so CSS overrides target real selectors.
+const KAJABI_MARKUP_REFERENCE = `
+## KAJABI HTML STRUCTURE (how the theme actually renders)
+
+All sections use a generic section.liquid template. The rendered HTML structure is:
+
+\`\`\`html
+<div id="section-{sectionId}" class="kajabi-section" data-section-type="section">
+  <!-- section_styles.liquid generates: -->
+  <style>
+    #section-{sectionId} .section__overlay { background-color: {background_color}; }
+    #section-{sectionId} .sizer { padding-top: {top}px; padding-bottom: {bottom}px; }
+  </style>
+
+  <section class="section background-{scheme}">
+    <div class="sizer">
+      <div class="section__overlay"></div>
+      <div class="container">
+        <div class="row align-items-{vertical} justify-content-{horizontal}">
+          <!-- Each block renders here -->
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+\`\`\`
+
+### BLOCK HTML (block.liquid wraps each block):
+\`\`\`html
+<div id="block-{blockId}" class="block-type--{type} text-{align} col-{width}">
+  <div class="block box-shadow-{shadow} background-{scheme}">
+    <!-- block content from block_{type}.liquid -->
+  </div>
+</div>
+\`\`\`
+
+### BLOCK TYPE: text (block_text.liquid)
+\`\`\`html
+<div class="text-element">{{ block.settings.text }}</div>
+<!-- If use_btn is true, includes block_cta.liquid -->
+\`\`\`
+
+### BLOCK TYPE: feature (block_feature.liquid)
+\`\`\`html
+<div class="feature">
+  <img class="feature__image" src="..." />
+  <div class="feature__text">{{ block.settings.text }}</div>
+  <!-- If use_btn, includes block_cta.liquid -->
+</div>
+\`\`\`
+
+### BLOCK TYPE: feature_icon (block_feature_icon.liquid)
+\`\`\`html
+<div class="feature">
+  <div class="feature-icon">{SVG icon}</div>
+  <div class="feature__text">{{ block.settings.text }}</div>
+</div>
+\`\`\`
+
+### BLOCK TYPE: image (block_image.liquid)
+\`\`\`html
+<div class="image">
+  <img class="image__image" src="..." />
+  <div class="image__overlay"><!-- overlay content --></div>
+</div>
+\`\`\`
+
+### BLOCK TYPE: cta (block_cta.liquid — also included by text/feature when use_btn=true)
+\`\`\`html
+<a class="btn btn--{size} btn--{width} btn--{style}" href="{url}" 
+   style="background-color: {bg}; color: {text}; border-radius: {radius};">
+  {button text}
+</a>
+\`\`\`
+
+## CSS TARGETING RULES
+- Target sections by ID: \`#section-{sectionId} .sizer { ... }\`
+- Target blocks by ID: \`#block-{blockId} .block { ... }\`
+- Target block types within a section: \`#section-{sectionId} .block-type--text { ... }\`
+- Target features: \`#section-{sectionId} .feature { ... }\`
+- Target images: \`#section-{sectionId} .image { ... }\`
+- Target buttons: \`.btn { ... }\` or \`#section-{sectionId} .btn { ... }\`
+- The overlay (\`.section__overlay\`) renders the background_color. To override: \`#section-{sectionId} .section__overlay { background-color: ...; }\`
+- Section padding is on \`.sizer\`: \`#section-{sectionId} .sizer { padding-top: ...; padding-bottom: ...; }\`
+
+## IMPORTANT DETAILS
+- Section \`background_color\` is applied via the \`.section__overlay\` element (absolute positioned overlay)
+- Block \`background_color\` is applied as inline \`background-color\` on the \`.block\` div
+- Block \`width\` is set via \`col-{n}\` class (1-12 grid) on the outer wrapper
+- Block \`text_align\` is set via \`text-{left|center|right}\` class
+- Button colors come from global settings but can be overridden per-block via \`btn_background_color\` and \`btn_text_color\`
+- The header section uses \`header.liquid\` (not section.liquid) with class \`.header\`
+- The footer uses \`footer.liquid\` / \`footer_pro.liquid\`
+`;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -119,6 +215,8 @@ ${!referenceUrl && !description && !hasImages ? 'Create a modern, professional b
     // ── PASS 1 (fast): Structure & content ──────────────────────
     const structurePrompt = `You are an expert Kajabi theme builder. Generate the page STRUCTURE — sections, blocks, content, and navigation.
 
+${KAJABI_MARKUP_REFERENCE}
+
 ## OUTPUT FORMAT
 Return valid JSON:
 {
@@ -137,28 +235,62 @@ Return valid JSON:
 
 ## OPERATION TYPES
 - updateGlobalSetting: { type, key, value, label }
-- addSection: { type, sectionId, section: { type: "section", settings: { background_color, padding_top, padding_bottom, text_color }, blocks: { "block-id": { type, settings } }, block_order: ["block-id"] }, label }
+  Keys: primary_font, secondary_font, heading_color, body_color, accent_color, color_primary, color_body,
+        btn_background_color, btn_text_color, btn_border_radius, btn_style, btn_size,
+        dark_accent_color_primary, dark_accent_color_secondary, light_accent_color_primary, light_accent_color_secondary
+- addSection: { type, sectionId, section: { type: "section", settings, blocks, block_order }, label }
 - hideSection: { type, sectionId }
 - updateNavigation: { type, menuId: "main-menu", links: [{name, url}] }
 
-## BLOCK TYPES
-- text: { text: "<h1>...</h1>" or "<p>...</p>" }
-- feature: { text: "<h3>Title</h3><p>desc</p>", width: "4"|"6"|"12" }
-- cta: { btn_text: "Label", btn_action: "#", btn_style: "primary"|"secondary" }
-- image: { img_src: "https://placehold.co/800x400/hex1/hex2?text=...", width: "12"|"6" }
+## SECTION SETTINGS
+All sections use type: "section". Available settings:
+- background_color: hex color for section background (applied via .section__overlay)
+- padding_desktop: { top: number, bottom: number, left: number, right: number }
+- padding_mobile: { top: number, bottom: number, left: number, right: number }
+- vertical: "top" | "center" | "bottom" | "stretch" (row vertical alignment)
+- horizontal: "left" | "center" | "right" (row horizontal alignment)
+- full_width: true/false
+- full_height: true/false
+- bg_type: "color" | "image" | "video"
+- bg_image: URL for background image
+
+## BLOCK TYPES & SETTINGS
+All blocks go in section.blocks as { "block-id": { type, settings } } with section.block_order listing IDs.
+
+### text block:
+{ type: "text", settings: { text: "<h1>Heading</h1><p>Paragraph text</p>", width: "12", text_align: "center", use_btn: true/false, btn_text: "Click", btn_action: "#", btn_style: "solid", btn_background_color: "#hex", btn_text_color: "#hex" } }
+
+### feature block:
+{ type: "feature", settings: { text: "<h3>Title</h3><p>Description</p>", width: "4", text_align: "center", image: "", image_width: "80", hide_image: true, use_btn: false } }
+
+### feature_icon block:
+{ type: "feature_icon", settings: { text: "<h3>Title</h3><p>Description</p>", width: "4", text_align: "center", feature_icon_code: "<svg>...</svg>", feature_icon_color: "#hex", feature_icon_size: "50", use_btn: false } }
+
+### image block:
+{ type: "image", settings: { image: "https://placehold.co/800x400/hex1/hex2?text=...", width: "6", image_width: "", image_border_radius: "4" } }
+
+### cta block:
+{ type: "cta", settings: { btn_text: "Button Label", btn_action: "#", btn_style: "solid", btn_size: "medium", btn_width: "auto", btn_background_color: "#hex", btn_text_color: "#hex", btn_border_radius: "4px" } }
 
 ## RULES
 - Use EXACT TEXT from reference if visible
-- Use accurate hex colors
-- Match vertical order of content
-- Generate 15-25 operations for structure
-- Do NOT include addCssOverride — that will be handled separately
-- For dark backgrounds set text_color in section settings
+- Use accurate hex colors from the design
+- Match vertical order of content precisely
+- Generate 15-25 operations for a full page
+- Section type is ALWAYS "section" (never "hero", "text_column", etc.)
+- Do NOT include addCssOverride — handled separately
+- For dark backgrounds, set background_color in section settings
+- Use block width (col-1 to col-12) for layout columns
+- For multi-column layouts, use multiple blocks with width "4" or "6"
+- Feature blocks are for icon+text cards. Text blocks are for headings/paragraphs.
+- Include padding_desktop and padding_mobile in section settings
 
 Return ONLY valid JSON. No markdown.`;
 
     // ── PASS 2 (quality): CSS & visual polish ───────────────────
     const cssPrompt = `You are a CSS expert for Kajabi themes. Generate a SINGLE comprehensive CSS override for pixel-perfect visual matching.
+
+${KAJABI_MARKUP_REFERENCE}
 
 Return valid JSON:
 {
@@ -170,17 +302,27 @@ Return valid JSON:
 - @import for matching Google Fonts
 - :root CSS variables for the color palette
 - Typography hierarchy (h1-h4 sizes, weights, letter-spacing, line-height)
-- Button styling (colors, border-radius, padding, hover transitions)
-- Section-specific backgrounds and text colors
-- Container max-widths and responsive padding
+- Button styling targeting \`.btn\` class (colors, border-radius, padding, hover transitions)
+- Section-specific backgrounds via \`#section-{sectionId} .section__overlay\`
+- Feature styling via \`.feature\`, \`.feature__image\`, \`.feature__text\`
+- Container and responsive padding via \`.container\`, \`.sizer\`
 - Any gradients, shadows, or special effects
-- Spacing/padding patterns
+
+## CSS SELECTOR RULES
+- NEVER use made-up classes like .hero__heading, .text-column__heading, .feature-block
+- ALWAYS use the real Kajabi classes: .section, .sizer, .container, .row, .block, .btn
+- Target specific sections: #section-{sectionId} .sizer { ... }
+- Target block types: .block-type--text, .block-type--feature, .block-type--image
+- Target features: .feature, .feature__text, .feature__image
+- Typography in blocks: .block h1, .block h2, .block h3, .block p
+- Buttons: .btn, .btn--solid, .btn--outline, .btn--small, .btn--medium, .btn--large
 
 ## RULES
-- Use specific hex colors, not generic ones
-- Include hover/transition states
-- Make typography distinctive
-- Include responsive adjustments
+- Use specific hex colors from the design
+- Include hover/transition states for buttons and links
+- Make typography distinctive and matching the reference
+- Include responsive @media adjustments
+- Match spacing/padding patterns from the design
 
 Return ONLY valid JSON. No markdown.`;
 
@@ -307,7 +449,6 @@ Return ONLY valid JSON. No markdown.`;
 
     // If vision data is available, use it to enhance the CSS and design info
     if (visionData) {
-      // Enhance extractedDesign with precise vision data
       if (visionData.colors) {
         extractedDesign = {
           ...extractedDesign,
@@ -339,7 +480,6 @@ Return ONLY valid JSON. No markdown.`;
         ].filter(Boolean).join('\n  ');
 
         if (visionVars) {
-          // Prepend vision-derived variables to the CSS
           cssOverride = `/* Vision-corrected colors */\n:root {\n  ${visionVars}\n}\n\n${cssOverride}`;
         }
       }
@@ -364,7 +504,6 @@ Return ONLY valid JSON. No markdown.`;
         }
       }
     } else {
-      // No vision — still use CSS fonts
       if (cssFonts.heading) extractedDesign.headingFont = cssFonts.heading;
       if (cssFonts.body) extractedDesign.bodyFont = cssFonts.body;
     }
