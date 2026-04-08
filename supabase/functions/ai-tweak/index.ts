@@ -15,7 +15,7 @@ serve(async (req) => {
     });
 
   try {
-    const { planJson, extractedDesign, tweakInstruction, imageBase64, baseSections } = await req.json();
+    const { planJson, extractedDesign, tweakInstruction, imageBase64, baseSections, blockMap } = await req.json();
 
     if (!tweakInstruction) {
       return respond({ error: "tweakInstruction is required" });
@@ -61,6 +61,20 @@ serve(async (req) => {
       ? Object.entries(baseSections).map(([id, name]) => `  - "${id}" → ${name}`).join("\n")
       : "  (no section map available — use generic selectors)";
 
+    // Build block map string for replaceText operations
+    let blockMapStr = "  (no block map available)";
+    if (blockMap && Object.keys(blockMap).length > 0) {
+      const lines: string[] = [];
+      for (const [secId, blocks] of Object.entries(blockMap)) {
+        const secName = baseSections?.[secId] || 'unknown';
+        lines.push(`  Section "${secId}" (${secName}):`);
+        (blocks as any[]).forEach((b: any, i: number) => {
+          lines.push(`    block[${i}] type=${b.type} — "${b.textPreview}"`);
+        });
+      }
+      blockMapStr = lines.join("\n");
+    }
+
     const systemPrompt = `You are a Kajabi theme editor. You receive an existing transformation plan and a tweak instruction. Return ONLY the changes needed as patches.
 
 ${imageBase64 ? `## IMAGE ANALYSIS
@@ -74,6 +88,10 @@ BE COMPREHENSIVE. Apply CSS overrides for every visual difference you detect. Do
 ## BASE THEME SECTIONS (index page)
 These are the REAL section IDs in the base theme. Use these exact IDs in your CSS selectors and operations:
 ${sectionMapStr}
+
+## BLOCK MAP (for replaceText operations)
+Use these to target specific blocks when changing text content:
+${blockMapStr}
 
 ## KAJABI HTML STRUCTURE
 All sections render via section.liquid with this HTML:
