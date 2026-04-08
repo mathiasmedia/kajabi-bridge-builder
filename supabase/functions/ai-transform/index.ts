@@ -109,6 +109,8 @@ async function handleGlobalsStep(apiKey: string, body: any) {
     extractedDesign = {},
     themeStructure = {},
     availableSectionTypes = [],
+    heroSectionId,
+    heroBlockMap,
   } = body;
 
   const systemPrompt = `You are an expert web-to-Kajabi theme transformer.
