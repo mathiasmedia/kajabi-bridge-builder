@@ -28,6 +28,7 @@ interface ExportStore {
   extractDesign: () => void;
   buildPlan: () => void;
   buildPlanWithAI: () => Promise<void>;
+  refinePlanWithAI: () => Promise<void>;
   exportZip: () => Promise<Blob | null>;
   runExportValidation: () => ValidationResult | null;
   updateOperation: (index: number, updates: Partial<any>) => void;
@@ -319,6 +320,62 @@ export const useExportStore = create<ExportStore>((set, get) => ({
     } catch (e) {
       console.error('AI plan failed:', e);
       set({ error: `AI transform failed: ${e instanceof Error ? e.message : e}`, isLoading: false });
+    }
+  },
+
+  refinePlanWithAI: async () => {
+    const { transformationPlan, extractedDesign, sourceFiles } = get();
+    if (!transformationPlan || !extractedDesign) {
+      set({ error: 'No plan to refine' });
+      return;
+    }
+    set({ isLoading: true, loadingMessage: 'AI is reviewing and improving the plan...' });
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('ai-transform', {
+        body: {
+          step: 'refine',
+          extractedDesign,
+          currentPlan: transformationPlan,
+          sourceFiles: sourceFiles ? {
+            indexCss: sourceFiles.indexCss,
+            tailwindConfig: sourceFiles.tailwindConfig,
+            components: sourceFiles.components,
+            pages: sourceFiles.pages,
+          } : undefined,
+        },
+      });
+      if (fnError) throw new Error(fnError.message || 'Refine failed');
+      if (data?.error) throw new Error(data.error);
+
+      const operations: TransformationOperation[] = data.operations || [];
+      
+      // Add CSS overrides if returned
+      if (data.cssOverrides && typeof data.cssOverrides === 'string') {
+        const idx = operations.findIndex(op => op.type === 'addCssOverride');
+        const cssOp: TransformationOperation = {
+          type: 'addCssOverride',
+          css: data.cssOverrides,
+          label: 'AI-refined CSS overrides',
+        };
+        if (idx >= 0) {
+          operations[idx] = cssOp;
+        } else {
+          operations.push(cssOp);
+        }
+      }
+
+      const improvements: string[] = data.improvements || [];
+      if (improvements.length > 0) {
+        console.log('AI improvements:', improvements);
+      }
+
+      set({
+        transformationPlan: { ...transformationPlan, operations },
+        isLoading: false,
+      });
+    } catch (e) {
+      console.error('AI refine failed:', e);
+      set({ error: `Refine failed: ${e instanceof Error ? e.message : e}`, isLoading: false });
     }
   },
 
