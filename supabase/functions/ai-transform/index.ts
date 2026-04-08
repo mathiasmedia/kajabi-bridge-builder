@@ -332,93 +332,63 @@ Create ONE addSection with type "section" and rich content blocks.
 Remember: section settings do NOT have heading/subheading/text fields. Put ALL content in blocks.
 Block text must be rich HTML. Use width for column layouts.`;
 
-  const models = ["google/gemini-3-flash-preview", "google/gemini-2.5-flash"];
+  const models = ["google/gemini-2.5-flash", "google/gemini-3-flash-preview"];
   let lastError = "";
 
   for (const model of models) {
-    try {
-      const result = await requestTransform({
-        apiKey,
-        model,
-        systemPrompt,
-        userPrompt,
-        maxTokens: 12000,
-      });
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        // Use plain JSON output (no tool calling) to avoid additionalProperties blocks bug
+        const result = await requestJsonTransform({
+          apiKey,
+          model,
+          systemPrompt,
+          userPrompt,
+          maxTokens: 12000,
+        });
 
-      const fr = result.finishReason ?? "unknown";
-      console.log(`ai-transform [section:${sectionToGenerate.type}] [${model}] finish_reason=${fr}`);
+        const fr = result.finishReason ?? "unknown";
+        console.log(`ai-transform [section:${sectionToGenerate.type}] [${model}] attempt=${attempt} finish_reason=${fr}`);
 
-      // Detect truncation
-      if (fr === "length" || fr === "max_tokens") {
-        console.warn(`ai-transform [section] TRUNCATED — increasing token limit won't help here, using fallback`);
-        lastError = "Response truncated";
-        continue;
-      }
+        if (fr === "length" || fr === "max_tokens") {
+          console.warn(`ai-transform [section] TRUNCATED on attempt ${attempt}`);
+          lastError = "Response truncated";
+          continue;
+        }
 
-      // Log raw AI output for debugging
-      const rawOps = result.parsed?.operations;
-      if (Array.isArray(rawOps)) {
-        for (const op of rawOps) {
-          if (op?.type === "addSection") {
-            const blockCount = isPlainObject(op.section?.blocks) ? Object.keys(op.section.blocks).length : 0;
-            const blockOrderLen = Array.isArray(op.section?.block_order) ? op.section.block_order.length : 0;
-            console.log(`ai-transform [section] RAW addSection: blocks=${blockCount}, block_order=${blockOrderLen}, sectionType=${op.section?.type}`);
-            if (blockCount > 0) {
-              const firstBlock = Object.values(op.section.blocks)[0] as any;
-              console.log(`ai-transform [section] RAW first block: type=${firstBlock?.type}, hasSettings=${isPlainObject(firstBlock?.settings)}, hasText=${!!firstBlock?.settings?.text}`);
-            }
+        const parsed = normalizeTransformPayload(result.parsed, availableSectionTypes);
+        const addSectionOp = parsed.operations.find((op: any) => op.type === "addSection");
+
+        if (addSectionOp) {
+          const finalBlockCount = Object.keys(addSectionOp.section?.blocks || {}).length;
+          console.log(`ai-transform [section] NORMALIZED addSection: blocks=${finalBlockCount}`);
+          if (addSectionOp.section) {
+            addSectionOp.section.type = "section";
           }
+          if (finalBlockCount > 0) {
+            return jsonResponse({ operations: [addSectionOp] });
+          }
+          console.warn(`ai-transform [section] AI returned 0 blocks on attempt ${attempt}, retrying...`);
+          lastError = "AI returned section with 0 blocks";
+          continue;
         }
-      }
 
-      const parsed = normalizeTransformPayload(result.parsed, availableSectionTypes);
-      const addSectionOp = parsed.operations.find((op: any) => op.type === "addSection");
-
-      if (addSectionOp) {
-        const finalBlockCount = Object.keys(addSectionOp.section?.blocks || {}).length;
-        console.log(`ai-transform [section] NORMALIZED addSection: blocks=${finalBlockCount}`);
-        if (addSectionOp.section) {
-          addSectionOp.section.type = "section";
+        if (intent === 'footer') {
+          return jsonResponse({ operations: [] });
         }
-        // Only accept if it actually has blocks — otherwise fall through to fallback
-        if (finalBlockCount > 0) {
-          return jsonResponse({ operations: [addSectionOp] });
-        }
-        console.warn(`ai-transform [section] AI returned 0 blocks, falling through to fallback`);
-      }
 
-      if (intent === 'footer') {
-        return jsonResponse({ operations: [] });
+        lastError = "No valid addSection operation produced";
+        console.warn(`ai-transform [section] [${model}] ${lastError}`, JSON.stringify(result.parsed).slice(0, 500));
+        break;
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        console.warn(`ai-transform [section] [${model}] attempt=${attempt} failed: ${lastError}`);
+        if (attempt < 2) continue;
       }
-
-      // Try to build from raw response
-      const rawAddSection = Array.isArray(result.parsed?.operations)
-        ? result.parsed.operations.find((op: any) => op?.type === "addSection")
-        : null;
-      if (rawAddSection) {
-        const finalized = finalizeGeneratedSection(rawAddSection, sectionToGenerate);
-        if (finalized) {
-          console.log(`ai-transform [section] used finalizeGeneratedSection fallback`);
-          return jsonResponse({ operations: [finalized] });
-        }
-      }
-
-      lastError = "No valid addSection operation produced";
-      console.warn(`ai-transform [section] [${model}] ${lastError}`, JSON.stringify(result.parsed).slice(0, 500));
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err);
-      console.warn(`ai-transform [section] [${model}] failed: ${lastError}`);
     }
   }
 
-  // Last resort: build a fallback section from extracted data
-  const fallback = buildFallbackSection(sectionToGenerate, intent);
-  if (fallback) {
-    console.log(`ai-transform [section] using fallback for "${sectionToGenerate.heading || sectionToGenerate.type}"`);
-    return jsonResponse({ operations: [fallback] });
-  }
-
-  return jsonResponse({ error: `Failed to generate section: ${lastError}` }, 500);
+  return jsonResponse({ error: `Failed to generate section "${sectionToGenerate.heading || sectionToGenerate.type}": ${lastError}` }, 500);
 }
 
 // ── Block pattern templates ──
@@ -465,7 +435,63 @@ function getBlockPatternForIntent(intent: SectionIntent): string {
   return patterns[intent] || patterns['content'];
 }
 
-// ── Shared utilities ───────────────────────────────────────────────────
+// ── Plain JSON request (no tool calling — avoids additionalProperties blocks bug) ──
+
+async function requestJsonTransform({
+  apiKey, model, systemPrompt, userPrompt, maxTokens,
+}: {
+  apiKey: string; model: string; systemPrompt: string; userPrompt: string; maxTokens: number;
+}) {
+  const maxRetries = 3;
+  const requestBody = JSON.stringify({
+    model,
+    max_completion_tokens: maxTokens,
+    messages: [
+      { role: "system", content: systemPrompt + "\n\nRespond with ONLY a JSON object. No markdown, no code fences, just raw JSON." },
+      { role: "user", content: userPrompt },
+    ],
+    response_format: { type: "json_object" },
+  });
+
+  let lastError = "";
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: requestBody,
+      });
+
+      if (response.ok) {
+        const aiResult = await response.json();
+        const content = aiResult.choices?.[0]?.message?.content || "";
+        if (!content?.trim()) throw new Error("AI returned empty response");
+        const parsed = extractJson(content);
+        return { parsed, finishReason: aiResult.choices?.[0]?.finish_reason ?? null };
+      }
+
+      const errText = await response.text();
+      if (response.status === 429) throw new Error("Rate limited, please try again shortly.");
+      if (response.status === 402) throw new Error("Credits exhausted.");
+      if (response.status >= 500 && attempt < maxRetries) {
+        lastError = `AI gateway returned ${response.status}`;
+        await new Promise(r => setTimeout(r, attempt * 2000));
+        continue;
+      }
+      throw new Error(`AI gateway returned ${response.status}: ${errText}`);
+    } catch (e) {
+      if (e instanceof Error && (e.message.includes("Rate limited") || e.message.includes("Credits exhausted"))) throw e;
+      lastError = e instanceof Error ? e.message : String(e);
+      if (attempt < maxRetries) { await new Promise(r => setTimeout(r, attempt * 2000)); continue; }
+    }
+  }
+  throw new Error(`AI gateway failed after ${maxRetries} attempts: ${lastError}`);
+}
+
+
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -585,7 +611,8 @@ async function requestTransform({
       if (response.ok) {
         const aiResult = await response.json();
         const parsed = parseAiResponse(aiResult);
-        return { parsed, finishReason: aiResult.choices?.[0]?.finish_reason ?? null };
+        const rawToolCallArgs = aiResult.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments || null;
+        return { parsed, finishReason: aiResult.choices?.[0]?.finish_reason ?? null, rawToolCallArgs };
       }
 
       const errText = await response.text();
@@ -670,7 +697,16 @@ function normalizeTransformPayload(
   parsed: TransformPayload,
   availableSectionTypes: string[],
 ): Required<TransformPayload> {
-  const operations = Array.isArray(parsed?.operations) ? parsed.operations : [];
+  // Handle case where AI returns a single addSection directly (not wrapped in operations array)
+  let operations: any[];
+  if (Array.isArray(parsed?.operations)) {
+    operations = parsed.operations;
+  } else if ((parsed as any)?.type === 'addSection') {
+    // AI returned a single operation directly
+    operations = [parsed];
+  } else {
+    operations = [];
+  }
   const cssOverrides = typeof parsed?.cssOverrides === "string" ? parsed.cssOverrides : "";
 
   const normalizedOperations = operations.filter((op: any) => {
@@ -833,121 +869,7 @@ function classifySectionIntent(section: any): SectionIntent {
   return 'content';
 }
 
-// ── Fallback section builder ──
-
-function buildFallbackSection(sourceSection: any, intent: SectionIntent): any | null {
-  if (intent === 'footer') return null;
-
-  const sectionId = createNumericId();
-  const blocks: Record<string, any> = {};
-  const blockOrder: string[] = [];
-
-  const heading = sourceSection?.heading || sourceSection?.type || "Section";
-  const body = sourceSection?.body || "";
-  const items = Array.isArray(sourceSection?.items) ? sourceSection.items : [];
-  const ctaText = sourceSection?.ctaText || "";
-  const ctaUrl = sourceSection?.ctaUrl || "/";
-
-  // Heading + body block
-  const headingBlockId = createNumericId();
-  let headingHtml = `<h2>${escapeHtml(heading)}</h2>`;
-  if (body) headingHtml += `<p>${escapeHtml(body)}</p>`;
-  blocks[headingBlockId] = {
-    type: "text",
-    settings: { text: headingHtml, width: items.length > 0 ? "12" : "8", text_align: "center" },
-  };
-  blockOrder.push(headingBlockId);
-
-  // Item blocks — handle stats (value+label) and features differently
-  for (const item of items) {
-    const bid = createNumericId();
-    let itemHtml = "";
-
-    if (intent === 'stats') {
-      // Stats: value as big heading, label as description
-      const value = item.value || item.heading || "";
-      const label = item.body || item.heading || "";
-      if (value) itemHtml += `<h4>${escapeHtml(value)}</h4>`;
-      if (label && label !== value) itemHtml += `<p>${escapeHtml(label)}</p>`;
-    } else {
-      // Features/programs/generic: heading + body
-      if (item.heading) itemHtml += `<h4>${escapeHtml(item.heading)}</h4>`;
-      if (item.body) itemHtml += `<p>${escapeHtml(item.body)}</p>`;
-    }
-    if (!itemHtml) continue;
-
-    const width = items.length >= 4 ? "3" : items.length >= 3 ? "4" : "6";
-    blocks[bid] = {
-      type: "feature",
-      settings: { text: itemHtml, width, text_align: "center", hide_image: "true" },
-    };
-    blockOrder.push(bid);
-  }
-
-  // CTA block
-  if (ctaText) {
-    const ctaId = createNumericId();
-    blocks[ctaId] = {
-      type: "cta",
-      settings: {
-        btn_text: ctaText,
-        btn_action: ctaUrl,
-        width: "8",
-        text_align: "center",
-      },
-    };
-    blockOrder.push(ctaId);
-  }
-
-  return {
-    type: "addSection",
-    sectionId,
-    label: heading,
-    section: {
-      type: "section",
-      name: heading,
-      settings: {
-        bg_type: "color",
-        background_color: "#0b1214",
-        padding_desktop: { top: "80", bottom: "80" },
-        padding_mobile: { top: "48", bottom: "48" },
-        horizontal: "center",
-      },
-      block_order: blockOrder,
-      blocks,
-    },
-  };
-}
-
-function finalizeGeneratedSection(rawOp: any, sourceSection: any): any | null {
-  if (!isPlainObject(rawOp)) return null;
-  const sectionId = /^\d{13}$/.test(String(rawOp.sectionId || "")) ? String(rawOp.sectionId) : createNumericId();
-  const rawSection = isPlainObject(rawOp.section) ? JSON.parse(JSON.stringify(rawOp.section)) : {};
-
-  rawSection.type = "section";
-  if (!rawSection.name) rawSection.name = rawOp.label || sourceSection?.heading || "Section";
-  if (!isPlainObject(rawSection.settings)) rawSection.settings = {};
-  cleanSectionSettings(rawSection.settings);
-
-  if (!isPlainObject(rawSection.blocks)) rawSection.blocks = {};
-  for (const [bid, block] of Object.entries(rawSection.blocks)) {
-    rawSection.blocks[bid] = normalizeBlock(block);
-  }
-
-  const remapped = remapBlockIds(rawSection);
-  remapped.block_order = Array.isArray(remapped.block_order)
-    ? remapped.block_order.filter((id: string) => id in remapped.blocks)
-    : Object.keys(remapped.blocks);
-
-  if (Object.keys(remapped.blocks).length === 0) return null;
-
-  return {
-    type: "addSection",
-    sectionId,
-    label: rawOp.label || sourceSection?.heading || "Section",
-    section: remapped,
-  };
-}
+// (Fallback functions removed — AI must always produce real sections)
 
 // ── Helpers ──
 
