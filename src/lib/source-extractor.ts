@@ -512,6 +512,117 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
   };
 }
 
+/** Resolve an image reference (variable name or path) to a public URL */
+function resolveImageUrl(imageRef: string, componentContent: string, files: SourceProjectFiles): string | undefined {
+  // If it's already a URL, return it
+  if (imageRef.startsWith('http')) return imageRef;
+
+  // Check if it's a variable name imported from assets
+  // Pattern: import varName from "@/assets/filename.jpg"
+  const importRegex = new RegExp(`import\\s+${escapeRegex(imageRef)}\\s+from\\s+["'](@\\/assets\\/[^"']+)["']`);
+  const importMatch = componentContent.match(importRegex);
+  if (importMatch) {
+    const assetPath = importMatch[1].replace('@/', 'src/');
+    return files.imageUrls?.[assetPath];
+  }
+
+  // Direct path match
+  const directPath = imageRef.replace('@/', 'src/');
+  return files.imageUrls?.[directPath];
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Analyze media intent for a component based on its intent, content, and items */
+function analyzeMedia(
+  intent: SectionIntent,
+  content: string,
+  files: SourceProjectFiles,
+  items: ExtractedSection['items'] | undefined,
+): MediaAnalysis {
+  const mediaEvidence: string[] = [];
+  const imageTargets: ImageTarget[] = [];
+
+  // Detect image imports
+  const importMatches = [...content.matchAll(/import\s+(\w+)\s+from\s+["'](@\/assets\/[^"']+)["']/g)];
+  const hasBackgroundImg = /(?:bg-|background|object-cover|absolute\s+inset-0|inset-0.*object-cover)/i.test(content);
+  const hasInlineImg = /<img[\s>]/.test(content);
+  const itemsWithImages = items?.filter(i => i.image) || [];
+
+  // Resolve all imported images
+  for (const im of importMatches) {
+    const varName = im[1];
+    const assetPath = im[2].replace('@/', 'src/');
+    const url = files.imageUrls?.[assetPath];
+    if (url) {
+      // Determine role based on usage in content
+      const isUsedAsBg = new RegExp(`src=\\{${varName}\\}[^>]*(?:object-cover|absolute|inset)`, 'i').test(content) || hasBackgroundImg;
+      if (intent === 'hero' && isUsedAsBg) {
+        imageTargets.push({ role: 'hero_bg', sourcePath: assetPath, url });
+        mediaEvidence.push(`Hero background image: ${assetPath}`);
+      } else if (intent === 'hero') {
+        imageTargets.push({ role: 'hero_fg', sourcePath: assetPath, url });
+        mediaEvidence.push(`Hero foreground image: ${assetPath}`);
+      } else if (intent === 'content_media_split') {
+        imageTargets.push({ role: 'content_image', sourcePath: assetPath, url });
+        mediaEvidence.push(`Content image: ${assetPath}`);
+      } else {
+        imageTargets.push({ role: 'decorative', sourcePath: assetPath, url });
+        mediaEvidence.push(`Decorative image: ${assetPath}`);
+      }
+    }
+  }
+
+  // Resolve item images as card images
+  if (itemsWithImages.length > 0) {
+    for (let i = 0; i < itemsWithImages.length; i++) {
+      const item = itemsWithImages[i];
+      if (item.image && (item.image.startsWith('http') || files.imageUrls?.[item.image.replace('@/', 'src/')])) {
+        const url = item.image.startsWith('http') ? item.image : files.imageUrls?.[item.image.replace('@/', 'src/')];
+        if (url) {
+          imageTargets.push({
+            role: 'card_image',
+            sourcePath: item.image,
+            url,
+            itemIndex: items?.indexOf(item),
+          });
+        }
+      }
+    }
+    if (imageTargets.some(t => t.role === 'card_image')) {
+      mediaEvidence.push(`${itemsWithImages.length} card images found in repeated items`);
+    }
+  }
+
+  // Determine media intent
+  let mediaIntent: MediaIntent = 'no_media';
+  let mediaConfidence = 0;
+
+  if (intent === 'hero' && imageTargets.some(t => t.role === 'hero_bg')) {
+    mediaIntent = 'background_image';
+    mediaConfidence = 0.95;
+  } else if (intent === 'hero' && imageTargets.some(t => t.role === 'hero_fg')) {
+    mediaIntent = 'foreground_image';
+    mediaConfidence = 0.8;
+  } else if (imageTargets.some(t => t.role === 'card_image') && itemsWithImages.length >= 2) {
+    mediaIntent = 'repeated_card_images';
+    mediaConfidence = 0.9;
+  } else if (intent === 'content_media_split' && imageTargets.length > 0) {
+    mediaIntent = 'foreground_image';
+    mediaConfidence = 0.8;
+  } else if (hasInlineImg || importMatches.length > 0) {
+    mediaIntent = 'decorative_image';
+    mediaConfidence = 0.5;
+    if (mediaEvidence.length === 0) mediaEvidence.push('Contains image elements');
+  } else {
+    mediaConfidence = 0.9; // high confidence there's no media
+  }
+
+  return { mediaIntent, mediaConfidence, mediaEvidence, imageTargets };
+}
+
 /** Parse a JS array literal into objects */
 function parseArrayItems(arrayContent: string): Record<string, string>[] {
   const items: Record<string, string>[] = [];
