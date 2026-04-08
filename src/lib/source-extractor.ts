@@ -10,6 +10,7 @@ export interface SourceProjectFiles {
   appTsx?: string;
   components: Record<string, string>;
   assets: string[];
+  imageUrls?: Record<string, string>; // asset path → public URL in storage bucket
   pages: Record<string, string>;
 }
 
@@ -376,6 +377,7 @@ function extractAssets(files: SourceProjectFiles): ExtractedAsset[] {
     sourcePath: path,
     fileName: path.split('/').pop() || path,
     type: 'image' as const,
+    url: files.imageUrls?.[path],
   }));
 }
 
