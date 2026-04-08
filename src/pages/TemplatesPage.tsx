@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Brain, Loader2, Trash2, FileJson, Star, AlertTriangle, CheckCircle, Lightbulb, RefreshCw, Send } from 'lucide-react';
+import { ArrowLeft, Brain, Loader2, Trash2, Star, AlertTriangle, CheckCircle, Lightbulb, RefreshCw, Send, Wrench, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useExportStore } from '@/store/useExportStore';
+import { applyPlanAndExport } from '@/lib/kajabi-exporter';
 import AppHeader from '@/components/AppHeader';
 import ThemePreview from '@/components/ThemePreview';
 
@@ -40,28 +41,24 @@ export default function TemplatesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [critiquing, setCritiquing] = useState<string | null>(null);
   const [critiques, setCritiques] = useState<Record<string, AICritique>>({});
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [aiResponding, setAiResponding] = useState(false);
-  const [aiMessages, setAiMessages] = useState<Record<string, Array<{ role: 'user' | 'ai'; text: string }>>>({});
+  const [tweakPrompt, setTweakPrompt] = useState('');
+  const [tweaking, setTweaking] = useState(false);
+  const [tweakLog, setTweakLog] = useState<Record<string, string[]>>({});
+  const [planVersion, setPlanVersion] = useState(0); // force preview re-render
 
-  useEffect(() => {
-    loadTemplates();
-  }, []);
+  useEffect(() => { loadTemplates(); }, []);
 
   const loadTemplates = async () => {
     const { data, error } = await supabase
       .from('saved_templates')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error) {
-      toast.error('Failed to load templates');
-    } else {
+    if (error) { toast.error('Failed to load templates'); }
+    else {
       setTemplates(data as SavedTemplate[]);
       const parsed: Record<string, AICritique> = {};
       for (const t of data as SavedTemplate[]) {
-        if (t.ai_critique) {
-          try { parsed[t.id] = JSON.parse(t.ai_critique); } catch {}
-        }
+        if (t.ai_critique) { try { parsed[t.id] = JSON.parse(t.ai_critique); } catch {} }
       }
       setCritiques(parsed);
     }
@@ -82,92 +79,118 @@ export default function TemplatesPage() {
     setCritiquing(template.id);
     try {
       const { data, error } = await supabase.functions.invoke('ai-critique', {
-        body: {
-          planJson: template.plan_json,
-          extractedDesign: template.extracted_design_json,
-          sourceProjectName: template.source_project_name,
-        },
+        body: { planJson: template.plan_json, extractedDesign: template.extracted_design_json, sourceProjectName: template.source_project_name },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setCritiques(prev => ({ ...prev, [template.id]: data }));
-      await supabase.from('saved_templates')
-        .update({ ai_critique: JSON.stringify(data) })
-        .eq('id', template.id);
+      await supabase.from('saved_templates').update({ ai_critique: JSON.stringify(data) }).eq('id', template.id);
       toast.success(`Score: ${data.score}/10 — ${data.issues?.length || 0} issues found`);
-    } catch (e) {
-      toast.error(`Critique failed: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setCritiquing(null);
-    }
+    } catch (e) { toast.error(`Critique failed: ${e instanceof Error ? e.message : e}`); }
+    finally { setCritiquing(null); }
   };
 
-  const handleAiAsk = async (template: SavedTemplate) => {
-    if (!aiPrompt.trim()) return;
-    const question = aiPrompt.trim();
-    setAiPrompt('');
-    setAiResponding(true);
-
-    // Add user message
-    setAiMessages(prev => ({
-      ...prev,
-      [template.id]: [...(prev[template.id] || []), { role: 'user', text: question }],
-    }));
+  const applyTweak = async (template: SavedTemplate, instruction: string) => {
+    setTweaking(true);
+    const logEntry = `🔧 ${instruction}`;
+    setTweakLog(prev => ({ ...prev, [template.id]: [...(prev[template.id] || []), logEntry] }));
 
     try {
-      const { data, error } = await supabase.functions.invoke('ai-critique', {
+      const { data, error } = await supabase.functions.invoke('ai-tweak', {
         body: {
           planJson: template.plan_json,
           extractedDesign: template.extracted_design_json,
-          sourceProjectName: template.source_project_name,
-          customPrompt: question,
+          tweakInstruction: instruction,
         },
       });
       if (error) throw error;
-      const response = data?.summary || data?.error || 'No response';
-      setAiMessages(prev => ({
+      if (data?.error) throw new Error(data.error);
+
+      // Update template in-place
+      const updatedPlan = { ...template.plan_json, operations: data.operations };
+      await supabase.from('saved_templates')
+        .update({ plan_json: updatedPlan, ai_critique: null }) // clear old critique
+        .eq('id', template.id);
+
+      // Update local state
+      setTemplates(prev => prev.map(t =>
+        t.id === template.id ? { ...t, plan_json: updatedPlan, ai_critique: null } : t
+      ));
+      setCritiques(prev => {
+        const next = { ...prev };
+        delete next[template.id];
+        return next;
+      });
+      setPlanVersion(v => v + 1);
+
+      const changelog = data.changelog || 'Changes applied';
+      setTweakLog(prev => ({
         ...prev,
-        [template.id]: [...(prev[template.id] || []), { role: 'ai', text: typeof data === 'object' ? formatAiResponse(data) : response }],
+        [template.id]: [...(prev[template.id] || []), `✅ ${changelog} (${data.operations.length} ops)`],
       }));
+      toast.success(changelog);
     } catch (e) {
-      setAiMessages(prev => ({
+      const msg = e instanceof Error ? e.message : String(e);
+      setTweakLog(prev => ({
         ...prev,
-        [template.id]: [...(prev[template.id] || []), { role: 'ai', text: `Error: ${e instanceof Error ? e.message : e}` }],
+        [template.id]: [...(prev[template.id] || []), `❌ Failed: ${msg}`],
       }));
+      toast.error(`Tweak failed: ${msg}`);
     } finally {
-      setAiResponding(false);
+      setTweaking(false);
     }
   };
 
+  const handleTweakSubmit = (template: SavedTemplate) => {
+    if (!tweakPrompt.trim()) return;
+    const instruction = tweakPrompt.trim();
+    setTweakPrompt('');
+    applyTweak(template, instruction);
+  };
+
   const handleReExport = async (template: SavedTemplate) => {
-    if (!template.source_project_id) {
-      toast.error('No source project linked');
-      return;
-    }
+    if (!template.source_project_id) { toast.error('No source project linked'); return; }
     const store = useExportStore.getState();
     store.createExportProject({
       id: crypto.randomUUID(),
       name: `Re-export ${template.source_project_name || 'Project'}`,
       sourceProjectId: template.source_project_id,
       sourceProjectName: template.source_project_name || '',
-      baseTheme: 'streamlined-home',
-      page: 'index',
+      baseTheme: 'streamlined-home', page: 'index',
       notes: `Re-export based on template "${template.name}"`,
-      createdAt: new Date().toISOString(),
-      status: 'new',
+      createdAt: new Date().toISOString(), status: 'new',
     });
     await store.loadBaseTheme('/base-themes/streamlined-home.zip');
     await store.ingestProject({ projectId: template.source_project_id, page: 'index' });
     const updated = useExportStore.getState();
-    if (updated.sourceFiles && !updated.error) {
-      updated.extractDesign();
-    }
+    if (updated.sourceFiles && !updated.error) updated.extractDesign();
     navigate('/extract');
+  };
+
+  const handleDownloadZip = async (template: SavedTemplate) => {
+    // Re-build zip from current plan
+    const baseTheme = useExportStore.getState().baseTheme;
+    if (!baseTheme) {
+      toast.error('Load a base theme first (start a new export to initialize)');
+      return;
+    }
+    try {
+      const blob = await applyPlanAndExport(template.plan_json, baseTheme);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${template.name.replace(/\s+/g, '-').toLowerCase()}-tweaked.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Zip downloaded');
+    } catch (e) {
+      toast.error(`Export failed: ${e instanceof Error ? e.message : e}`);
+    }
   };
 
   const selected = templates.find(t => t.id === selectedId);
   const selectedCritique = selectedId ? critiques[selectedId] : null;
-  const selectedMessages = selectedId ? (aiMessages[selectedId] || []) : [];
+  const selectedLog = selectedId ? (tweakLog[selectedId] || []) : [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -194,7 +217,7 @@ export default function TemplatesPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-[300px_1fr] gap-6">
             {/* Template list */}
             <ScrollArea className="h-[calc(100vh-200px)]">
               <div className="space-y-2 pr-2">
@@ -215,8 +238,7 @@ export default function TemplatesPage() {
                         </div>
                         {critiques[t.id] && (
                           <Badge variant="outline" className="text-xs shrink-0">
-                            <Star className="h-3 w-3 mr-1" />
-                            {critiques[t.id].score}/10
+                            <Star className="h-3 w-3 mr-1" />{critiques[t.id].score}/10
                           </Badge>
                         )}
                       </div>
@@ -229,18 +251,21 @@ export default function TemplatesPage() {
             {/* Detail panel */}
             {selected ? (
               <div className="space-y-4">
-                {/* Header + actions */}
+                {/* Header */}
                 <Card>
                   <CardHeader>
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <CardTitle>{selected.name}</CardTitle>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
+                        <Button size="sm" variant="outline" onClick={() => handleDownloadZip(selected)}>
+                          <Download className="mr-2 h-4 w-4" /> Download Zip
+                        </Button>
                         <Button size="sm" onClick={() => handleReExport(selected)}>
                           <RefreshCw className="mr-2 h-4 w-4" /> Re-export
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => handleCritique(selected)} disabled={critiquing === selected.id}>
                           {critiquing === selected.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
-                          AI Critique
+                          Critique
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => handleDelete(selected.id)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -249,13 +274,11 @@ export default function TemplatesPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-1 text-sm">
-                    <p><span className="text-muted-foreground">Source:</span> {selected.source_project_name}</p>
-                    <p><span className="text-muted-foreground">Operations:</span> {selected.plan_json?.operations?.length || 0}</p>
-                    <p><span className="text-muted-foreground">Created:</span> {new Date(selected.created_at).toLocaleString()}</p>
+                    <p><span className="text-muted-foreground">Source:</span> {selected.source_project_name} · <span className="text-muted-foreground">Ops:</span> {selected.plan_json?.operations?.length || 0} · <span className="text-muted-foreground">Created:</span> {new Date(selected.created_at).toLocaleString()}</p>
                   </CardContent>
                 </Card>
 
-                {/* Two-column: Preview + AI panel */}
+                {/* Two-column: Preview + Tweaks */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Visual Preview */}
                   <Card>
@@ -263,117 +286,126 @@ export default function TemplatesPage() {
                       <CardTitle className="text-base">Theme Preview</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <ScrollArea className="h-[500px]">
+                      <ScrollArea className="h-[520px]">
                         {selected.extracted_design_json ? (
                           <ThemePreview
+                            key={`${selected.id}-${planVersion}`}
                             plan={selected.plan_json}
                             design={selected.extracted_design_json}
                           />
                         ) : (
                           <div className="py-12 text-center text-muted-foreground text-sm">
-                            No design data saved with this template
+                            No design data saved
                           </div>
                         )}
                       </ScrollArea>
                     </CardContent>
                   </Card>
 
-                  {/* AI Chat Panel */}
+                  {/* Tweak Panel */}
                   <Card className="flex flex-col">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base flex items-center gap-2">
-                        <Brain className="h-4 w-4 text-primary" />
-                        AI Analysis
+                        <Wrench className="h-4 w-4 text-primary" />
+                        Tweak & Refine
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="flex-1 flex flex-col min-h-0">
-                      {/* Critique summary (if exists) */}
+                      {/* Critique issues with Apply Fix buttons */}
                       {selectedCritique && (
-                        <div className="mb-3 p-3 rounded-md border border-border bg-muted/30 text-sm space-y-2">
+                        <div className="mb-3 space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="font-medium">Score: {selectedCritique.score}/10</span>
+                            <span className="text-sm font-medium">Score: {selectedCritique.score}/10</span>
                             <Badge variant="outline" className="text-xs">{selectedCritique.issues?.length || 0} issues</Badge>
                           </div>
-                          <p className="text-muted-foreground text-xs">{selectedCritique.summary}</p>
+                          <p className="text-xs text-muted-foreground">{selectedCritique.summary}</p>
 
                           {selectedCritique.issues?.length > 0 && (
-                            <div className="space-y-1.5 mt-2">
-                              {selectedCritique.issues.slice(0, 3).map((issue, i) => (
+                            <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                              {selectedCritique.issues.map((issue, i) => (
                                 <div key={i} className="text-xs border border-border rounded p-2">
-                                  <Badge variant={issue.severity === 'critical' ? 'destructive' : 'outline'} className="text-[10px] mb-1">
-                                    {issue.severity}
-                                  </Badge>
+                                  <div className="flex items-center justify-between gap-1 mb-1">
+                                    <Badge variant={issue.severity === 'critical' ? 'destructive' : 'outline'} className="text-[10px]">
+                                      {issue.severity}
+                                    </Badge>
+                                    {issue.fix && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-2 text-[10px] text-primary hover:text-primary"
+                                        onClick={() => applyTweak(selected, issue.fix)}
+                                        disabled={tweaking}
+                                      >
+                                        <Wrench className="h-3 w-3 mr-1" /> Apply Fix
+                                      </Button>
+                                    )}
+                                  </div>
                                   <p className="text-muted-foreground">{issue.description}</p>
                                   {issue.fix && <p className="text-primary mt-0.5">Fix: {issue.fix}</p>}
                                 </div>
-                              ))}
-                              {selectedCritique.issues.length > 3 && (
-                                <p className="text-xs text-muted-foreground">+ {selectedCritique.issues.length - 3} more issues</p>
-                              )}
-                            </div>
-                          )}
-
-                          {selectedCritique.patterns?.length > 0 && (
-                            <div className="mt-2">
-                              <p className="text-xs font-medium flex items-center gap-1 mb-1">
-                                <CheckCircle className="h-3 w-3 text-emerald-400" /> Good patterns
-                              </p>
-                              {selectedCritique.patterns.map((p, i) => (
-                                <p key={i} className="text-xs text-muted-foreground">• {p.name}: {p.description}</p>
                               ))}
                             </div>
                           )}
 
                           {selectedCritique.improvements?.length > 0 && (
-                            <div className="mt-2">
+                            <div className="mt-1">
                               <p className="text-xs font-medium flex items-center gap-1 mb-1">
                                 <Lightbulb className="h-3 w-3 text-amber-300" /> Improvements
                               </p>
                               {selectedCritique.improvements.map((imp, i) => (
-                                <p key={i} className="text-xs text-muted-foreground">• {imp}</p>
+                                <div key={i} className="flex items-center justify-between gap-1 text-xs text-muted-foreground">
+                                  <span>• {imp}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 px-1.5 text-[10px] text-primary hover:text-primary shrink-0"
+                                    onClick={() => applyTweak(selected, imp)}
+                                    disabled={tweaking}
+                                  >
+                                    Apply
+                                  </Button>
+                                </div>
                               ))}
                             </div>
                           )}
                         </div>
                       )}
 
-                      {/* Chat messages */}
-                      <ScrollArea className="flex-1 min-h-[120px] max-h-[260px] mb-3">
-                        <div className="space-y-2">
-                          {selectedMessages.map((msg, i) => (
-                            <div
-                              key={i}
-                              className={`text-sm rounded-lg px-3 py-2 ${
-                                msg.role === 'user'
-                                  ? 'bg-primary/10 text-foreground ml-8'
-                                  : 'bg-muted text-muted-foreground mr-4'
-                              }`}
-                            >
-                              <p className="whitespace-pre-wrap text-xs">{msg.text}</p>
+                      {/* Tweak log */}
+                      <ScrollArea className="flex-1 min-h-[80px] max-h-[180px] mb-3">
+                        <div className="space-y-1.5">
+                          {selectedLog.map((entry, i) => (
+                            <div key={i} className="text-xs px-2 py-1.5 rounded bg-muted text-muted-foreground">
+                              {entry}
                             </div>
                           ))}
-                          {aiResponding && (
-                            <div className="flex items-center gap-2 text-muted-foreground text-xs px-3 py-2">
-                              <Loader2 className="h-3 w-3 animate-spin" /> Analyzing...
+                          {tweaking && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground px-2 py-1.5">
+                              <Loader2 className="h-3 w-3 animate-spin" /> Applying tweak...
                             </div>
+                          )}
+                          {selectedLog.length === 0 && !tweaking && (
+                            <p className="text-xs text-muted-foreground py-4 text-center">
+                              {selectedCritique ? 'Click "Apply Fix" on issues above, or type a custom tweak below' : 'Run AI Critique first, or type a custom tweak below'}
+                            </p>
                           )}
                         </div>
                       </ScrollArea>
 
-                      {/* Input */}
+                      {/* Tweak input */}
                       <div className="flex gap-2">
                         <Input
-                          placeholder="Ask AI about this template... e.g. 'Why is the button color wrong?'"
-                          value={aiPrompt}
-                          onChange={e => setAiPrompt(e.target.value)}
-                          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleAiAsk(selected)}
-                          disabled={aiResponding}
+                          placeholder="e.g. 'Make all buttons use #2eb89a' or 'Fix testimonial widths'"
+                          value={tweakPrompt}
+                          onChange={e => setTweakPrompt(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleTweakSubmit(selected)}
+                          disabled={tweaking}
                           className="text-sm"
                         />
                         <Button
                           size="icon"
-                          onClick={() => handleAiAsk(selected)}
-                          disabled={!aiPrompt.trim() || aiResponding}
+                          onClick={() => handleTweakSubmit(selected)}
+                          disabled={!tweakPrompt.trim() || tweaking}
                         >
                           <Send className="h-4 w-4" />
                         </Button>
@@ -385,7 +417,7 @@ export default function TemplatesPage() {
             ) : (
               <Card>
                 <CardContent className="py-20 text-center text-muted-foreground">
-                  Select a template to view its preview and AI analysis
+                  Select a template to preview and tweak
                 </CardContent>
               </Card>
             )}
@@ -394,28 +426,4 @@ export default function TemplatesPage() {
       </main>
     </div>
   );
-}
-
-function formatAiResponse(data: any): string {
-  if (!data || typeof data !== 'object') return String(data);
-  let text = '';
-  if (data.summary) text += data.summary + '\n\n';
-  if (data.issues?.length > 0) {
-    text += '⚠️ Issues:\n';
-    data.issues.forEach((i: any) => {
-      text += `• [${i.severity}] ${i.description}`;
-      if (i.fix) text += ` → ${i.fix}`;
-      text += '\n';
-    });
-    text += '\n';
-  }
-  if (data.improvements?.length > 0) {
-    text += '💡 Suggestions:\n';
-    data.improvements.forEach((s: string) => { text += `• ${s}\n`; });
-  }
-  if (data.patterns?.length > 0) {
-    text += '\n✅ Patterns:\n';
-    data.patterns.forEach((p: any) => { text += `• ${p.name}: ${p.description}\n`; });
-  }
-  return text.trim();
 }
