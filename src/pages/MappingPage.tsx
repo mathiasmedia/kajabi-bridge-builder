@@ -260,7 +260,7 @@ function OperationRow({ item, index, onRemove }: { item: import('@/lib/kajabi-ex
   const colorClass = OP_TYPE_COLORS[item.type] || 'bg-muted text-muted-foreground border-border';
 
   return (
-    <div className="rounded-md border px-3 py-2 group">
+    <div className="rounded-md border px-3 py-2 group min-w-0 overflow-hidden">
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-[10px] font-mono text-muted-foreground w-5 shrink-0 text-right">{index + 1}</span>
         <Badge variant="outline" className={`text-[10px] font-mono shrink-0 border ${colorClass}`}>
