@@ -34,6 +34,7 @@ interface ExportStore {
   isRenderChecking: boolean;
   refinementResult: RefinementResult | null;
   previousScore: number | null;
+  regressionReport: RegressionReport | null;
 
   // Actions
   setWorkspaceProjects: (projects: WorkspaceProject[]) => void;
@@ -78,6 +79,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
   isRenderChecking: false,
   refinementResult: null,
   previousScore: null,
+  regressionReport: null,
 
   setWorkspaceProjects: (projects) => set({ workspaceProjects: projects }),
 
