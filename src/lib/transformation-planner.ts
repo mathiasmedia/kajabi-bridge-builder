@@ -545,7 +545,7 @@ function getBlocksInOrder(section: any): Array<{ id: string; type: string; setti
   return order.map((id: string) => ({ id, type: blocks[id]?.type, settings: blocks[id]?.settings || {} })).filter((b: any) => b.type);
 }
 
-function buildHeroHtml(extracted: ExtractedDesign, accentHex: string): string {
+function buildHeroHtml(extracted: ExtractedDesign, accentHex: string, fgHex: string, bodyHex: string): string {
     const hero = extracted.hero!;
     let html = '';
     if (hero.eyebrow || hero.subheading) {
@@ -554,21 +554,22 @@ function buildHeroHtml(extracted: ExtractedDesign, accentHex: string): string {
     }
     if (hero.heading) {
       // If emphasisWord is set, wrap that word in a styled span (italic serif)
+      // IMPORTANT: Always include color in inline styles — Kajabi disables auto text color inversion when style= is present
       if (hero.emphasisWord) {
         const emphasized = hero.heading.replace(
           new RegExp(`(${hero.emphasisWord})`, 'i'),
           `<span style="font-style:italic; font-family:'Playfair Display',Georgia,serif; color:${accentHex}">$1</span>`
         );
-        html += `<h1>${emphasized}</h1>\n`;
+        html += `<h1 style="color:${fgHex}">${emphasized}</h1>\n`;
       } else {
         html += `<h1>${hero.heading}</h1>\n`;
       }
     }
-    // Add the description from source
+    // Add the description from source — include color in inline style
     const descText = hero.subheading && hero.eyebrow
       ? hero.subheading
       : "Dive deep into the world's most exclusive craft. Certified instructors, pristine reefs, and the finest seagrass materials — all 30 feet below the surface.";
-    html += `<p class="hero-description" style="font-size:18px; line-height:1.7; max-width:560px; margin:0 auto 32px">${descText}</p>`;
+    html += `<p class="hero-description" style="color:${bodyHex}; font-size:18px; line-height:1.7; max-width:560px; margin:0 auto 32px">${descText}</p>`;
     return html;
   }
 
