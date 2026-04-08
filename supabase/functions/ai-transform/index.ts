@@ -432,6 +432,115 @@ CRITICAL: Use the ACTUAL text from the items list above. Never use generic place
   return jsonResponse({ error: `Failed to generate section "${sectionToGenerate.heading || sectionToGenerate.type}": ${lastError}` }, 500);
 }
 
+// ── Step 3: Refine existing plan ──
+
+async function handleRefineStep(apiKey: string, body: any) {
+  const {
+    extractedDesign = {},
+    currentPlan = {},
+    sourceFiles = {},
+  } = body;
+
+  const currentOps = currentPlan.operations || [];
+
+  // Build a compact summary of current operations for the AI
+  const opsSummary = currentOps.map((op: any, i: number) => {
+    if (op.type === 'addSection') {
+      const blocks = Object.values(op.section?.blocks || {}) as any[];
+      const blockSummary = blocks.map((b: any) => {
+        const text = (b.settings?.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+        return `  - [${b.type}] "${text}"${b.settings?.btn_text ? ` [btn: ${b.settings.btn_text}]` : ''}`;
+      }).join('\n');
+      return `${i}: addSection "${op.label}" (${blocks.length} blocks)\n${blockSummary}`;
+    }
+    if (op.type === 'replaceText') return `${i}: replaceText "${op.label}" → ${(op.value || '').slice(0, 60)}`;
+    if (op.type === 'addCssOverride') return `${i}: addCssOverride (${(op.css || '').length} chars)`;
+    return `${i}: ${op.type} "${op.label || ''}"`;
+  }).join('\n\n');
+
+  const systemPrompt = `You are an expert web-to-Kajabi theme reviewer. You are given:
+1. The original source design (extracted sections, colors, fonts, hero, etc.)
+2. The current transformation plan (list of operations already generated)
+
+Your job: Review the plan and return a REPLACEMENT set of operations that improves the page.
+
+Focus on:
+- Missing content: Are all source sections represented? Are testimonial quotes, course details, prices present?
+- Placeholder text: Replace any generic "Card Title", "Lorem ipsum", or "Call To Action" with actual source content.
+- Visual consistency: Do background colors match the source dark theme? Are fonts applied correctly?
+- Block completeness: Do sections have the right number of blocks matching the source items?
+- CTA buttons: Are button texts and URLs from the source correctly applied?
+
+RULES:
+- Return a COMPLETE operations array — it replaces the current one entirely.
+- Keep operations that are already correct (don't break what works).
+- Fix or replace operations that have placeholder content or missing data.
+- Section type MUST be "section". Block types: text, feature, card, cta, image.
+- All content goes in block settings.text as rich HTML.
+- Use actual source text, no placeholders.
+- ID FORMAT: 13-digit numeric-only strings. Reuse existing IDs where possible.
+
+Return JSON: {"operations": [...], "cssOverrides": "...", "improvements": ["list of what you changed"]}`;
+
+  const userPrompt = `## Source design (what the page should look like)
+${JSON.stringify({
+    hero: extractedDesign?.hero,
+    header: extractedDesign?.header,
+    footer: extractedDesign?.footer,
+    sections: extractedDesign?.sections,
+    colors: extractedDesign?.colors,
+    headingFont: extractedDesign?.headingFont,
+    bodyFont: extractedDesign?.bodyFont,
+    buttonStyle: extractedDesign?.buttonStyle,
+  }, null, 2)}
+
+## Current plan operations (review and improve these)
+${opsSummary}
+
+## Current plan (full JSON for reference)
+${JSON.stringify(currentOps, null, 2).slice(0, 12000)}
+
+Review, improve, and return the complete replacement operations array.`;
+
+  try {
+    const result = await requestJsonTransform({
+      apiKey,
+      model: "google/gemini-2.5-flash",
+      systemPrompt,
+      userPrompt,
+      maxTokens: 16000,
+    });
+
+    console.log(`ai-transform [refine] finish_reason=${result.finishReason ?? "unknown"}`);
+
+    const parsed = result.parsed;
+    const operations = Array.isArray(parsed.operations) ? parsed.operations : [];
+    const improvements = Array.isArray(parsed.improvements) ? parsed.improvements : [];
+
+    if (operations.length === 0) {
+      return jsonResponse({ error: "Refine pass returned no operations" }, 500);
+    }
+
+    // Ensure all addSection ops have type "section"
+    for (const op of operations) {
+      if (op.type === 'addSection' && op.section) {
+        op.section.type = 'section';
+      }
+    }
+
+    console.log(`ai-transform [refine] ${operations.length} ops, ${improvements.length} improvements`);
+
+    return jsonResponse({
+      operations,
+      cssOverrides: parsed.cssOverrides || '',
+      improvements,
+    });
+  } catch (e) {
+    console.error("ai-transform [refine] error:", e);
+    return jsonResponse({ error: e instanceof Error ? e.message : "Refine failed" }, 500);
+  }
+}
+
 // ── Block pattern templates ──
 
 function getBlockPatternForIntent(intent: SectionIntent): string {
