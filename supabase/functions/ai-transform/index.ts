@@ -563,7 +563,8 @@ async function requestTransform({
       if (response.ok) {
         const aiResult = await response.json();
         const parsed = parseAiResponse(aiResult);
-        return { parsed, finishReason: aiResult.choices?.[0]?.finish_reason ?? null };
+        const rawToolCallArgs = aiResult.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments || null;
+        return { parsed, finishReason: aiResult.choices?.[0]?.finish_reason ?? null, rawToolCallArgs };
       }
 
       const errText = await response.text();
