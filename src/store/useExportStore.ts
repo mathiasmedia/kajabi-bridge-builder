@@ -13,6 +13,7 @@ interface ExportStore {
   workspaceProjects: WorkspaceProject[];
   sourceFiles: SourceProjectFiles | null;
   extractedDesign: ExtractedDesign | null;
+  extractionWarnings: ExtractionWarning[];
   baseTheme: KajabiThemeData | null;
   transformationPlan: TransformationPlan | null;
   isLoading: boolean;
@@ -44,6 +45,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
   workspaceProjects: [],
   sourceFiles: null,
   extractedDesign: null,
+  extractionWarnings: [],
   baseTheme: null,
   transformationPlan: null,
   isLoading: false,
@@ -77,8 +79,8 @@ export const useExportStore = create<ExportStore>((set, get) => ({
     }
     set({ isLoading: true, loadingMessage: 'Extracting design from source project...' });
     try {
-      const design = extractDesignFromSource(sourceFiles);
-      set({ extractedDesign: design, isLoading: false });
+      const { design, warnings } = extractDesignFromSource(sourceFiles);
+      set({ extractedDesign: design, extractionWarnings: warnings, isLoading: false });
     } catch (e) {
       set({ error: `Failed to extract design: ${e}`, isLoading: false });
     }
