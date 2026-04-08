@@ -66,6 +66,7 @@ interface Template {
   plan_json: any;
   extracted_design_json: any;
   ai_critique: string | null;
+  reference_images: string[];
 }
 
 interface AICritique {
@@ -94,11 +95,11 @@ export default function BuilderPage() {
     (async () => {
       const { data, error } = await supabase
         .from('saved_templates')
-        .select('id, name, source_project_name, plan_json, extracted_design_json, ai_critique')
+        .select('id, name, source_project_name, plan_json, extracted_design_json, ai_critique, reference_images')
         .eq('id', id)
         .single();
       if (error || !data) { toast.error('Project not found'); navigate('/'); return; }
-      setTemplate(data as Template);
+      setTemplate({ ...data, reference_images: (data.reference_images as string[]) || [] } as Template);
       if (data.ai_critique) { try { setCritique(JSON.parse(data.ai_critique)); } catch {} }
       setLoading(false);
     })();
