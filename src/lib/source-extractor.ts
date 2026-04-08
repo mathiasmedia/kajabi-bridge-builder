@@ -426,11 +426,17 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
     if (lower.includes('cta') || lower.includes('calltoaction')) { evidence.push('Component name suggests CTA'); confidence = 0.95; }
   }
 
-  // FAQ
-  else if (hasAccordion || lower.includes('faq')) {
+  // FAQ — requires strong structural evidence: accordion components AND repeated Q/A items
+  else if (hasAccordion && hasMap && arrayItems.length >= 2 && arrayItems.some(it => (it.question || it.answer))) {
     intent = 'faq';
-    confidence = lower.includes('faq') ? 0.9 : 0.7;
-    evidence.push('Contains FAQ/accordion patterns');
+    confidence = 0.9;
+    evidence.push(`Accordion component with ${arrayItems.length} Q/A items`);
+    if (lower.includes('faq')) { evidence.push('Component name contains "faq"'); confidence = 0.95; }
+  }
+  else if (hasAccordion && hasMap && arrayItems.length >= 2) {
+    intent = 'faq';
+    confidence = 0.7;
+    evidence.push(`Accordion component with ${arrayItems.length} repeated items (no explicit Q/A fields)`);
   }
 
   // FOOTER
