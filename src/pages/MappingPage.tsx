@@ -259,7 +259,7 @@ export default function MappingPage() {
                             <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                           </button>
                         </div>
-                        <p className="text-[11px] text-muted-foreground mt-1 ml-7 truncate">{item.detail}</p>
+                        <pre className="text-[11px] text-muted-foreground mt-1 ml-7 whitespace-pre-wrap font-sans">{item.detail}</pre>
                       </div>
                     );
                   })}
