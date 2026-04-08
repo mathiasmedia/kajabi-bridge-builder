@@ -42,18 +42,23 @@ serve(async (req) => {
     // Only send full details of non-addSection operations (those are huge)
     const compactOps = operations.map((op: any, i: number) => {
       if (op.type === "addSection") {
-        // Only send section name and id, not the full block content
+        // Only send section name, id, and block names — not full block content
+        const blockNames = op.section?.block_order || Object.keys(op.section?.blocks || {});
         return {
           _index: i,
           type: op.type,
           label: op.label,
           sectionId: op.sectionId,
-          sectionName: op.section?.name,
-          blockCount: op.section?.block_order?.length || 0,
-          settings: op.section?.settings,
+          blockCount: blockNames.length,
+          blockIds: blockNames,
+          bgColor: op.section?.settings?.background_color,
         };
       }
-      return { _index: i, ...op };
+      if (op.type === "addCssOverride") {
+        return { _index: i, type: op.type, label: op.label, cssLen: op.css?.length || 0 };
+      }
+      const { _index: _ig, ...rest } = { _index: i, ...op };
+      return { _index: i, ...rest };
     });
 
     // Build section map string for the prompt

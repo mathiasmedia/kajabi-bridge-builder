@@ -2,3 +2,15 @@ project_id = "qvkqcrjykswbiqvrxhks"
 
 [functions.ai-transform]
 verify_jwt = false
+
+[functions.ai-tweak]
+verify_jwt = false
+
+[functions.ai-generate]
+verify_jwt = false
+
+[functions.ai-critique]
+verify_jwt = false
+
+[functions.ai-vision-extract]
+verify_jwt = false
