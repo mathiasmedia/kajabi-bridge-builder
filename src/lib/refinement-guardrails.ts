@@ -122,9 +122,9 @@ export function detectRegressions(
     });
   }
 
-  // 2. Critical mismatch count increased
-  const beforeCritical = countCriticalMismatches(before.mismatches);
-  const afterCritical = countCriticalMismatches(after.mismatches);
+  // 2. Critical mismatch count increased (using new .critical flag)
+  const beforeCritical = before.mismatches.filter(m => m.critical || m.severity === 'error').length;
+  const afterCritical = after.mismatches.filter(m => m.critical || m.severity === 'error').length;
   if (afterCritical > beforeCritical) {
     regressions.push({
       kind: 'critical_mismatches_increased',
@@ -133,12 +133,29 @@ export function detectRegressions(
     });
   }
 
-  // 3. Section presence regressions — locked intents must not disappear
-  const beforeMissing = new Set(before.mismatches.filter(m => m.category === 'section' && m.message.includes('not found')).map(m => m.message));
-  const afterMissing = new Set(after.mismatches.filter(m => m.category === 'section' && m.message.includes('not found')).map(m => m.message));
+  // 3. New critical mismatches introduced
+  const beforeCriticalMsgs = new Set(before.mismatches.filter(m => m.critical).map(m => m.message));
+  for (const m of after.mismatches) {
+    if (m.critical && !beforeCriticalMsgs.has(m.message)) {
+      regressions.push({
+        kind: `new_critical_${m.category}`,
+        severity: 'critical',
+        message: `New critical regression: ${m.message.slice(0, 120)}`,
+      });
+    }
+  }
+
+  // 4. Section presence regressions — locked intents must not disappear
+  const beforeMissing = new Set(before.mismatches.filter(m =>
+    (m.category === 'section' || m.category === 'testimonial' || m.category === 'programs' || m.category === 'split_section') &&
+    (m.message.includes('not found') || m.message.includes('disappeared'))
+  ).map(m => m.message));
+  const afterMissing = new Set(after.mismatches.filter(m =>
+    (m.category === 'section' || m.category === 'testimonial' || m.category === 'programs' || m.category === 'split_section') &&
+    (m.message.includes('not found') || m.message.includes('disappeared'))
+  ).map(m => m.message));
   for (const msg of afterMissing) {
     if (!beforeMissing.has(msg)) {
-      // New missing section
       const isLocked = sourceIntents.some(si => LOCKED_INTENTS.has(si.intent) && msg.toLowerCase().includes(si.intent.replace(/_/g, ' ')));
       regressions.push({
         kind: 'section_removed',
@@ -148,7 +165,7 @@ export function detectRegressions(
     }
   }
 
-  // 4. Hero regressions
+  // 5. Hero regressions
   const beforeHeroErrors = before.mismatches.filter(m => m.category === 'hero' && m.severity === 'error').length;
   const afterHeroErrors = after.mismatches.filter(m => m.category === 'hero' && m.severity === 'error').length;
   if (afterHeroErrors > beforeHeroErrors) {
@@ -159,9 +176,9 @@ export function detectRegressions(
     });
   }
 
-  // 5. CTA count regressions
-  const beforeCtaIssues = before.mismatches.filter(m => m.category === 'cta' || (m.category === 'hero' && m.message.toLowerCase().includes('cta'))).length;
-  const afterCtaIssues = after.mismatches.filter(m => m.category === 'cta' || (m.category === 'hero' && m.message.toLowerCase().includes('cta'))).length;
+  // 6. CTA count regressions
+  const beforeCtaIssues = before.mismatches.filter(m => m.category === 'cta' || m.category === 'cta_band' || (m.category === 'hero' && m.message.toLowerCase().includes('cta'))).length;
+  const afterCtaIssues = after.mismatches.filter(m => m.category === 'cta' || m.category === 'cta_band' || (m.category === 'hero' && m.message.toLowerCase().includes('cta'))).length;
   if (afterCtaIssues > beforeCtaIssues) {
     regressions.push({
       kind: 'cta_richness_reduced',
@@ -170,25 +187,47 @@ export function detectRegressions(
     });
   }
 
-  // 6. Footer regressions
+  // 7. Footer regressions
   const beforeFooter = before.mismatches.filter(m => m.category === 'footer').length;
   const afterFooter = after.mismatches.filter(m => m.category === 'footer').length;
   if (afterFooter > beforeFooter) {
     regressions.push({
       kind: 'footer_thinned',
-      severity: 'warning',
+      severity: after.mismatches.some(m => m.category === 'footer' && m.critical) ? 'critical' : 'warning',
       message: `Footer issues increased from ${beforeFooter} to ${afterFooter}`,
     });
   }
 
-  // 7. Navigation regressions
+  // 8. Navigation / header regressions
   const beforeNav = before.mismatches.filter(m => m.category === 'navigation').length;
   const afterNav = after.mismatches.filter(m => m.category === 'navigation').length;
   if (afterNav > beforeNav) {
     regressions.push({
       kind: 'nav_thinned',
-      severity: 'warning',
+      severity: after.mismatches.some(m => m.category === 'navigation' && m.critical) ? 'critical' : 'warning',
       message: `Navigation issues increased from ${beforeNav} to ${afterNav}`,
+    });
+  }
+
+  // 9. Testimonial regression
+  const beforeTestimonial = before.mismatches.filter(m => m.category === 'testimonial').length;
+  const afterTestimonial = after.mismatches.filter(m => m.category === 'testimonial').length;
+  if (afterTestimonial > beforeTestimonial) {
+    regressions.push({
+      kind: 'testimonial_lost',
+      severity: 'critical',
+      message: `Testimonial issues increased from ${beforeTestimonial} to ${afterTestimonial}`,
+    });
+  }
+
+  // 10. Placeholder visual regression
+  const beforePlaceholder = before.mismatches.filter(m => m.message.toLowerCase().includes('placeholder')).length;
+  const afterPlaceholder = after.mismatches.filter(m => m.message.toLowerCase().includes('placeholder')).length;
+  if (afterPlaceholder > beforePlaceholder) {
+    regressions.push({
+      kind: 'placeholder_introduced',
+      severity: 'critical',
+      message: `Placeholder visuals increased from ${beforePlaceholder} to ${afterPlaceholder}`,
     });
   }
 
