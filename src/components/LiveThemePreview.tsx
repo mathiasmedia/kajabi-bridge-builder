@@ -91,11 +91,11 @@ export default function LiveThemePreview({ plan, baseTheme: providedTheme, class
   <style>${result.styles}</style>
   <style>${overridesCss}</style>
   <style>
-    header, .header, .site-header, nav.header-navigation,
-    footer, .footer, .site-footer,
-    .kajabi-head, .kajabi-footer,
-    [data-section-type="header"], [data-section-type="footer"],
-    #header, #footer { display: none !important; }
+    nav, .nav, .navigation, .site-nav,
+    .header-navigation, .footer-navigation,
+    .header__nav, .footer__nav,
+    ul.menu, .menu-list,
+    .kajabi-head nav, .kajabi-footer nav { display: none !important; }
   </style>
 </head>
 <body>
