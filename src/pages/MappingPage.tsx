@@ -1,5 +1,6 @@
+import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, X, AlertTriangle, Info, Download, Loader2 } from 'lucide-react';
+import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +13,16 @@ import ThemePreview from '@/components/ThemePreview';
 
 export default function MappingPage() {
   const navigate = useNavigate();
-  const { currentProject, transformationPlan, extractedDesign, isLoading, loadingMessage, removeOperation } = useExportStore();
+  const { currentProject, transformationPlan, extractedDesign, isLoading, loadingMessage, removeOperation, runExportValidation, exportValidation } = useExportStore();
+
+  // Run validation whenever the plan changes
+  useEffect(() => {
+    if (transformationPlan) {
+      runExportValidation();
+    }
+  }, [transformationPlan, runExportValidation]);
+
+  const canExport = exportValidation?.ready !== false;
 
   if (!currentProject || (!transformationPlan && !isLoading)) {
     return (
@@ -29,6 +39,7 @@ export default function MappingPage() {
   const changeSummary = transformationPlan ? generateChangeSummary(transformationPlan) : [];
 
   const handleExport = async () => {
+    if (!canExport) return;
     const blob = await useExportStore.getState().exportZip();
     if (blob) {
       const url = URL.createObjectURL(blob);
@@ -65,7 +76,7 @@ export default function MappingPage() {
             <Button variant="outline" onClick={() => navigate('/extract')}>
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
-            <Button onClick={handleExport}>
+            <Button onClick={handleExport} disabled={!canExport}>
               <Download className="mr-2 h-4 w-4" /> Export Kajabi Zip
             </Button>
           </div>
@@ -97,11 +108,83 @@ export default function MappingPage() {
             </Card>
 
             {/* Validation */}
+            {/* Export Validation Report */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  {exportValidation?.ready ? (
+                    <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                  ) : (
+                    <ShieldAlert className="h-4 w-4 text-destructive" />
+                  )}
+                  Export Validation
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {!exportValidation ? (
+                  <p className="text-sm text-muted-foreground">Validating…</p>
+                ) : (
+                  <>
+                    {/* Status badge */}
+                    <Badge variant={exportValidation.ready ? 'default' : 'destructive'} className="text-xs">
+                      {exportValidation.ready
+                        ? 'Ready to export'
+                        : `Blocked: ${exportValidation.errors.length} structural error${exportValidation.errors.length !== 1 ? 's' : ''}`}
+                    </Badge>
+
+                    {/* Errors */}
+                    {exportValidation.errors.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-destructive uppercase tracking-wide">Errors</p>
+                        {exportValidation.errors.map((e, i) => (
+                          <div key={i} className="flex items-start gap-1.5 text-xs text-destructive">
+                            <X className="h-3 w-3 mt-0.5 shrink-0" />
+                            <span>{e}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Warnings */}
+                    {exportValidation.warnings.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-yellow-500 uppercase tracking-wide">Warnings</p>
+                        {exportValidation.warnings.map((w, i) => (
+                          <div key={i} className="flex items-start gap-1.5 text-xs text-yellow-500/80">
+                            <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                            <span>{w}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Auto-fixes */}
+                    {exportValidation.autoFixes.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                          <Wrench className="h-3 w-3" /> Auto-fixes ({exportValidation.autoFixes.length})
+                        </p>
+                        <ScrollArea className="max-h-[120px]">
+                          {exportValidation.autoFixes.map((f, i) => (
+                            <div key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                              <Check className="h-3 w-3 mt-0.5 shrink-0 text-emerald-500" />
+                              <span>{f}</span>
+                            </div>
+                          ))}
+                        </ScrollArea>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Legacy validation warnings */}
             {transformationPlan.validationWarnings.length > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-warning" /> Validation
+                    <AlertTriangle className="h-4 w-4 text-yellow-500" /> Plan Warnings
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -111,7 +194,7 @@ export default function MappingPage() {
                         {w.severity === 'error' ? (
                           <X className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
                         ) : w.severity === 'warning' ? (
-                          <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+                          <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
                         ) : (
                           <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
                         )}
