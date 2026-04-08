@@ -184,10 +184,21 @@ export default function NewProjectDialog({ open, onOpenChange, onCreated }: Prop
             />
           </div>
 
+          {creating && statusMsg && (
+            <div className="space-y-1.5">
+              <Progress value={progress} className="h-1.5" />
+              <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1.5">
+                {progress < 35 && images.length > 0 && <Eye className="h-3 w-3" />}
+                {progress >= 35 && <Loader2 className="h-3 w-3 animate-spin" />}
+                {statusMsg}
+              </p>
+            </div>
+          )}
+
           <Button className="w-full" size="lg" onClick={handleCreate} disabled={creating}>
             {creating ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating template…
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {statusMsg || 'Generating…'}
               </>
             ) : (
               'Create Project'
