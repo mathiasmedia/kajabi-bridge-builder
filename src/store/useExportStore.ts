@@ -291,7 +291,16 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       }
 
       // ── Post-processing: Deduplication ──
-      const deduplicatedOps = deduplicateOperations(operations);
+      let deduplicatedOps = deduplicateOperations(operations);
+
+      // ── Theme-specific recipe layer ──
+      if (currentProject.baseTheme === 'streamlined-home') {
+        const recipeResult = applyStreamlinedHomeRecipes(deduplicatedOps, extractedDesign.sections);
+        deduplicatedOps = recipeResult.operations;
+        if (recipeResult.warnings.length > 0) {
+          console.log('Theme recipe adjustments:', recipeResult.warnings);
+        }
+      }
 
       // ── Build content_for_index: keep modified existing sections + add new ones ──
       const existingContentIds = getContentForPage(baseTheme, currentProject.page).filter(Boolean);
