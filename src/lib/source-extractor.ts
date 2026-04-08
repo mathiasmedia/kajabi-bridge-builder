@@ -227,11 +227,12 @@ function extractSectionsV2(files: SourceProjectFiles): { sections: ExtractedSect
   let match;
   let sectionIndex = 0;
   const sectionNames = new Set<string>();
+  let foundComponentSections = false;
 
   while ((match = componentRegex.exec(indexPage)) !== null) {
     const name = match[1];
     if (name[0] === name[0].toLowerCase()) continue;
-    if (['Routes', 'Route', 'BrowserRouter', 'QueryClientProvider', 'TooltipProvider', 'Button', 'Card', 'CardContent', 'Badge'].includes(name)) continue;
+    if (['Routes', 'Route', 'BrowserRouter', 'QueryClientProvider', 'TooltipProvider', 'Button', 'Card', 'CardContent', 'Badge', 'Link', 'ArrowRight', 'Sparkles', 'Target', 'Zap', 'Users', 'Star', 'CheckCircle'].includes(name)) continue;
     if (sectionNames.has(name)) continue;
     sectionNames.add(name);
 
@@ -248,6 +249,7 @@ function extractSectionsV2(files: SourceProjectFiles): { sections: ExtractedSect
     }
 
     if (!content) continue;
+    foundComponentSections = true;
 
     const id = `extracted-${sectionIndex++}`;
     const analysis = analyzeComponent(name, content, files);
@@ -305,6 +307,17 @@ function extractSectionsV2(files: SourceProjectFiles): { sections: ExtractedSect
     if (analysis.intent === 'cta_band' && !analysis.ctaText) {
       warnings.push({ sectionId: id, severity: 'warning', message: `CTA section "${name}" detected but no CTA text found` });
     }
+  }
+
+  // ── Inline section fallback ──
+  // If no component-based sections found, parse inline <section> blocks from indexPage
+  if (!foundComponentSections && indexPage.length > 200) {
+    const inlineSections = extractInlineSections(indexPage, files);
+    for (const sec of inlineSections.sections) {
+      sec.id = `extracted-${sectionIndex++}`;
+      sections.push(sec);
+    }
+    warnings.push(...inlineSections.warnings);
   }
 
   return { sections, warnings };
