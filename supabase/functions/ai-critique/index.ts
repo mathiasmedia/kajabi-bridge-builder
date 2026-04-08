@@ -9,12 +9,25 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { planJson, extractedDesign, sourceProjectName } = await req.json();
+    const { planJson, extractedDesign, sourceProjectName, customPrompt } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const systemPrompt = `You are a Kajabi theme export quality reviewer. You analyze transformation plans that convert Lovable React sites into Kajabi theme configurations.
+    const isCustom = !!customPrompt;
+
+    const systemPrompt = isCustom
+      ? `You are a Kajabi theme export expert. A user is asking a specific question about their theme export. Answer concisely and specifically based on the transformation plan and extracted design data provided.
+
+Format your response as JSON:
+{
+  "score": 0,
+  "summary": "your detailed answer here",
+  "issues": [],
+  "patterns": [],
+  "improvements": []
+}`
+      : `You are a Kajabi theme export quality reviewer. You analyze transformation plans that convert Lovable React sites into Kajabi theme configurations.
 
 Your job is to:
 1. **Critique** — identify issues, missing content, wrong colors, broken layouts, CSS conflicts
@@ -39,7 +52,19 @@ Format your response as JSON with these fields:
   "improvements": ["specific suggestion 1", "specific suggestion 2"]
 }`;
 
-    const userPrompt = `Analyze this Kajabi theme export:
+    const userPrompt = isCustom
+      ? `**User Question:** ${customPrompt}
+
+**Source Project:** ${sourceProjectName || 'Unknown'}
+
+**Extracted Design:**
+${JSON.stringify(extractedDesign, null, 2).slice(0, 4000)}
+
+**Transformation Plan (${planJson?.operations?.length || 0} operations):**
+${JSON.stringify(planJson, null, 2).slice(0, 12000)}
+
+Answer the user's specific question based on this data.`
+      : `Analyze this Kajabi theme export:
 
 **Source Project:** ${sourceProjectName || 'Unknown'}
 
