@@ -151,6 +151,20 @@ export default function BuilderPage() {
     e.target.value = '';
   };
 
+  const handleUndo = async () => {
+    if (!template || planHistory.length === 0) return;
+    const previousPlan = planHistory[planHistory.length - 1];
+    setPlanHistory(prev => prev.slice(0, -1));
+    await supabase.from('saved_templates')
+      .update({ plan_json: previousPlan, ai_critique: null })
+      .eq('id', template.id);
+    setTemplate(prev => prev ? { ...prev, plan_json: previousPlan, ai_critique: null } : prev);
+    setCritique(null);
+    setPlanVersion(v => v + 1);
+    setTweakLog(prev => [...prev, '⏪ Undid last tweak']);
+    toast.success('Undone');
+  };
+
   const handleDelete = async () => {
     if (!template) return;
     const { error } = await supabase.from('saved_templates').delete().eq('id', template.id);
