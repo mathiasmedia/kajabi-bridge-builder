@@ -1,4 +1,4 @@
-import type { ExtractedDesign, ExtractedColor, ExtractedSection, ExtractedAsset, SectionIntent, ExtractionWarning } from '@/types';
+import type { ExtractedDesign, ExtractedColor, ExtractedSection, ExtractedAsset, SectionIntent, ExtractionWarning, MediaIntent, ImageTarget, ImageTargetRole } from '@/types';
 
 // Source project extractor - analyzes a Lovable project's code to extract design information
 // This runs in the browser and uses cross-project tools via the store
@@ -274,6 +274,10 @@ function extractSectionsV2(files: SourceProjectFiles): { sections: ExtractedSect
       hasTestimonials: analysis.intent === 'testimonial_band',
       hasPricing: analysis.hasPricing,
       hasRepeatedCards: (analysis.items?.length || 0) >= 2,
+      mediaIntent: analysis.media.mediaIntent,
+      mediaConfidence: analysis.media.mediaConfidence,
+      mediaEvidence: analysis.media.mediaEvidence,
+      imageTargets: analysis.media.imageTargets,
     };
 
     sections.push(section);
@@ -302,6 +306,13 @@ function extractSectionsV2(files: SourceProjectFiles): { sections: ExtractedSect
   return { sections, warnings };
 }
 
+interface MediaAnalysis {
+  mediaIntent: MediaIntent;
+  mediaConfidence: number;
+  mediaEvidence: string[];
+  imageTargets: ImageTarget[];
+}
+
 interface ComponentAnalysis {
   intent: SectionIntent;
   confidence: number;
@@ -313,6 +324,7 @@ interface ComponentAnalysis {
   items?: ExtractedSection['items'];
   hasImages: boolean;
   hasPricing: boolean;
+  media: MediaAnalysis;
 }
 
 function cleanJsxText(text: string): string {
@@ -456,7 +468,7 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
   // ── Build items based on intent ──
   let items: ExtractedSection['items'] | undefined;
   if (arrayItems.length >= 2) {
-    items = arrayItems.map(raw => {
+    items = arrayItems.map((raw, idx) => {
       const item: NonNullable<ExtractedSection['items']>[0] = {};
       if (raw.value) item.value = raw.value;
       if (raw.label) item.heading = raw.label;
@@ -470,12 +482,20 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
       if (raw.price) item.price = raw.price;
       if (raw.meta && !item.body) item.body = raw.meta;
       else if (raw.meta && item.body) item.body = `${raw.meta} · ${item.body}`;
-      if (raw.image) item.image = raw.image;
       if (raw.icon) item.icon = raw.icon;
       if (raw.badge) item.body = item.body ? `${item.body} [${raw.badge}]` : raw.badge;
+      // Resolve image URLs for items
+      if (raw.image) {
+        // raw.image may be a JS variable name referencing an import
+        const resolvedUrl = resolveImageUrl(raw.image, content, files);
+        item.image = resolvedUrl || raw.image;
+      }
       return item;
     }).filter(item => item.heading || item.quote || item.value);
   }
+
+  // ── Media analysis ──
+  const media = analyzeMedia(intent, content, files, items);
 
   return {
     intent,
@@ -488,7 +508,119 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
     items,
     hasImages: hasImg,
     hasPricing: hasPrice,
+    media,
   };
+}
+
+/** Resolve an image reference (variable name or path) to a public URL */
+function resolveImageUrl(imageRef: string, componentContent: string, files: SourceProjectFiles): string | undefined {
+  // If it's already a URL, return it
+  if (imageRef.startsWith('http')) return imageRef;
+
+  // Check if it's a variable name imported from assets
+  // Pattern: import varName from "@/assets/filename.jpg"
+  const importRegex = new RegExp(`import\\s+${escapeRegex(imageRef)}\\s+from\\s+["'](@\\/assets\\/[^"']+)["']`);
+  const importMatch = componentContent.match(importRegex);
+  if (importMatch) {
+    const assetPath = importMatch[1].replace('@/', 'src/');
+    return files.imageUrls?.[assetPath];
+  }
+
+  // Direct path match
+  const directPath = imageRef.replace('@/', 'src/');
+  return files.imageUrls?.[directPath];
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Analyze media intent for a component based on its intent, content, and items */
+function analyzeMedia(
+  intent: SectionIntent,
+  content: string,
+  files: SourceProjectFiles,
+  items: ExtractedSection['items'] | undefined,
+): MediaAnalysis {
+  const mediaEvidence: string[] = [];
+  const imageTargets: ImageTarget[] = [];
+
+  // Detect image imports
+  const importMatches = [...content.matchAll(/import\s+(\w+)\s+from\s+["'](@\/assets\/[^"']+)["']/g)];
+  const hasBackgroundImg = /(?:bg-|background|object-cover|absolute\s+inset-0|inset-0.*object-cover)/i.test(content);
+  const hasInlineImg = /<img[\s>]/.test(content);
+  const itemsWithImages = items?.filter(i => i.image) || [];
+
+  // Resolve all imported images
+  for (const im of importMatches) {
+    const varName = im[1];
+    const assetPath = im[2].replace('@/', 'src/');
+    const url = files.imageUrls?.[assetPath];
+    if (url) {
+      // Determine role based on usage in content
+      const isUsedAsBg = new RegExp(`src=\\{${varName}\\}[^>]*(?:object-cover|absolute|inset)`, 'i').test(content) || hasBackgroundImg;
+      if (intent === 'hero' && isUsedAsBg) {
+        imageTargets.push({ role: 'hero_bg', sourcePath: assetPath, url });
+        mediaEvidence.push(`Hero background image: ${assetPath}`);
+      } else if (intent === 'hero') {
+        imageTargets.push({ role: 'hero_fg', sourcePath: assetPath, url });
+        mediaEvidence.push(`Hero foreground image: ${assetPath}`);
+      } else if (intent === 'content_media_split') {
+        imageTargets.push({ role: 'content_image', sourcePath: assetPath, url });
+        mediaEvidence.push(`Content image: ${assetPath}`);
+      } else {
+        imageTargets.push({ role: 'decorative', sourcePath: assetPath, url });
+        mediaEvidence.push(`Decorative image: ${assetPath}`);
+      }
+    }
+  }
+
+  // Resolve item images as card images
+  if (itemsWithImages.length > 0) {
+    for (let i = 0; i < itemsWithImages.length; i++) {
+      const item = itemsWithImages[i];
+      if (item.image && (item.image.startsWith('http') || files.imageUrls?.[item.image.replace('@/', 'src/')])) {
+        const url = item.image.startsWith('http') ? item.image : files.imageUrls?.[item.image.replace('@/', 'src/')];
+        if (url) {
+          imageTargets.push({
+            role: 'card_image',
+            sourcePath: item.image,
+            url,
+            itemIndex: items?.indexOf(item),
+          });
+        }
+      }
+    }
+    if (imageTargets.some(t => t.role === 'card_image')) {
+      mediaEvidence.push(`${itemsWithImages.length} card images found in repeated items`);
+    }
+  }
+
+  // Determine media intent
+  let mediaIntent: MediaIntent = 'no_media';
+  let mediaConfidence = 0;
+
+  if (intent === 'hero' && imageTargets.some(t => t.role === 'hero_bg')) {
+    mediaIntent = 'background_image';
+    mediaConfidence = 0.95;
+  } else if (intent === 'hero' && imageTargets.some(t => t.role === 'hero_fg')) {
+    mediaIntent = 'foreground_image';
+    mediaConfidence = 0.8;
+  } else if (imageTargets.some(t => t.role === 'card_image') && itemsWithImages.length >= 2) {
+    mediaIntent = 'repeated_card_images';
+    mediaConfidence = 0.9;
+  } else if (intent === 'content_media_split' && imageTargets.length > 0) {
+    mediaIntent = 'foreground_image';
+    mediaConfidence = 0.8;
+  } else if (hasInlineImg || importMatches.length > 0) {
+    mediaIntent = 'decorative_image';
+    mediaConfidence = 0.5;
+    if (mediaEvidence.length === 0) mediaEvidence.push('Contains image elements');
+  } else {
+    mediaConfidence = 0.9; // high confidence there's no media
+  }
+
+  return { mediaIntent, mediaConfidence, mediaEvidence, imageTargets };
 }
 
 /** Parse a JS array literal into objects */

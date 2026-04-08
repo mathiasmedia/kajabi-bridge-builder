@@ -81,4 +81,41 @@ describe('Semantic extraction — Woven Waves', () => {
     const errors = warnings.filter(w => w.severity === 'error');
     expect(errors.length).toBe(0);
   });
+
+  // ── Media intent tests ──
+
+  it('hero has background_image media intent with URL', () => {
+    const hero = design.sections.find(s => s.intent === 'hero');
+    expect(hero).toBeDefined();
+    expect(hero!.mediaIntent).toBe('background_image');
+    expect(hero!.mediaConfidence).toBeGreaterThanOrEqual(0.8);
+    expect(hero!.imageTargets.length).toBeGreaterThanOrEqual(1);
+    expect(hero!.imageTargets[0].role).toBe('hero_bg');
+    expect(hero!.imageTargets[0].url).toContain('hero-underwater');
+  });
+
+  it('program_cards has repeated_card_images media intent', () => {
+    const programs = design.sections.find(s => s.intent === 'program_cards');
+    expect(programs).toBeDefined();
+    expect(programs!.mediaIntent).toBe('repeated_card_images');
+    expect(programs!.imageTargets.filter(t => t.role === 'card_image').length).toBeGreaterThanOrEqual(2);
+    // Check item images resolved to URLs
+    const itemsWithImages = programs!.items?.filter(i => i.image && i.image.startsWith('http')) || [];
+    expect(itemsWithImages.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('stats and cta sections have no_media intent', () => {
+    const stats = design.sections.find(s => s.intent === 'stats');
+    expect(stats!.mediaIntent).toBe('no_media');
+
+    const cta = design.sections.find(s => s.intent === 'cta_band');
+    expect(cta!.mediaIntent).toBe('no_media');
+  });
+
+  it('all sections have media evidence arrays', () => {
+    for (const s of design.sections) {
+      expect(Array.isArray(s.mediaEvidence)).toBe(true);
+      expect(Array.isArray(s.imageTargets)).toBe(true);
+    }
+  });
 });

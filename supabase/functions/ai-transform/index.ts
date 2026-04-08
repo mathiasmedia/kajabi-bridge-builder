@@ -390,6 +390,9 @@ ${imageContext}
 - Evidence: ${(sectionToGenerate.evidence || []).join('; ') || 'none'}
 - Flags: hasHeading=${sectionToGenerate.hasHeading ?? false}, hasBody=${sectionToGenerate.hasBody ?? false}, hasButtons=${sectionToGenerate.hasButtons ?? false}, hasImages=${sectionToGenerate.hasImages ?? false}, hasStats=${sectionToGenerate.hasStats ?? false}, hasTestimonials=${sectionToGenerate.hasTestimonials ?? false}, hasPricing=${sectionToGenerate.hasPricing ?? false}, hasRepeatedCards=${sectionToGenerate.hasRepeatedCards ?? false}
 - Repeated items: ${sectionToGenerate.repeatedItemCount ?? 0}
+- Media intent: ${sectionToGenerate.mediaIntent || 'no_media'} (confidence: ${sectionToGenerate.mediaConfidence ?? 0})
+- Media evidence: ${(sectionToGenerate.mediaEvidence || []).join('; ') || 'none'}
+- Image targets: ${(sectionToGenerate.imageTargets || []).map((t: any) => `${t.role}${t.url ? ': ' + t.url : ''}`).join(', ') || 'none'}
 
 ## Source section content
 - Heading: ${sectionToGenerate.heading || "none"}
@@ -1081,7 +1084,7 @@ function mapUpstreamIntent(upstreamIntent: string | undefined): SectionIntent | 
   return map[upstreamIntent] || null;
 }
 
-/** Build richness requirements string based on intent + section flags */
+/** Build richness requirements string based on intent + section flags + media intent */
 function buildRichnessGuard(intent: SectionIntent, section: any): string {
   const lines: string[] = ['## RICHNESS REQUIREMENTS (MANDATORY)'];
 
@@ -1127,6 +1130,50 @@ function buildRichnessGuard(intent: SectionIntent, section: any): string {
       break;
     default:
       lines.push('- Include all meaningful content from the source. Do not produce thin/placeholder blocks.');
+  }
+
+  // ── Media intent instructions ──
+  const mediaIntent = section.mediaIntent || 'no_media';
+  const imageTargets: any[] = section.imageTargets || [];
+
+  if (mediaIntent !== 'no_media' && imageTargets.length > 0) {
+    lines.push('');
+    lines.push('## MEDIA PLACEMENT (MANDATORY when images are available)');
+
+    if (mediaIntent === 'background_image') {
+      const bgTarget = imageTargets.find((t: any) => t.role === 'hero_bg' || t.role === 'decorative');
+      if (bgTarget?.url) {
+        lines.push(`- Set section settings: bg_type="image", bg_image="${bgTarget.url}"`);
+        lines.push('- Do NOT ignore this image. The source has a background image and the output MUST too.');
+      }
+    }
+
+    if (mediaIntent === 'foreground_image') {
+      const fgTarget = imageTargets.find((t: any) => t.role === 'content_image' || t.role === 'hero_fg');
+      if (fgTarget?.url) {
+        lines.push(`- Include an "image" block with settings.image="${fgTarget.url}" and an appropriate image_alt.`);
+      }
+    }
+
+    if (mediaIntent === 'repeated_card_images') {
+      const cardTargets = imageTargets.filter((t: any) => t.role === 'card_image');
+      if (cardTargets.length > 0) {
+        lines.push('- Each repeated feature/card block that has a matching image MUST set settings.image to the URL.');
+        lines.push('- Do NOT set hide_image="true" on blocks with images.');
+        for (const ct of cardTargets) {
+          if (ct.url && ct.itemIndex !== undefined) {
+            lines.push(`  - Item ${ct.itemIndex}: image="${ct.url}"`);
+          }
+        }
+      }
+    }
+
+    if (mediaIntent === 'decorative_image') {
+      const decTarget = imageTargets[0];
+      if (decTarget?.url) {
+        lines.push(`- Optionally include an "image" block or set as section background: ${decTarget.url}`);
+      }
+    }
   }
 
   return lines.join('\n');

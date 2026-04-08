@@ -70,6 +70,28 @@ export type SectionIntent =
   | 'footer_like'
   | 'unknown';
 
+export type MediaIntent =
+  | 'background_image'
+  | 'foreground_image'
+  | 'repeated_card_images'
+  | 'decorative_image'
+  | 'no_media';
+
+export type ImageTargetRole =
+  | 'hero_bg'
+  | 'hero_fg'
+  | 'card_image'
+  | 'content_image'
+  | 'testimonial_avatar'
+  | 'decorative';
+
+export interface ImageTarget {
+  role: ImageTargetRole;
+  sourcePath?: string;
+  url?: string;
+  itemIndex?: number;
+}
+
 export interface ExtractedSection {
   id: string;
   type: 'hero' | 'features' | 'testimonials' | 'cta' | 'content' | 'gallery' | 'pricing' | 'faq' | 'contact' | 'custom';
@@ -107,6 +129,11 @@ export interface ExtractedSection {
   hasTestimonials: boolean;
   hasPricing: boolean;
   hasRepeatedCards: boolean;
+  // Media intent metadata
+  mediaIntent: MediaIntent;
+  mediaConfidence: number;
+  mediaEvidence: string[];
+  imageTargets: ImageTarget[];
 }
 
 export interface ExtractionWarning {
