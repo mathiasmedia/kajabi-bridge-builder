@@ -425,6 +425,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
     currentProject: null,
     sourceFiles: null,
     extractedDesign: null,
+    extractionWarnings: [],
     baseTheme: null,
     transformationPlan: null,
     isLoading: false,
