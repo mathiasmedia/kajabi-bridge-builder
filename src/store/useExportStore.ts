@@ -183,7 +183,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       for (const op of operations) {
         const opAny = op as any;
         if ((op.type === 'replaceText' || op.type === 'updateBlockSetting') && opAny.sectionId && opAny.blockId) {
-          const section = sections[opAny.sectionId] as any;
+          const section = themeSections[opAny.sectionId] as any;
           if (section) {
             const blockOrder = section.block_order || Object.keys(section.blocks || {});
             const blockExists = opAny.blockId in (section.blocks || {});
