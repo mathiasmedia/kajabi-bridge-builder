@@ -575,12 +575,14 @@ async function renderSectionBrowser(
   const sectionType = section.type;
   const templateFile = `${sectionType}.liquid`;
   
-  if (!theme.sections[templateFile]) {
-    console.warn(`Section template not found: ${templateFile}`);
+  // Try section-specific template first, then fall back to generic section.liquid
+  const resolvedTemplate = theme.sections[templateFile] || theme.sections['section.liquid'];
+  if (!resolvedTemplate) {
+    console.warn(`Section template not found: ${templateFile} (and no section.liquid fallback)`);
     return;
   }
 
-  const template = theme.sections[templateFile];
+  const template = resolvedTemplate;
   const visibleBlocks = (section.blocks || []).filter((b: any) => !b.hidden);
   const sectionCtx = {
     section: {
