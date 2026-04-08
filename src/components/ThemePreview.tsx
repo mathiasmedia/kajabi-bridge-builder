@@ -97,29 +97,42 @@ function PreviewHero({
   hero: NonNullable<ExtractedDesign['hero']>;
   buttonStyle: ExtractedDesign['buttonStyle'];
 }) {
+  const hasBgImage = !!hero.backgroundImage;
   return (
     <div
-      className="px-5 py-12 text-center shrink-0"
-      style={{ backgroundColor: hero.backgroundColor || '#0a0a0a', color: hero.textColor || '#ffffff' }}
+      className="px-5 py-12 text-center shrink-0 relative overflow-hidden"
+      style={{
+        backgroundColor: hero.backgroundColor || '#0a0a0a',
+        color: hero.textColor || '#ffffff',
+      }}
     >
-      {hero.heading && (
-        <h2 className="text-base font-bold leading-tight mb-1.5 font-serif">{hero.heading}</h2>
+      {hasBgImage && (
+        <img
+          src={hero.backgroundImage}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover opacity-40"
+        />
       )}
-      {hero.subheading && (
-        <p className="text-[10px] opacity-60 mb-3 max-w-[200px] mx-auto leading-relaxed">{hero.subheading}</p>
-      )}
-      {hero.ctaText && (
-        <span
-          className="inline-block px-3 py-1.5 text-[10px] font-semibold"
-          style={{
-            backgroundColor: buttonStyle.backgroundColor,
-            color: buttonStyle.textColor,
-            borderRadius: buttonStyle.borderRadius,
-          }}
-        >
-          {hero.ctaText}
-        </span>
-      )}
+      <div className="relative z-10">
+        {hero.heading && (
+          <h2 className="text-base font-bold leading-tight mb-1.5 font-serif">{hero.heading}</h2>
+        )}
+        {hero.subheading && (
+          <p className="text-[10px] opacity-60 mb-3 max-w-[200px] mx-auto leading-relaxed">{hero.subheading}</p>
+        )}
+        {hero.ctaText && (
+          <span
+            className="inline-block px-3 py-1.5 text-[10px] font-semibold"
+            style={{
+              backgroundColor: buttonStyle.backgroundColor,
+              color: buttonStyle.textColor,
+              borderRadius: buttonStyle.borderRadius,
+            }}
+          >
+            {hero.ctaText}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
