@@ -7,11 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useExportStore } from '@/store/useExportStore';
 import AppHeader from '@/components/AppHeader';
+import IngestionSummary from '@/components/IngestionSummary';
 import type { ExtractedSection, ExtractionWarning } from '@/types';
 
 export default function ExtractPage() {
   const navigate = useNavigate();
-  const { currentProject, extractedDesign, extractionWarnings, isLoading, loadingMessage, error } = useExportStore();
+  const { currentProject, extractedDesign, extractionWarnings, sourceSnapshot, ingestionWarnings, isLoading, loadingMessage, error } = useExportStore();
 
   useEffect(() => {
     if (!currentProject) {
@@ -80,6 +81,13 @@ export default function ExtractPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Ingestion Summary */}
+            {sourceSnapshot && (
+              <div className="md:col-span-2">
+                <IngestionSummary snapshot={sourceSnapshot} warnings={ingestionWarnings} />
+              </div>
+            )}
+
             {/* Colors */}
             <Card>
               <CardHeader>
