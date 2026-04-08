@@ -212,7 +212,7 @@ export function buildTransformationPlan(
 
     if (textBlock) {
       // Narrower heading block (~8 cols) with eyebrow using inline styles
-      const headingHtml = `<p style="color:${accentHexLocal}; font-size:12px; letter-spacing:0.25em; text-transform:uppercase; font-weight:500; margin-bottom:12px">${eyebrowText}</p>\n<h2>${headingText}</h2>\n<p>${descText}</p>`;
+      const headingHtml = `<p style="color:${accentHexLocal}; font-size:12px; letter-spacing:0.25em; text-transform:uppercase; font-weight:500; margin-bottom:12px">${eyebrowText}</p>\n<h2 style="color:${inlineFgHex}">${headingText}</h2>\n<p style="color:${inlineBodyHex}">${descText}</p>`;
       operations.push({ type: 'replaceText', sectionId, blockId: textBlock.id, key: 'text', value: headingHtml, label: 'Programs heading text' });
       // Narrower width so description doesn't stretch full-width
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'width', value: '8', label: 'Programs heading width' });
