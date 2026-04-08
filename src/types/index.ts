@@ -47,6 +47,7 @@ export interface ExtractedDesign {
     columns: number;
     copyright?: string;
     socialLinks?: Array<{ platform: string; url: string }>;
+    linkGroups?: Record<string, Array<{ name: string; url: string }>>;
   };
   assets: ExtractedAsset[];
 }
