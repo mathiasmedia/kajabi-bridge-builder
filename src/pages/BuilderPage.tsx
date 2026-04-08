@@ -36,20 +36,19 @@ async function getBaseThemeInfo(): Promise<BaseThemeInfo> {
       const current = sd.current || sd;
       const indexSections: string[] = current.content_for_index || [];
       const sectionMap: Record<string, string> = {};
-      const blockMap: Record<string, { type: string; textPreview: string }[]> = {};
+      const blockMap: Record<string, { blockId: string; type: string; textPreview: string }[]> = {};
       for (const secId of indexSections) {
         const sec = current.sections?.[secId];
         if (!sec) continue;
         sectionMap[secId] = sec.name || sec.type || 'unknown';
-        // Extract block info
-        const blocks: { type: string; textPreview: string }[] = [];
+        const blocks: { blockId: string; type: string; textPreview: string }[] = [];
         const blockOrder = sec.block_order || [];
         for (const blockId of blockOrder) {
           const block = sec.blocks?.[blockId];
           if (!block) continue;
           const text = block.settings?.text || '';
           const preview = text.replace(/<[^>]*>/g, '').slice(0, 80);
-          blocks.push({ type: block.type, textPreview: preview || `(${block.type} block)` });
+          blocks.push({ blockId, type: block.type, textPreview: preview || `(${block.type} block)` });
         }
         blockMap[secId] = blocks;
       }
