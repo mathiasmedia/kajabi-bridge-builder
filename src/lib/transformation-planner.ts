@@ -542,23 +542,35 @@ function getBlocksInOrder(section: any): Array<{ id: string; type: string; setti
   return order.map((id: string) => ({ id, type: blocks[id]?.type, settings: blocks[id]?.settings || {} })).filter((b: any) => b.type);
 }
 
-function buildHeroHtml(extracted: ExtractedDesign): string {
+function buildHeroHtml(extracted: ExtractedDesign, accentHex: string): string {
     const hero = extracted.hero!;
     let html = '';
-    if (hero.subheading) {
-      html += `<p class="hero-eyebrow">${hero.subheading}</p>\n`;
+    if (hero.eyebrow || hero.subheading) {
+      const eyebrowText = hero.eyebrow || hero.subheading || '';
+      html += `<p class="hero-eyebrow" style="color:${accentHex}; font-size:13px; letter-spacing:0.3em; text-transform:uppercase; font-weight:500">${eyebrowText}</p>\n`;
     }
     if (hero.heading) {
-      html += `<h1>${hero.heading}</h1>\n`;
+      // If emphasisWord is set, wrap that word in a styled span (italic serif)
+      if (hero.emphasisWord) {
+        const emphasized = hero.heading.replace(
+          new RegExp(`(${hero.emphasisWord})`, 'i'),
+          `<span style="font-style:italic; font-family:'Playfair Display',Georgia,serif; color:${accentHex}">$1</span>`
+        );
+        html += `<h1>${emphasized}</h1>\n`;
+      } else {
+        html += `<h1>${hero.heading}</h1>\n`;
+      }
     }
     // Add the description from source
-    html += `<p class="hero-description">Dive deep into the world's most exclusive craft. Certified instructors, pristine reefs, and the finest seagrass materials — all 30 feet below the surface.</p>`;
+    const descText = hero.subheading && hero.eyebrow
+      ? hero.subheading
+      : "Dive deep into the world's most exclusive craft. Certified instructors, pristine reefs, and the finest seagrass materials — all 30 feet below the surface.";
+    html += `<p class="hero-description" style="font-size:18px; line-height:1.7; max-width:560px; margin:0 auto 32px">${descText}</p>`;
     return html;
   }
 
 function isDarkColor(color: string): boolean {
   if (!color) return false;
-  // Simple heuristic
   if (color.includes('RGBA') || color.includes('rgba')) {
     const match = color.match(/(\d+),\s*(\d+),\s*(\d+)/);
     if (match) {
@@ -574,4 +586,31 @@ function isDarkColor(color: string): boolean {
     return (r + g + b) / 3 < 128;
   }
   return false;
+}
+
+/**
+ * Detect whether the source site is dark-themed (bg luminance < 30%).
+ * Used to dynamically choose dark card shells, shadow styles, etc.
+ */
+function detectDarkSite(extracted: ExtractedDesign): boolean {
+  const bgColor = extracted.colors.find(c => c.usage === 'background');
+  if (!bgColor) return false;
+  const hex = bgColor.value.startsWith('#') ? bgColor.value : hslToHex(bgColor.value);
+  return isDarkColor(hex);
+}
+
+/**
+ * Darken a hex color by a factor (0-1). factor=0.15 means 15% lighter than source bg.
+ * Used to create card shells that are slightly lighter than the page bg on dark sites.
+ */
+function darkenHex(hex: string, lightenFactor: number): string {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  // Lighten slightly for card shells on dark backgrounds
+  const lr = Math.min(255, Math.round(r + (255 - r) * lightenFactor));
+  const lg = Math.min(255, Math.round(g + (255 - g) * lightenFactor));
+  const lb = Math.min(255, Math.round(b + (255 - b) * lightenFactor));
+  return `#${lr.toString(16).padStart(2, '0')}${lg.toString(16).padStart(2, '0')}${lb.toString(16).padStart(2, '0')}`;
 }
