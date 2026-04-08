@@ -32,7 +32,6 @@ export default function RenderCheckPanel() {
     transformationPlan, refinementResult, previousScore,
     generateRefinements, applyRefinement, applyAllSafeRefinements,
   } = useExportStore();
-  const [showPreview, setShowPreview] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   const openPreviewTab = useCallback(() => {
