@@ -1028,6 +1028,7 @@ function intentToLegacyType(intent: SectionIntent): ExtractedSection['type'] {
     case 'hero': return 'hero';
     case 'stats': return 'content';
     case 'feature_grid': return 'features';
+    case 'icon_card_row': return 'features';
     case 'program_cards': return 'features';
     case 'testimonial_band': return 'testimonials';
     case 'cta_band': return 'cta';
