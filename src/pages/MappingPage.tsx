@@ -1,11 +1,12 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench } from 'lucide-react';
+import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench, ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useExportStore } from '@/store/useExportStore';
 import { generateChangeSummary } from '@/lib/kajabi-exporter';
 import AppHeader from '@/components/AppHeader';
@@ -14,8 +15,9 @@ import ThemePreview from '@/components/ThemePreview';
 export default function MappingPage() {
   const navigate = useNavigate();
   const { currentProject, transformationPlan, extractedDesign, isLoading, loadingMessage, removeOperation, runExportValidation, exportValidation } = useExportStore();
+  const [logsOpen, setLogsOpen] = useState(false);
+  const [expandedOps, setExpandedOps] = useState<Set<number>>(new Set());
 
-  // Run validation whenever the plan changes
   useEffect(() => {
     if (transformationPlan) {
       runExportValidation();
@@ -48,6 +50,21 @@ export default function MappingPage() {
       a.download = `${currentProject.name.replace(/\s+/g, '-').toLowerCase()}-kajabi-theme.zip`;
       a.click();
       URL.revokeObjectURL(url);
+    }
+  };
+
+  const toggleOp = (index: number) => {
+    setExpandedOps(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
+  const copyAllOps = () => {
+    if (transformationPlan) {
+      navigator.clipboard.writeText(JSON.stringify(transformationPlan.operations, null, 2));
     }
   };
 
@@ -107,7 +124,6 @@ export default function MappingPage() {
               </CardContent>
             </Card>
 
-            {/* Validation */}
             {/* Export Validation Report */}
             <Card>
               <CardHeader className="pb-2">
@@ -125,14 +141,12 @@ export default function MappingPage() {
                   <p className="text-sm text-muted-foreground">Validating…</p>
                 ) : (
                   <>
-                    {/* Status badge */}
                     <Badge variant={exportValidation.ready ? 'default' : 'destructive'} className="text-xs">
                       {exportValidation.ready
                         ? 'Ready to export'
                         : `Blocked: ${exportValidation.errors.length} structural error${exportValidation.errors.length !== 1 ? 's' : ''}`}
                     </Badge>
 
-                    {/* Errors */}
                     {exportValidation.errors.length > 0 && (
                       <div className="space-y-1">
                         <p className="text-xs font-medium text-destructive uppercase tracking-wide">Errors</p>
@@ -145,7 +159,6 @@ export default function MappingPage() {
                       </div>
                     )}
 
-                    {/* Warnings */}
                     {exportValidation.warnings.length > 0 && (
                       <div className="space-y-1">
                         <p className="text-xs font-medium text-yellow-500 uppercase tracking-wide">Warnings</p>
@@ -158,7 +171,6 @@ export default function MappingPage() {
                       </div>
                     )}
 
-                    {/* Auto-fixes */}
                     {exportValidation.autoFixes.length > 0 && (
                       <div className="space-y-1">
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1">
@@ -179,7 +191,6 @@ export default function MappingPage() {
               </CardContent>
             </Card>
 
-            {/* Legacy validation warnings */}
             {transformationPlan.validationWarnings.length > 0 && (
               <Card>
                 <CardHeader>
@@ -250,6 +261,64 @@ export default function MappingPage() {
               </ScrollArea>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Full Operation Logs */}
+        <div className="mt-6">
+          <Collapsible open={logsOpen} onOpenChange={setLogsOpen}>
+            <Card>
+              <CardHeader className="pb-2">
+                <CollapsibleTrigger asChild>
+                  <button className="flex items-center gap-2 w-full text-left">
+                    {logsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    <CardTitle className="text-base">Full Operation Logs ({transformationPlan.operations.length})</CardTitle>
+                  </button>
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent className="pt-0">
+                  <div className="flex justify-end mb-2">
+                    <Button variant="outline" size="sm" onClick={copyAllOps}>
+                      <Copy className="h-3 w-3 mr-1" /> Copy All JSON
+                    </Button>
+                  </div>
+                  <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+                    {transformationPlan.operations.map((op, i) => {
+                      const isExpanded = expandedOps.has(i);
+                      const opLabel = (op as any).label || (op as any).type || `Operation ${i}`;
+                      const opType = (op as any).type || 'unknown';
+                      const blockCount = opType === 'addSection'
+                        ? Object.keys((op as any).section?.blocks || {}).length
+                        : null;
+
+                      return (
+                        <div key={i} className="border rounded-md overflow-hidden">
+                          <button
+                            className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+                            onClick={() => toggleOp(i)}
+                          >
+                            {isExpanded ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+                            <Badge variant="outline" className="text-[10px] font-mono shrink-0">{opType}</Badge>
+                            <span className="text-xs flex-1 truncate">{opLabel}</span>
+                            {blockCount !== null && (
+                              <Badge variant={blockCount > 0 ? 'default' : 'destructive'} className="text-[10px] shrink-0">
+                                {blockCount} blocks
+                              </Badge>
+                            )}
+                          </button>
+                          {isExpanded && (
+                            <pre className="px-3 pb-3 text-[11px] leading-relaxed font-mono text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all bg-muted/30">
+                              {JSON.stringify(op, null, 2)}
+                            </pre>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
         </div>
       </main>
     </div>
