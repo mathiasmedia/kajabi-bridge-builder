@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Brain, Loader2, Trash2, Star, AlertTriangle, CheckCircle, Lightbulb, RefreshCw, Send, Wrench, Download } from 'lucide-react';
+import { ArrowLeft, Brain, Loader2, Trash2, Star, AlertTriangle, CheckCircle, Lightbulb, RefreshCw, Send, Wrench, Download, ImagePlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +44,7 @@ export default function TemplatesPage() {
   const [tweakPrompt, setTweakPrompt] = useState('');
   const [tweaking, setTweaking] = useState(false);
   const [tweakLog, setTweakLog] = useState<Record<string, string[]>>({});
+  const [tweakImage, setTweakImage] = useState<string | null>(null); // base64 data URL
   const [planVersion, setPlanVersion] = useState(0); // force preview re-render
 
   useEffect(() => { loadTemplates(); }, []);
