@@ -353,12 +353,6 @@ function cleanJsxText(text: string): string {
     .trim();
 }
 
-function analyzeComponent(name: string, content: string, files: SourceProjectFiles): ComponentAnalysis {
-  const lower = name.toLowerCase();
-  const evidence: string[] = [];
-  let intent: SectionIntent = 'unknown';
-  let confidence = 0;
-
 // ── Inline section extraction ──
 // When the indexPage has sections defined inline (not as separate component files),
 // parse <section> blocks and analyze each one as if it were a component.
@@ -544,6 +538,12 @@ function analyzeInlineSection(
     media,
   };
 }
+
+function analyzeComponent(name: string, content: string, files: SourceProjectFiles): ComponentAnalysis {
+  const lower = name.toLowerCase();
+  const evidence: string[] = [];
+  let intent: SectionIntent = 'unknown';
+  let confidence = 0;
 
 
   const hasMap = /\.map\(/.test(content);
