@@ -22,6 +22,7 @@ export default function HomePage() {
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
+  const [creatingDefault, setCreatingDefault] = useState(false);
 
   useEffect(() => {
     loadProjects();
