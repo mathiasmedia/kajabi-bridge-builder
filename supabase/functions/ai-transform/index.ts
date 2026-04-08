@@ -1095,7 +1095,7 @@ function normalizeBlock(block: any): { type: string; settings: Record<string, an
 
 // ── Intent classification ──
 
-type SectionIntent = 'hero' | 'stats' | 'feature-grid' | 'program-cards' | 'testimonial-band' | 'cta-band' | 'content-media-split' | 'footer' | 'heading-separator' | 'faq' | 'content';
+type SectionIntent = 'hero' | 'stats' | 'feature-grid' | 'icon-card-row' | 'program-cards' | 'testimonial-band' | 'cta-band' | 'content-media-split' | 'footer' | 'heading-separator' | 'faq' | 'content';
 
 /** Map upstream extractor intent (snake_case) to edge function intent (kebab-case) */
 function mapUpstreamIntent(upstreamIntent: string | undefined): SectionIntent | null {
@@ -1104,6 +1104,7 @@ function mapUpstreamIntent(upstreamIntent: string | undefined): SectionIntent | 
     'hero': 'hero',
     'stats': 'stats',
     'feature_grid': 'feature-grid',
+    'icon_card_row': 'icon-card-row',
     'program_cards': 'program-cards',
     'testimonial_band': 'testimonial-band',
     'cta_band': 'cta-band',
