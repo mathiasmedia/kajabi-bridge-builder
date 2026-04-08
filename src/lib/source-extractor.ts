@@ -359,7 +359,193 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
   let intent: SectionIntent = 'unknown';
   let confidence = 0;
 
-  // ── Structural signals ──
+// ── Inline section extraction ──
+// When the indexPage has sections defined inline (not as separate component files),
+// parse <section> blocks and analyze each one as if it were a component.
+
+function extractInlineSections(indexPage: string, files: SourceProjectFiles): { sections: ExtractedSection[]; warnings: ExtractionWarning[] } {
+  const sections: ExtractedSection[] = [];
+  const warnings: ExtractionWarning[] = [];
+
+  // Split by <section> tags — find each section block
+  const sectionRegex = /(?:\{\/\*\s*([^*]+?)\s*\*\/\}\s*)?<section[\s>]([\s\S]*?)<\/section>/g;
+  let match;
+
+  // Also extract array data defined before the return statement
+  // These are shared across inline sections
+  const arrayDataMap = extractAllArrayData(indexPage);
+
+  while ((match = sectionRegex.exec(indexPage)) !== null) {
+    const comment = (match[1] || '').trim();
+    const sectionContent = match[2];
+
+    // Analyze this inline section block
+    const analysis = analyzeInlineSection(comment, sectionContent, arrayDataMap, files);
+    if (analysis.intent === 'footer_like') continue;
+
+    const legacyType = intentToLegacyType(analysis.intent);
+
+    const section: ExtractedSection = {
+      id: '', // will be set by caller
+      type: legacyType,
+      heading: analysis.heading,
+      body: analysis.body,
+      ctaText: analysis.ctaText,
+      ctaUrl: analysis.ctaUrl,
+      items: analysis.items,
+      intent: analysis.intent,
+      confidence: analysis.confidence,
+      evidence: analysis.evidence,
+      repeatedItemCount: analysis.items?.length || 0,
+      hasHeading: !!analysis.heading,
+      hasBody: !!analysis.body,
+      hasButtons: !!analysis.ctaText,
+      hasImages: analysis.hasImages,
+      hasStats: analysis.intent === 'stats',
+      hasTestimonials: analysis.intent === 'testimonial_band',
+      hasPricing: analysis.hasPricing,
+      hasRepeatedCards: (analysis.items?.length || 0) >= 2,
+      mediaIntent: analysis.media.mediaIntent,
+      mediaConfidence: analysis.media.mediaConfidence,
+      mediaEvidence: analysis.media.mediaEvidence,
+      imageTargets: analysis.media.imageTargets,
+    };
+
+    sections.push(section);
+  }
+
+  return { sections, warnings };
+}
+
+function extractAllArrayData(content: string): Record<string, Record<string, string>[]> {
+  const map: Record<string, Record<string, string>[]> = {};
+  const arrayRegex = /(?:const|let)\s+(\w+)\s*(?::\s*\w+(?:<[^>]+>)?\s*\[\])?\s*=\s*\[([\s\S]*?)\];/g;
+  let match;
+  while ((match = arrayRegex.exec(content)) !== null) {
+    const name = match[1];
+    const items = parseArrayItems(match[2]);
+    if (items.length > 0) map[name] = items;
+  }
+  return map;
+}
+
+function analyzeInlineSection(
+  comment: string,
+  content: string,
+  arrayDataMap: Record<string, Record<string, string>[]>,
+  files: SourceProjectFiles,
+): ComponentAnalysis {
+  const evidence: string[] = [];
+  let intent: SectionIntent = 'unknown';
+  let confidence = 0;
+  const commentLower = comment.toLowerCase();
+
+  // Structural signals
+  const hasH1 = /<h1[\s>]/.test(content);
+  const hasH2 = /<h2[\s>]/.test(content);
+  const hasButton = /<Button[\s>]/.test(content);
+  const hasImg = /<img[\s>]/.test(content);
+  const hasQuote = /quote|testimonial|blockquote/i.test(content);
+  const hasPrice = /price|\$\d/i.test(content);
+  const hasMap = /\.map\(/.test(content);
+
+  // Find which array variable is used in this section via .map()
+  let usedArrayItems: Record<string, string>[] = [];
+  const mapMatch = content.match(/\{(\w+)\.map\(/);
+  if (mapMatch && arrayDataMap[mapMatch[1]]) {
+    usedArrayItems = arrayDataMap[mapMatch[1]];
+  }
+
+  // Extract heading
+  const h2Match = content.match(/<h2[^>]*>([\s\S]*?)<\/h2>/);
+  const heading = h2Match ? cleanJsxText(h2Match[1]) : undefined;
+
+  // Extract body
+  const pMatches = [...content.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)];
+  const bodyTexts = pMatches.map(m => cleanJsxText(m[1])).filter(t => t && t.length > 15);
+  const body = bodyTexts.length > 0 ? bodyTexts[0] : undefined;
+
+  // Extract CTA
+  const btnMatch = content.match(/<Button[^>]*>([A-Za-z][^<]{1,40})/);
+  const ctaText = btnMatch?.[1]?.trim();
+
+  // Intent classification using comment hints + structural signals
+  if (commentLower.includes('hero') || hasH1) {
+    intent = 'hero';
+    confidence = commentLower.includes('hero') ? 0.95 : 0.7;
+    if (commentLower.includes('hero')) evidence.push('Comment indicates hero section');
+    if (hasH1) evidence.push('Contains <h1> tag');
+  } else if (hasQuote && hasMap && usedArrayItems.some(it => it.quote)) {
+    intent = 'testimonial_band';
+    confidence = 0.9;
+    evidence.push(`${usedArrayItems.length} items with quote fields`);
+    if (commentLower.includes('testimonial') || commentLower.includes('social proof')) {
+      evidence.push('Comment indicates testimonials');
+      confidence = 0.95;
+    }
+  } else if (hasMap && usedArrayItems.length >= 2 && usedArrayItems.some(it => it.title && it.description) && !hasQuote) {
+    intent = hasPrice ? 'program_cards' : 'feature_grid';
+    confidence = 0.85;
+    evidence.push(`${usedArrayItems.length} repeated card items`);
+    if (commentLower.includes('problem') || commentLower.includes('feature')) {
+      evidence.push('Comment indicates feature/problem section');
+    }
+  } else if (hasButton && hasH2 && !hasMap && content.length < 2000) {
+    intent = 'cta_band';
+    confidence = 0.8;
+    evidence.push('Contains heading + button without repeated items');
+    if (commentLower.includes('cta')) { evidence.push('Comment indicates CTA'); confidence = 0.95; }
+  } else if (hasH2 && !hasMap && hasButton) {
+    intent = 'content_media_split';
+    confidence = 0.6;
+    evidence.push('Contains heading + content + button');
+    if (commentLower.includes('solution')) { evidence.push('Comment indicates solution section'); }
+  } else {
+    intent = 'unknown';
+    confidence = 0.3;
+    evidence.push('No strong signals matched');
+  }
+
+  // Build items from matched array
+  let items: ExtractedSection['items'] | undefined;
+  if (usedArrayItems.length >= 2) {
+    items = usedArrayItems.map(raw => {
+      const item: NonNullable<ExtractedSection['items']>[0] = {};
+      if (raw.value) item.value = raw.value;
+      if (raw.label) item.heading = raw.label;
+      if (raw.title) item.heading = raw.title;
+      if (raw.heading) item.heading = raw.heading;
+      if (raw.description) item.body = raw.description;
+      if (raw.body) item.body = raw.body;
+      if (raw.quote) item.quote = raw.quote;
+      if (raw.name) item.name = raw.name;
+      if (raw.role) item.role = raw.role;
+      if (raw.author) item.name = raw.author;
+      if (raw.price) item.price = raw.price;
+      if (raw.icon) item.icon = raw.icon;
+      return item;
+    }).filter(item => item.heading || item.quote || item.value);
+  }
+
+  // Media analysis
+  const media = analyzeMedia(intent, content, files, items);
+
+  return {
+    intent,
+    confidence,
+    evidence,
+    heading,
+    body,
+    ctaText,
+    ctaUrl: ctaText ? '/' : undefined,
+    items,
+    hasImages: hasImg,
+    hasPricing: hasPrice,
+    media,
+  };
+}
+
+
   const hasMap = /\.map\(/.test(content);
   const hasH1 = /<h1[\s>]/.test(content);
   const hasH2 = /<h2[\s>]/.test(content);
