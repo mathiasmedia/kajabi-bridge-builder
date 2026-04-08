@@ -326,16 +326,41 @@ Block text must be rich HTML. Use width for column layouts.`;
         model,
         systemPrompt,
         userPrompt,
-        maxTokens: 8000,
+        maxTokens: 12000,
       });
 
-      console.log(`ai-transform [section:${sectionToGenerate.type}] [${model}] finish_reason=${result.finishReason ?? "unknown"}`);
+      const fr = result.finishReason ?? "unknown";
+      console.log(`ai-transform [section:${sectionToGenerate.type}] [${model}] finish_reason=${fr}`);
+
+      // Detect truncation
+      if (fr === "length" || fr === "max_tokens") {
+        console.warn(`ai-transform [section] TRUNCATED — increasing token limit won't help here, using fallback`);
+        lastError = "Response truncated";
+        continue;
+      }
+
+      // Log raw AI output for debugging
+      const rawOps = result.parsed?.operations;
+      if (Array.isArray(rawOps)) {
+        for (const op of rawOps) {
+          if (op?.type === "addSection") {
+            const blockCount = isPlainObject(op.section?.blocks) ? Object.keys(op.section.blocks).length : 0;
+            const blockOrderLen = Array.isArray(op.section?.block_order) ? op.section.block_order.length : 0;
+            console.log(`ai-transform [section] RAW addSection: blocks=${blockCount}, block_order=${blockOrderLen}, sectionType=${op.section?.type}`);
+            if (blockCount > 0) {
+              const firstBlock = Object.values(op.section.blocks)[0] as any;
+              console.log(`ai-transform [section] RAW first block: type=${firstBlock?.type}, hasSettings=${isPlainObject(firstBlock?.settings)}, hasText=${!!firstBlock?.settings?.text}`);
+            }
+          }
+        }
+      }
 
       const parsed = normalizeTransformPayload(result.parsed, availableSectionTypes);
       const addSectionOp = parsed.operations.find((op: any) => op.type === "addSection");
 
       if (addSectionOp) {
-        // Force section type to "section"
+        const finalBlockCount = Object.keys(addSectionOp.section?.blocks || {}).length;
+        console.log(`ai-transform [section] NORMALIZED addSection: blocks=${finalBlockCount}`);
         if (addSectionOp.section) {
           addSectionOp.section.type = "section";
         }
@@ -347,16 +372,19 @@ Block text must be rich HTML. Use width for column layouts.`;
       }
 
       // Try to build from raw response
-      const rawOp = Array.isArray(result.parsed?.operations)
+      const rawAddSection = Array.isArray(result.parsed?.operations)
         ? result.parsed.operations.find((op: any) => op?.type === "addSection")
         : null;
-      if (rawOp) {
-        const finalized = finalizeGeneratedSection(rawOp, sectionToGenerate);
-        if (finalized) return jsonResponse({ operations: [finalized] });
+      if (rawAddSection) {
+        const finalized = finalizeGeneratedSection(rawAddSection, sectionToGenerate);
+        if (finalized) {
+          console.log(`ai-transform [section] used finalizeGeneratedSection fallback`);
+          return jsonResponse({ operations: [finalized] });
+        }
       }
 
       lastError = "No valid addSection operation produced";
-      console.warn(`ai-transform [section] [${model}] ${lastError}`);
+      console.warn(`ai-transform [section] [${model}] ${lastError}`, JSON.stringify(result.parsed).slice(0, 500));
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
       console.warn(`ai-transform [section] [${model}] failed: ${lastError}`);
