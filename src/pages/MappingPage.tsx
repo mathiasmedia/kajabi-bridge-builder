@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
