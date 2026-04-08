@@ -179,7 +179,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       }
 
       // ── Remap fabricated block IDs to actual theme block IDs ──
-      const sections = getThemeSections(baseTheme);
+      const themeSections = getThemeSections(baseTheme);
       for (const op of operations) {
         const opAny = op as any;
         if ((op.type === 'replaceText' || op.type === 'updateBlockSetting') && opAny.sectionId && opAny.blockId) {
