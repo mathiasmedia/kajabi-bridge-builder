@@ -1248,12 +1248,12 @@ function classifySectionIntent(section: any): SectionIntent {
   if (heading.includes('footer') || type === 'footer') return 'footer';
   if (hasStats || heading.includes('stat') || heading.includes('number') || heading.includes('impact') || heading.includes('result')) return 'stats';
   if (hasPricing || heading.includes('program') || heading.includes('course') || heading.includes('service')) return 'program-cards';
-  if ((type === 'cta' || heading.includes('ready to') || heading.includes('get started') || heading.includes('sign up')) && !hasItems) return 'cta-band';
-  // FAQ removed from fallback classification — requires strong upstream evidence only
+  if (section?.hasIcons && hasItems) return 'icon-card-row';
+  if ((type === 'cta' || heading.includes('ready to') || heading.includes('get started') || heading.includes('sign up') || heading.includes('stand out')) && !hasItems) return 'cta-band';
   if (type === 'features' || heading.includes('feature')) return 'feature-grid';
   if (hasItems && !hasCta) return 'feature-grid';
   if (type === 'content' && !hasBody && !hasItems && !hasCta) return 'heading-separator';
-  if (section?.image || heading.includes('about')) return 'content-media-split';
+  if (section?.hasChecklist || section?.image || heading.includes('about') || heading.includes('elevated')) return 'content-media-split';
   if (hasCta && !hasItems) return 'cta-band';
   return 'content';
 }
