@@ -244,28 +244,9 @@ export default function MappingPage() {
             <CardContent className="p-0">
               <ScrollArea className="h-[600px]">
                 <div className="p-3 space-y-1.5">
-                  {changeSummary.map((item, i) => {
-                    const colorClass = OP_TYPE_COLORS[item.type] || 'bg-muted text-muted-foreground border-border';
-                    return (
-                      <div key={i} className="rounded-md border px-3 py-2 group">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono text-muted-foreground w-5 shrink-0 text-right">{i + 1}</span>
-                          <Badge variant="outline" className={`text-[10px] font-mono shrink-0 border ${colorClass}`}>
-                            {item.type}
-                          </Badge>
-                          <span className="text-sm font-medium flex-1 truncate">{item.label}</span>
-                          <button
-                            onClick={() => removeOperation(i)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Remove operation"
-                          >
-                            <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                          </button>
-                        </div>
-                        <pre className="text-[11px] text-muted-foreground mt-1 ml-7 whitespace-pre-wrap font-sans">{item.detail}</pre>
-                      </div>
-                    );
-                  })}
+                  {changeSummary.map((item, i) => (
+                    <OperationRow key={i} item={item} index={i} onRemove={removeOperation} />
+                  ))}
                 </div>
               </ScrollArea>
             </CardContent>
