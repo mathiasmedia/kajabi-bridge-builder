@@ -351,15 +351,17 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       
       // Add CSS overrides if returned
       if (data.cssOverrides && typeof data.cssOverrides === 'string') {
-        // Replace existing CSS override ops
-        const nonCssOps = operations.filter(op => op.type !== 'addCssOverride');
-        nonCssOps.push({
+        const idx = operations.findIndex(op => op.type === 'addCssOverride');
+        const cssOp: TransformationOperation = {
           type: 'addCssOverride',
           css: data.cssOverrides,
           label: 'AI-refined CSS overrides',
-        } as TransformationOperation);
-        operations.length = 0;
-        operations.push(...nonCssOps);
+        };
+        if (idx >= 0) {
+          operations[idx] = cssOp;
+        } else {
+          operations.push(cssOp);
+        }
       }
 
       const improvements: string[] = data.improvements || [];
