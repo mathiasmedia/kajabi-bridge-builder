@@ -414,7 +414,7 @@ export default function TemplatesPage() {
                 </Card>
               ))}
             </div>
-          )}
+          )
         )}
       </main>
     </div>
