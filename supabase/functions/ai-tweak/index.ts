@@ -61,6 +61,19 @@ serve(async (req) => {
 ${imageBase64 ? `## IMAGE ANALYSIS
 An image is attached. Analyze colors, fonts, layout, and text precisely. Apply changes to match.` : ''}
 
+## KAJABI HTML STRUCTURE
+All sections render via section.liquid with this HTML:
+- Section wrapper: \`#section-{sectionId} > section.section > .sizer > .section__overlay + .container > .row\`
+- Background color is on \`.section__overlay\` (absolute positioned)
+- Padding is on \`.sizer\`
+- Blocks: \`#block-{blockId}.block-type--{type}.col-{width} > .block\`
+- Text blocks render HTML directly inside \`.block\`
+- Feature blocks: \`.feature > .feature__image + .feature__text\`
+- Feature icon blocks: \`.feature > .feature-icon + .feature__text\`
+- Buttons: \`.btn.btn--{size}.btn--{style}\`
+- NEVER use made-up classes like .hero__heading, .text-column__heading
+- Target real classes: .section, .sizer, .container, .block, .btn, .feature
+
 ## PATCH FORMAT
 Return a JSON object with these optional arrays:
 
@@ -83,6 +96,7 @@ Return a JSON object with these optional arrays:
 - "replaceCss": if the addCssOverride needs changes, provide the COMPLETE new CSS string. This replaces the existing one.
 - Keep patches minimal — only change what the tweak instruction asks for
 - Do NOT return unchanged operations
+- CSS selectors MUST use real Kajabi classes (see HTML structure above)
 
 ## OPERATION TYPES (for "add")
 - updateGlobalSetting: { type, key, value, label }
@@ -92,7 +106,7 @@ Return a JSON object with these optional arrays:
 - hideSection / showSection: { type, sectionId }
 - addCssOverride: { type, css, label }
 - updateNavigation: { type, menuId, links:[{name,url}] }
-- addSection: { type, sectionId, section:{type,settings,blocks,block_order}, label }
+- addSection: { type, sectionId, section:{ type:"section", settings, blocks, block_order }, label }
 
 Return ONLY valid JSON. No markdown fences.`;
 
