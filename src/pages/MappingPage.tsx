@@ -242,6 +242,8 @@ export default function MappingPage() {
             </CardContent>
           </Card>
         </div>
+
+        <RenderCheckPanel />
       </main>
     </div>
   );
