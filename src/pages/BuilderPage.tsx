@@ -200,6 +200,9 @@ export default function BuilderPage() {
             )}
           </div>
           <div className="flex items-center gap-1.5">
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleUndo} disabled={planHistory.length === 0}>
+              <Undo2 className="mr-1 h-3 w-3" /> Undo
+            </Button>
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleExport}>
               <Download className="mr-1 h-3 w-3" /> Export Zip
             </Button>
