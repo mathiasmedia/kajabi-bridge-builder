@@ -1043,7 +1043,9 @@ function intentToLegacyType(intent: SectionIntent): ExtractedSection['type'] {
 function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
   let copyright: string | undefined;
   let logoText: string | undefined;
+  let description: string | undefined;
   const linkGroups: Record<string, Array<{ name: string; url: string }>> = {};
+  const socialLinks: Array<{ platform: string; url: string }> = [];
   
   // Try to extract from footer component
   for (const [path, content] of Object.entries(files.components)) {
@@ -1054,9 +1056,26 @@ function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
     
     const copyrightMatch = content.match(/©\s*\d{4}\s*([^<"]+)/);
     if (copyrightMatch) copyright = `© ${copyrightMatch[0].trim()}`;
+
+    // Extract brand description (paragraph near logo in footer)
+    const descMatch = content.match(/(?:max-w-|leading-relaxed|text-primary-foreground)[^>]*>\s*([^<]{20,200})/);
+    if (descMatch) description = descMatch[1].trim();
+    
+    // Extract social links
+    const socialRegex = /href=["'](https?:\/\/(?:instagram|linkedin|twitter|facebook|youtube|tiktok)[^"']+)["']/gi;
+    let sm;
+    while ((sm = socialRegex.exec(content)) !== null) {
+      const url = sm[1];
+      const platform = url.match(/(?:instagram|linkedin|twitter|facebook|youtube|tiktok)/i)?.[0]?.toLowerCase() || 'link';
+      if (!socialLinks.some(s => s.platform === platform)) {
+        socialLinks.push({ platform, url });
+      }
+    }
+    // Also detect mailto
+    const mailMatch = content.match(/href=["'](mailto:[^"']+)["']/);
+    if (mailMatch) socialLinks.push({ platform: 'email', url: mailMatch[1] });
     
     // Extract link groups from footer
-    // Pattern: footerLinks = { company: [...], resources: [...] }
     const groupRegex = /(\w+)\s*:\s*\[\s*((?:\{[^}]*\}\s*,?\s*)+)\]/g;
     let gMatch;
     while ((gMatch = groupRegex.exec(content)) !== null) {
@@ -1071,7 +1090,7 @@ function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
       if (links.length > 0) linkGroups[groupName] = links;
     }
     
-    // Fallback: inline links (including href="#" placeholder links)
+    // Fallback: inline links
     if (Object.keys(linkGroups).length === 0) {
       const inlineLinks: Array<{ name: string; url: string }> = [];
       const linkRegex = /(?:to|href)=["']([^"']+)["'][^>]*>([^<{]+)</g;
@@ -1081,8 +1100,8 @@ function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
         const url = lm[1];
         if (name && name.length < 30 && !/icon|svg|className/i.test(name)) {
           inlineLinks.push({ name, url: url === '#' ? '/' : url });
+        }
       }
-    }
       if (inlineLinks.length > 0) linkGroups['main'] = inlineLinks;
     }
   }
@@ -1100,7 +1119,10 @@ function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
     textColor: '#ffffff',
     columns: Object.keys(linkGroups).length > 1 ? Object.keys(linkGroups).length + 1 : 2,
     copyright: copyright || `© ${new Date().getFullYear()} ${logoText || ''} All rights reserved.`.trim(),
+    socialLinks: socialLinks.length > 0 ? socialLinks : undefined,
     linkGroups: Object.keys(linkGroups).length > 0 ? linkGroups : undefined,
+    description,
+    logoText,
   };
 }
 
