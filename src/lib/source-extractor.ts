@@ -148,8 +148,8 @@ function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
       }
     }
     
-    // Nav links from header/nav components
-    if (lower.includes('nav') || lower.includes('header')) {
+    // Nav links from header/nav/footer components
+    if (lower.includes('nav') || lower.includes('header') || lower.includes('footer')) {
       // Array-style nav: const navLinks = [{ name: "Home", path: "/" }, ...]
       const arrayMatch = content.match(/(?:navLinks|links|navItems|menuItems)\s*=\s*\[([\s\S]*?)\];/);
       if (arrayMatch) {
@@ -160,11 +160,13 @@ function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
         }
       }
       
-      // Inline links: <Link to="/about">About</Link> or <a href="/about">About</a>
-      const linkRegex = /(?:to|href)=["']([^"'#]+)["'][^>]*>([^<{]+)</g;
+      // Inline links (including href="#" placeholder links from footers)
+      const linkRegex = /(?:to|href)=["']([^"']+)["'][^>]*>([^<{]+)</g;
       let match;
       while ((match = linkRegex.exec(content)) !== null) {
-        addNavItem(match[2], match[1]);
+        const url = match[1];
+        const name = match[2].trim();
+        addNavItem(name, url === '#' ? '/' : url);
       }
     }
   }
