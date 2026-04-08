@@ -30,6 +30,12 @@ export function applyStreamlinedHomeRecipes(
   const warnings: ValidationWarning[] = [];
   let ops = [...operations];
 
+  // Detect dark site from design colors
+  const isDark = extractedDesign ? detectDarkDesign(extractedDesign) : false;
+  const darkCardBg = isDark && extractedDesign
+    ? lightenHex(extractedDesign.colors.find(c => c.usage === 'background')?.value || '#0b1214', 0.15)
+    : '#FFFFFF';
+
   ops = ops.map(op => {
     if (op.type !== 'addSection') return op;
 
@@ -37,19 +43,19 @@ export function applyStreamlinedHomeRecipes(
     const intent = matchingSection?.intent;
 
     if (intent === 'program_cards') {
-      return applyProgramCardRecipe(op, matchingSection!, warnings);
+      return applyProgramCardRecipe(op, matchingSection!, warnings, isDark, darkCardBg);
     }
 
     if (intent === 'cta_band') {
-      return applyCtaBandRecipe(op, matchingSection!, warnings);
+      return applyCtaBandRecipe(op, matchingSection!, warnings, isDark, darkCardBg);
     }
 
     if (intent === 'testimonial_band') {
-      return applyTestimonialRecipe(op, matchingSection!, warnings);
+      return applyTestimonialRecipe(op, matchingSection!, warnings, isDark, darkCardBg);
     }
 
      if (intent === 'icon_card_row') {
-      return applyIconCardRowRecipe(op, matchingSection!, warnings);
+      return applyIconCardRowRecipe(op, matchingSection!, warnings, isDark, darkCardBg);
     }
 
     if (intent === 'content_media_split') {
@@ -166,6 +172,8 @@ function applyProgramCardRecipe(
   op: Extract<TransformationOperation, { type: 'addSection' }>,
   section: ExtractedSection,
   warnings: ValidationWarning[],
+  isDark: boolean = false,
+  darkCardBg: string = '#FFFFFF',
 ): TransformationOperation {
   const blocks = { ...op.section.blocks };
   const blockOrder = [...(op.section.block_order || [])];
@@ -206,8 +214,8 @@ function applyProgramCardRecipe(
 
       // Card shell styling
       block.settings.image_border_radius = '8';
-      block.settings.background_color = block.settings.background_color || '#FFFFFF';
-      block.settings.box_shadow = block.settings.box_shadow || 'medium';
+      block.settings.background_color = block.settings.background_color || (isDark ? darkCardBg : '#FFFFFF');
+      block.settings.box_shadow = block.settings.box_shadow || (isDark ? 'none' : 'medium');
       block.settings.border_radius = block.settings.border_radius || '12';
       block.settings.padding_desktop = block.settings.padding_desktop || {
         top: '20', right: '20', bottom: '20', left: '20',
@@ -254,6 +262,8 @@ function applyTestimonialRecipe(
   op: Extract<TransformationOperation, { type: 'addSection' }>,
   section: ExtractedSection,
   warnings: ValidationWarning[],
+  isDark: boolean = false,
+  darkCardBg: string = '#FFFFFF',
 ): TransformationOperation {
   const blocks = { ...op.section.blocks };
   const blockOrder = [...(op.section.block_order || [])];
@@ -270,8 +280,8 @@ function applyTestimonialRecipe(
     // Apply card shell to testimonial blocks
     if (block.type === 'text' || block.type === 'feature') {
       // Card shell styling for testimonial panels
-      block.settings.background_color = block.settings.background_color || '#FFFFFF';
-      block.settings.box_shadow = block.settings.box_shadow || 'medium';
+      block.settings.background_color = block.settings.background_color || (isDark ? darkCardBg : '#FFFFFF');
+      block.settings.box_shadow = block.settings.box_shadow || (isDark ? 'none' : 'medium');
       block.settings.border_radius = block.settings.border_radius || '12';
       block.settings.padding_desktop = block.settings.padding_desktop || {
         top: '24', right: '24', bottom: '24', left: '24',
@@ -307,6 +317,8 @@ function applyIconCardRowRecipe(
   op: Extract<TransformationOperation, { type: 'addSection' }>,
   section: ExtractedSection,
   warnings: ValidationWarning[],
+  isDark: boolean = false,
+  darkCardBg: string = '#FFFFFF',
 ): TransformationOperation {
   const blocks = { ...op.section.blocks };
   const blockOrder = [...(op.section.block_order || [])];
@@ -318,8 +330,8 @@ function applyIconCardRowRecipe(
     if (block.type === 'text' && block.settings.width === '12') continue;
 
     if (block.type === 'text' || block.type === 'feature') {
-      block.settings.background_color = block.settings.background_color || '#FFFFFF';
-      block.settings.box_shadow = block.settings.box_shadow || 'medium';
+      block.settings.background_color = block.settings.background_color || (isDark ? darkCardBg : '#FFFFFF');
+      block.settings.box_shadow = block.settings.box_shadow || (isDark ? 'none' : 'medium');
       block.settings.border_radius = block.settings.border_radius || '12';
       block.settings.padding_desktop = block.settings.padding_desktop || { top: '24', right: '24', bottom: '24', left: '24' };
       block.settings.padding_mobile = block.settings.padding_mobile || { top: '20', right: '20', bottom: '20', left: '20' };
@@ -343,6 +355,8 @@ function applyCtaBandRecipe(
   op: Extract<TransformationOperation, { type: 'addSection' }>,
   section: ExtractedSection,
   warnings: ValidationWarning[],
+  isDark: boolean = false,
+  darkCardBg: string = '#FFFFFF',
 ): TransformationOperation {
   const blocks = { ...op.section.blocks };
   let blockOrder = [...(op.section.block_order || [])];
