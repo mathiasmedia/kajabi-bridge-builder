@@ -373,8 +373,23 @@ export default function TemplatesPage() {
                   </ScrollArea>
 
                   {/* Tweak input pinned at bottom */}
-                  <div className="p-2 border-t shrink-0">
+                  <div className="p-2 border-t shrink-0 space-y-1.5">
+                    {tweakImage && (
+                      <div className="relative inline-block">
+                        <img src={tweakImage} alt="Tweak reference" className="h-12 rounded border border-border" />
+                        <button
+                          onClick={() => setTweakImage(null)}
+                          className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
                     <div className="flex gap-1.5">
+                      <label className="cursor-pointer flex items-center justify-center h-8 w-8 shrink-0 rounded-md border border-input bg-background hover:bg-accent transition-colors">
+                        <ImagePlus className="h-3.5 w-3.5 text-muted-foreground" />
+                        <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={tweaking} />
+                      </label>
                       <Input
                         placeholder="Describe a tweak…"
                         value={tweakPrompt}
@@ -387,7 +402,7 @@ export default function TemplatesPage() {
                         size="icon"
                         className="h-8 w-8 shrink-0"
                         onClick={() => handleTweakSubmit(selected)}
-                        disabled={!tweakPrompt.trim() || tweaking}
+                        disabled={(!tweakPrompt.trim() && !tweakImage) || tweaking}
                       >
                         <Send className="h-3.5 w-3.5" />
                       </Button>
