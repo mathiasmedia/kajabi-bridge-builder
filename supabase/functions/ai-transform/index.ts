@@ -390,6 +390,9 @@ ${imageContext}
 - Evidence: ${(sectionToGenerate.evidence || []).join('; ') || 'none'}
 - Flags: hasHeading=${sectionToGenerate.hasHeading ?? false}, hasBody=${sectionToGenerate.hasBody ?? false}, hasButtons=${sectionToGenerate.hasButtons ?? false}, hasImages=${sectionToGenerate.hasImages ?? false}, hasStats=${sectionToGenerate.hasStats ?? false}, hasTestimonials=${sectionToGenerate.hasTestimonials ?? false}, hasPricing=${sectionToGenerate.hasPricing ?? false}, hasRepeatedCards=${sectionToGenerate.hasRepeatedCards ?? false}
 - Repeated items: ${sectionToGenerate.repeatedItemCount ?? 0}
+- Media intent: ${sectionToGenerate.mediaIntent || 'no_media'} (confidence: ${sectionToGenerate.mediaConfidence ?? 0})
+- Media evidence: ${(sectionToGenerate.mediaEvidence || []).join('; ') || 'none'}
+- Image targets: ${(sectionToGenerate.imageTargets || []).map((t: any) => `${t.role}${t.url ? ': ' + t.url : ''}`).join(', ') || 'none'}
 
 ## Source section content
 - Heading: ${sectionToGenerate.heading || "none"}
