@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Brain, Loader2, Trash2, Star, Lightbulb,
@@ -66,6 +66,7 @@ interface Template {
   plan_json: any;
   extracted_design_json: any;
   ai_critique: string | null;
+  reference_images: string[];
 }
 
 interface AICritique {
@@ -88,17 +89,18 @@ export default function BuilderPage() {
   const [tweakLog, setTweakLog] = useState<string[]>([]);
   const [planHistory, setPlanHistory] = useState<any[]>([]);
   const [planVersion, setPlanVersion] = useState(0);
+  const refImageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!id) return;
     (async () => {
       const { data, error } = await supabase
         .from('saved_templates')
-        .select('id, name, source_project_name, plan_json, extracted_design_json, ai_critique')
+        .select('id, name, source_project_name, plan_json, extracted_design_json, ai_critique, reference_images')
         .eq('id', id)
         .single();
       if (error || !data) { toast.error('Project not found'); navigate('/'); return; }
-      setTemplate(data as Template);
+      setTemplate({ ...data, reference_images: (data.reference_images as string[]) || [] } as Template);
       if (data.ai_critique) { try { setCritique(JSON.parse(data.ai_critique)); } catch {} }
       setLoading(false);
     })();
@@ -242,6 +244,33 @@ export default function BuilderPage() {
     toast.success('Undone');
   };
 
+  const handleRefImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !template) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      const updated = [...(template.reference_images || []), dataUrl];
+      await supabase.from('saved_templates')
+        .update({ reference_images: updated })
+        .eq('id', template.id);
+      setTemplate(prev => prev ? { ...prev, reference_images: updated } : prev);
+      toast.success('Reference image added');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const removeRefImage = async (idx: number) => {
+    if (!template) return;
+    const updated = template.reference_images.filter((_, i) => i !== idx);
+    await supabase.from('saved_templates')
+      .update({ reference_images: updated })
+      .eq('id', template.id);
+    setTemplate(prev => prev ? { ...prev, reference_images: updated } : prev);
+  };
+
   const handleDelete = async () => {
     if (!template) return;
     const { error } = await supabase.from('saved_templates').delete().eq('id', template.id);
@@ -304,7 +333,41 @@ export default function BuilderPage() {
                 🔧 Tweak & Refine
               </h3>
 
-              {/* Critique results */}
+              {/* Reference images */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-medium text-muted-foreground">📸 Page References</h4>
+                  <button
+                    onClick={() => refImageInputRef.current?.click()}
+                    className="text-[10px] text-primary hover:underline"
+                  >
+                    + Add
+                  </button>
+                  <input ref={refImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleRefImageUpload} />
+                </div>
+                {template.reference_images.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {template.reference_images.map((img, i) => (
+                      <div key={i} className="relative group">
+                        <img src={img} alt={`ref-${i}`} className="h-14 w-14 object-cover rounded border border-border" />
+                        <button
+                          onClick={() => removeRefImage(i)}
+                          className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {template.extracted_design_json?.visionDesign && (
+                  <p className="text-[10px] text-muted-foreground">
+                    ✅ Brand extracted: {template.extracted_design_json.visionDesign.overallStyle || 'analyzed'}
+                  </p>
+                )}
+              </div>
+
+
               {critique && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">

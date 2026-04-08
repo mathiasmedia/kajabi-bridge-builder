@@ -23,6 +23,7 @@ export type Database = {
           name: string
           notes: string | null
           plan_json: Json
+          reference_images: Json | null
           source_project_id: string | null
           source_project_name: string | null
           updated_at: string
@@ -36,6 +37,7 @@ export type Database = {
           name: string
           notes?: string | null
           plan_json: Json
+          reference_images?: Json | null
           source_project_id?: string | null
           source_project_name?: string | null
           updated_at?: string
@@ -49,6 +51,7 @@ export type Database = {
           name?: string
           notes?: string | null
           plan_json?: Json
+          reference_images?: Json | null
           source_project_id?: string | null
           source_project_name?: string | null
           updated_at?: string
