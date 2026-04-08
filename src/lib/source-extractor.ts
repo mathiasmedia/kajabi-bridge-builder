@@ -258,22 +258,34 @@ function extractSections(files: SourceProjectFiles): ExtractedSection[] {
           ctaUrl = hrefMatch ? (hrefMatch[1] || hrefMatch[2]) : '/';
         }
         
-        // Extract repeated items (cards, features, stats)
+        // Extract repeated items (cards, features, stats, testimonials)
         const mapMatch = content.match(/\.map\(\s*\(\s*(\w+)/);
         if (mapMatch) {
-          // Look for data arrays
           const arrayMatch = content.match(/(?:const|let)\s+\w+\s*=\s*\[([\s\S]*?)\]/);
           if (arrayMatch) {
             const itemMatches = [...arrayMatch[1].matchAll(/\{([^}]+)\}/g)];
             items = itemMatches.slice(0, 8).map(m => {
               const itemStr = m[1];
-              const titleMatch = itemStr.match(/(?:title|heading|name|label)\s*:\s*["']([^"']+)["']/);
-              const descMatch = itemStr.match(/(?:description|body|text|subtitle)\s*:\s*["']([^"']+)["']/);
+              const titleMatch = itemStr.match(/(?:title|heading|name|label|author)\s*:\s*["']([^"']+)["']/);
+              const descMatch = itemStr.match(/(?:description|body|text|quote|testimonial|copy)\s*:\s*["']([^"']+)["']/);
+              const metaMatch = itemStr.match(/(?:meta|subtitle|role|duration|location|details)\s*:\s*["']([^"']+)["']/);
               const valueMatch = itemStr.match(/(?:value|stat|number|count|amount|price)\s*:\s*["']([^"']+)["']/);
               const iconMatch = itemStr.match(/(?:icon|image)\s*:\s*["']?(\w+)["']?/);
+              const hasPriceLikeValue = /(?:price|amount)\s*:/.test(itemStr);
+
+              const heading = titleMatch?.[1] || valueMatch?.[1];
+              const bodyParts: string[] = [];
+
+              if (descMatch?.[1]) bodyParts.push(descMatch[1]);
+              if (metaMatch?.[1]) bodyParts.push(metaMatch[1]);
+              if (hasPriceLikeValue && valueMatch?.[1]) bodyParts.push(valueMatch[1]);
+              if (!descMatch?.[1] && !metaMatch?.[1] && titleMatch?.[1] && valueMatch?.[1] && !hasPriceLikeValue) {
+                bodyParts.push(titleMatch[1]);
+              }
+
               return {
-                heading: titleMatch?.[1] || valueMatch?.[1],
-                body: descMatch?.[1] || (titleMatch && valueMatch ? titleMatch[1] : undefined),
+                heading,
+                body: bodyParts.length > 0 ? bodyParts.join(' · ') : undefined,
                 icon: iconMatch?.[1],
                 value: valueMatch?.[1],
               };
