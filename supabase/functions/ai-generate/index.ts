@@ -69,18 +69,22 @@ Return valid JSON:
 
 Return ONLY valid JSON. No markdown fences.`;
 
+    // Use faster model for text-only, pro for images
+    const hasImages = referenceImages && referenceImages.length > 0;
+    const model = hasImages ? "google/gemini-2.5-flash" : "google/gemini-2.5-flash";
+
     let userContent: any;
     const textPart = `Project name: ${name}
 ${referenceUrl ? `Reference URL: ${referenceUrl}` : ''}
 ${description ? `Design description: ${description}` : ''}
-${!referenceUrl && !description && (!referenceImages || referenceImages.length === 0) ? 'Create a modern, professional business website template.' : ''}
+${!referenceUrl && !description && !hasImages ? 'Create a modern, professional business website template.' : ''}
 
 Generate the complete transformation plan as JSON.`;
 
-    if (referenceImages && referenceImages.length > 0) {
+    if (hasImages) {
       userContent = [
         { type: "text", text: textPart },
-        ...referenceImages.slice(0, 4).map((img: string) => ({
+        ...referenceImages.slice(0, 2).map((img: string) => ({
           type: "image_url",
           image_url: { url: img },
         })),
@@ -96,7 +100,7 @@ Generate the complete transformation plan as JSON.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model,
         max_tokens: 8192,
         messages: [
           { role: "system", content: systemPrompt },
