@@ -308,6 +308,7 @@ export interface ChangeSummaryItem {
   type: string;
   label: string;
   detail: string;
+  json?: string;
 }
 
 export function generateChangeSummary(plan: TransformationPlan): ChangeSummaryItem[] {
@@ -327,12 +328,11 @@ export function generateChangeSummary(plan: TransformationPlan): ChangeSummaryIt
       case 'addAsset': return { type: op.type, label: `Add asset`, detail: `File: ${op.fileName}` };
       case 'addSection': {
         const blocks = op.section?.blocks || {};
-        const blockEntries = Object.values(blocks);
+        const blockEntries = Object.entries(blocks);
         const bgColor = op.section?.settings?.background_color || 'none';
-        const blockDetails = blockEntries.map((b: any, i: number) => {
+        const blockDetails = blockEntries.map(([bid, b]: [string, any], i: number) => {
           const type = b.type || '?';
           const text = b.settings?.text || '';
-          // Extract readable preview from HTML
           const stripped = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
           const preview = stripped.slice(0, 60);
           const btnText = b.settings?.btn_text;
@@ -342,10 +342,12 @@ export function generateChangeSummary(plan: TransformationPlan): ChangeSummaryIt
           if (btnText) desc += ` [btn: ${btnText}]`;
           return `  ${i + 1}. ${desc}`;
         });
+        const jsonDump = JSON.stringify({ sectionId: op.sectionId, type: op.section.type, settings: op.section.settings, block_order: op.section.block_order, blocks: op.section.blocks }, null, 2);
         return { 
           type: op.type, 
           label: op.label, 
-          detail: `${blockEntries.length} blocks · bg: ${bgColor}\n${blockDetails.join('\n')}` 
+          detail: `${blockEntries.length} blocks · bg: ${bgColor}\n${blockDetails.join('\n')}`,
+          json: jsonDump,
         };
       }
       case 'addBlock': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Block: ${op.blockId} · Type: ${op.block.type}` };

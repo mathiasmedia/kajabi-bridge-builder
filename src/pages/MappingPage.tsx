@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Check, X, AlertTriangle, Info, Download, Loader2, ShieldCheck, ShieldAlert, Wrench, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -244,34 +244,50 @@ export default function MappingPage() {
             <CardContent className="p-0">
               <ScrollArea className="h-[600px]">
                 <div className="p-3 space-y-1.5">
-                  {changeSummary.map((item, i) => {
-                    const colorClass = OP_TYPE_COLORS[item.type] || 'bg-muted text-muted-foreground border-border';
-                    return (
-                      <div key={i} className="rounded-md border px-3 py-2 group">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono text-muted-foreground w-5 shrink-0 text-right">{i + 1}</span>
-                          <Badge variant="outline" className={`text-[10px] font-mono shrink-0 border ${colorClass}`}>
-                            {item.type}
-                          </Badge>
-                          <span className="text-sm font-medium flex-1 truncate">{item.label}</span>
-                          <button
-                            onClick={() => removeOperation(i)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Remove operation"
-                          >
-                            <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                          </button>
-                        </div>
-                        <pre className="text-[11px] text-muted-foreground mt-1 ml-7 whitespace-pre-wrap font-sans">{item.detail}</pre>
-                      </div>
-                    );
-                  })}
+                  {changeSummary.map((item, i) => (
+                    <OperationRow key={i} item={item} index={i} onRemove={removeOperation} />
+                  ))}
                 </div>
               </ScrollArea>
             </CardContent>
           </Card>
         </div>
       </main>
+    </div>
+  );
+}
+
+function OperationRow({ item, index, onRemove }: { item: import('@/lib/kajabi-exporter').ChangeSummaryItem; index: number; onRemove: (i: number) => void }) {
+  const [showJson, setShowJson] = useState(false);
+  const colorClass = OP_TYPE_COLORS[item.type] || 'bg-muted text-muted-foreground border-border';
+
+  return (
+    <div className="rounded-md border px-3 py-2 group">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-mono text-muted-foreground w-5 shrink-0 text-right">{index + 1}</span>
+        <Badge variant="outline" className={`text-[10px] font-mono shrink-0 border ${colorClass}`}>
+          {item.type}
+        </Badge>
+        <span className="text-sm font-medium flex-1 truncate">{item.label}</span>
+        {item.json && (
+          <button onClick={() => setShowJson(!showJson)} className="text-muted-foreground hover:text-foreground" title="Toggle JSON">
+            {showJson ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </button>
+        )}
+        <button
+          onClick={() => onRemove(index)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          title="Remove operation"
+        >
+          <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+        </button>
+      </div>
+      <pre className="text-[11px] text-muted-foreground mt-1 ml-7 whitespace-pre-wrap font-sans">{item.detail}</pre>
+      {showJson && item.json && (
+        <pre className="text-[10px] text-muted-foreground mt-2 ml-7 whitespace-pre-wrap font-mono bg-muted/50 rounded p-2 max-h-[300px] overflow-auto">
+          {item.json}
+        </pre>
+      )}
     </div>
   );
 }
