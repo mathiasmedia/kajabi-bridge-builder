@@ -950,16 +950,18 @@ function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
       if (links.length > 0) linkGroups[groupName] = links;
     }
     
-    // Fallback: inline links  
+    // Fallback: inline links (including href="#" placeholder links)
     if (Object.keys(linkGroups).length === 0) {
       const inlineLinks: Array<{ name: string; url: string }> = [];
-      const linkRegex = /(?:to|href)=["']([^"'#]+)["'][^>]*>([^<{]+)</g;
+      const linkRegex = /(?:to|href)=["']([^"']+)["'][^>]*>([^<{]+)</g;
       let lm;
       while ((lm = linkRegex.exec(content)) !== null) {
         const name = lm[2].trim();
+        const url = lm[1];
         if (name && name.length < 30 && !/icon|svg|className/i.test(name)) {
-          inlineLinks.push({ name, url: lm[1] });
+          inlineLinks.push({ name, url: url === '#' ? '/' : url });
         }
+      }
       }
       if (inlineLinks.length > 0) linkGroups['main'] = inlineLinks;
     }
