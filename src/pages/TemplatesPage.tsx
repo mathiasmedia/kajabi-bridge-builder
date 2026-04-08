@@ -217,176 +217,206 @@ export default function TemplatesPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-[300px_1fr] gap-6">
-            {/* Template list */}
-            <ScrollArea className="h-[calc(100vh-200px)]">
-              <div className="space-y-2 pr-2">
-                {templates.map(t => (
-                  <Card
-                    key={t.id}
-                    className={`cursor-pointer transition-colors hover:border-primary/50 ${selectedId === t.id ? 'border-primary' : ''}`}
-                    onClick={() => setSelectedId(t.id)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-medium truncate">{t.name}</p>
-                          <p className="text-xs text-muted-foreground">{t.source_project_name}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(t.created_at).toLocaleDateString()} · {t.plan_json?.operations?.length || 0} ops
-                          </p>
+          {/* Full-width layout when template selected */}
+          {selected ? (
+            <div className="flex gap-4 h-[calc(100vh-160px)]">
+              {/* Left sidebar: template list + tweak panel */}
+              <div className="w-[340px] shrink-0 flex flex-col gap-3 min-h-0">
+                {/* Template selector (compact) */}
+                <ScrollArea className="h-[140px] shrink-0">
+                  <div className="space-y-1 pr-2">
+                    {templates.map(t => (
+                      <div
+                        key={t.id}
+                        className={`cursor-pointer rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent ${selectedId === t.id ? 'bg-accent border border-primary' : ''}`}
+                        onClick={() => setSelectedId(t.id)}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium truncate">{t.name}</span>
+                          {critiques[t.id] && (
+                            <Badge variant="outline" className="text-[10px] shrink-0">
+                              <Star className="h-3 w-3 mr-0.5" />{critiques[t.id].score}
+                            </Badge>
+                          )}
                         </div>
-                        {critiques[t.id] && (
-                          <Badge variant="outline" className="text-xs shrink-0">
-                            <Star className="h-3 w-3 mr-1" />{critiques[t.id].score}/10
-                          </Badge>
-                        )}
+                        <p className="text-xs text-muted-foreground truncate">{t.source_project_name} · {t.plan_json?.operations?.length || 0} ops</p>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </ScrollArea>
+                    ))}
+                  </div>
+                </ScrollArea>
 
-            {/* Detail panel */}
-            {selected ? (
-              <div className="space-y-4">
-                {/* Header */}
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <CardTitle>{selected.name}</CardTitle>
-                      <div className="flex gap-2 flex-wrap">
-                        <Button size="sm" variant="outline" onClick={() => handleDownloadZip(selected)}>
-                          <Download className="mr-2 h-4 w-4" /> Download Zip
-                        </Button>
-                        <Button size="sm" onClick={() => handleReExport(selected)}>
-                          <RefreshCw className="mr-2 h-4 w-4" /> Re-export
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleCritique(selected)} disabled={critiquing === selected.id}>
-                          {critiquing === selected.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
-                          Critique
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(selected.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-1 text-sm">
-                    <p><span className="text-muted-foreground">Source:</span> {selected.source_project_name} · <span className="text-muted-foreground">Ops:</span> {selected.plan_json?.operations?.length || 0} · <span className="text-muted-foreground">Created:</span> {new Date(selected.created_at).toLocaleString()}</p>
-                  </CardContent>
-                </Card>
+                {/* Actions bar */}
+                <div className="flex gap-1.5 flex-wrap shrink-0">
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleDownloadZip(selected)}>
+                    <Download className="mr-1 h-3 w-3" /> Zip
+                  </Button>
+                  <Button size="sm" className="h-7 text-xs" onClick={() => handleReExport(selected)}>
+                    <RefreshCw className="mr-1 h-3 w-3" /> Re-export
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleCritique(selected)} disabled={critiquing === selected.id}>
+                    {critiquing === selected.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Brain className="mr-1 h-3 w-3" />}
+                    Critique
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleDelete(selected.id)}>
+                    <Trash2 className="h-3 w-3 text-destructive" />
+                  </Button>
+                </div>
 
-                {/* Tweak bar */}
-                <Card>
-                  <CardContent className="pt-4 pb-3 space-y-3">
-                    {/* Critique issues */}
-                    {selectedCritique && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">Score: {selectedCritique.score}/10</span>
-                          <Badge variant="outline" className="text-xs">{selectedCritique.issues?.length || 0} issues</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{selectedCritique.summary}</p>
+                {/* Critique & tweak panel */}
+                <div className="flex-1 min-h-0 flex flex-col border rounded-lg overflow-hidden">
+                  <div className="px-3 py-2 border-b bg-muted/30 shrink-0">
+                    <h3 className="text-sm font-medium flex items-center gap-1.5">
+                      <Wrench className="h-3.5 w-3.5 text-primary" /> Tweak & Refine
+                    </h3>
+                  </div>
 
-                        {selectedCritique.issues?.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5">
-                            {selectedCritique.issues.map((issue, i) => (
-                              <div key={i} className="text-xs border border-border rounded p-2 flex-1 min-w-[200px]">
-                                <div className="flex items-center justify-between gap-1 mb-1">
-                                  <Badge variant={issue.severity === 'critical' ? 'destructive' : 'outline'} className="text-[10px]">
-                                    {issue.severity}
-                                  </Badge>
-                                  {issue.fix && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 px-2 text-[10px] text-primary hover:text-primary"
-                                      onClick={() => applyTweak(selected, issue.fix)}
-                                      disabled={tweaking}
-                                    >
-                                      <Wrench className="h-3 w-3 mr-1" /> Apply Fix
-                                    </Button>
-                                  )}
+                  <ScrollArea className="flex-1 min-h-0">
+                    <div className="p-3 space-y-3">
+                      {/* Critique issues */}
+                      {selectedCritique && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Score: {selectedCritique.score}/10</span>
+                            <Badge variant="outline" className="text-xs">{selectedCritique.issues?.length || 0} issues</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{selectedCritique.summary}</p>
+
+                          {selectedCritique.issues?.length > 0 && (
+                            <div className="space-y-1.5">
+                              {selectedCritique.issues.map((issue, i) => (
+                                <div key={i} className="text-xs border border-border rounded p-2">
+                                  <div className="flex items-center justify-between gap-1 mb-1">
+                                    <Badge variant={issue.severity === 'critical' ? 'destructive' : 'outline'} className="text-[10px]">
+                                      {issue.severity}
+                                    </Badge>
+                                    {issue.fix && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-5 px-1.5 text-[10px] text-primary hover:text-primary"
+                                        onClick={() => applyTweak(selected, issue.fix)}
+                                        disabled={tweaking}
+                                      >
+                                        <Wrench className="h-3 w-3 mr-0.5" /> Fix
+                                      </Button>
+                                    )}
+                                  </div>
+                                  <p className="text-muted-foreground">{issue.description}</p>
                                 </div>
-                                <p className="text-muted-foreground">{issue.description}</p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                              ))}
+                            </div>
+                          )}
 
-                        {selectedCritique.improvements?.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {selectedCritique.improvements.map((imp, i) => (
-                              <Button
-                                key={i}
-                                variant="outline"
-                                size="sm"
-                                className="h-6 text-[10px]"
-                                onClick={() => applyTweak(selected, imp)}
-                                disabled={tweaking}
-                              >
-                                <Lightbulb className="h-3 w-3 mr-1 text-amber-500" /> {imp.slice(0, 50)}{imp.length > 50 ? '…' : ''}
-                              </Button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                          {selectedCritique.improvements?.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs font-medium flex items-center gap-1">
+                                <Lightbulb className="h-3 w-3 text-amber-500" /> Improvements
+                              </p>
+                              {selectedCritique.improvements.map((imp, i) => (
+                                <div key={i} className="flex items-start justify-between gap-1 text-xs text-muted-foreground">
+                                  <span className="leading-relaxed">• {imp}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 px-1 text-[10px] text-primary hover:text-primary shrink-0"
+                                    onClick={() => applyTweak(selected, imp)}
+                                    disabled={tweaking}
+                                  >
+                                    Apply
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
-                    {/* Tweak log (compact) */}
-                    {selectedLog.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {selectedLog.slice(-3).map((entry, i) => (
-                          <span key={i} className="text-[10px] px-2 py-1 rounded bg-muted text-muted-foreground">
-                            {entry}
-                          </span>
-                        ))}
-                        {tweaking && (
-                          <span className="flex items-center gap-1 text-[10px] px-2 py-1 text-muted-foreground">
-                            <Loader2 className="h-3 w-3 animate-spin" /> Applying…
-                          </span>
-                        )}
-                      </div>
-                    )}
+                      {/* Tweak log */}
+                      {selectedLog.length > 0 && (
+                        <div className="space-y-1">
+                          {selectedLog.slice(-5).map((entry, i) => (
+                            <div key={i} className="text-[10px] px-2 py-1 rounded bg-muted text-muted-foreground">
+                              {entry}
+                            </div>
+                          ))}
+                          {tweaking && (
+                            <div className="flex items-center gap-1 text-[10px] px-2 py-1 text-muted-foreground">
+                              <Loader2 className="h-3 w-3 animate-spin" /> Applying…
+                            </div>
+                          )}
+                        </div>
+                      )}
 
-                    {/* Tweak input */}
-                    <div className="flex gap-2">
+                      {!selectedCritique && selectedLog.length === 0 && !tweaking && (
+                        <p className="text-xs text-muted-foreground py-6 text-center">
+                          Run AI Critique or type a tweak below
+                        </p>
+                      )}
+                    </div>
+                  </ScrollArea>
+
+                  {/* Tweak input pinned at bottom */}
+                  <div className="p-2 border-t shrink-0">
+                    <div className="flex gap-1.5">
                       <Input
-                        placeholder="e.g. 'Make all buttons use #2eb89a' or 'Fix testimonial widths'"
+                        placeholder="Describe a tweak…"
                         value={tweakPrompt}
                         onChange={e => setTweakPrompt(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleTweakSubmit(selected)}
                         disabled={tweaking}
-                        className="text-sm"
+                        className="text-sm h-8"
                       />
                       <Button
                         size="icon"
+                        className="h-8 w-8 shrink-0"
                         onClick={() => handleTweakSubmit(selected)}
                         disabled={!tweakPrompt.trim() || tweaking}
                       >
-                        <Send className="h-4 w-4" />
+                        <Send className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
+              </div>
 
-                {/* Full-width preview */}
+              {/* Right: full preview */}
+              <div className="flex-1 min-w-0">
                 <LiveThemePreview
                   key={`${selected.id}-${planVersion}`}
                   plan={selected.plan_json}
-                  className="rounded-lg border overflow-hidden"
+                  className="rounded-lg border overflow-hidden h-full"
                 />
               </div>
-            ) : (
-              <Card>
-                <CardContent className="py-20 text-center text-muted-foreground">
-                  Select a template to preview and tweak
-                </CardContent>
-              </Card>
-            )}
-          </div>
+            </div>
+          ) : (
+            /* No template selected — show list */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {templates.map(t => (
+                <Card
+                  key={t.id}
+                  className="cursor-pointer transition-colors hover:border-primary/50"
+                  onClick={() => setSelectedId(t.id)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{t.name}</p>
+                        <p className="text-xs text-muted-foreground">{t.source_project_name}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(t.created_at).toLocaleDateString()} · {t.plan_json?.operations?.length || 0} ops
+                        </p>
+                      </div>
+                      {critiques[t.id] && (
+                        <Badge variant="outline" className="text-xs shrink-0">
+                          <Star className="h-3 w-3 mr-1" />{critiques[t.id].score}/10
+                        </Badge>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         )}
       </main>
     </div>
