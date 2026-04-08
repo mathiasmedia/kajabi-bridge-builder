@@ -18,6 +18,8 @@ const SEVERITY_ICON: Record<string, React.ReactNode> = {
 const CATEGORY_LABELS: Record<string, string> = {
   hero: 'Hero', cta: 'CTA', section: 'Sections', navigation: 'Navigation',
   footer: 'Footer', content: 'Content', render: 'Render',
+  testimonial: 'Testimonials', programs: 'Program Cards',
+  split_section: 'Split Sections', cta_band: 'CTA Bands',
 };
 
 const STRATEGY_LABELS: Record<string, { label: string; color: string }> = {
