@@ -853,6 +853,9 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
     hasImages: hasImg,
     hasPricing: hasPrice,
     media,
+    secondaryCtaText,
+    hasIcons,
+    hasChecklist,
   };
 }
 
