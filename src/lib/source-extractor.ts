@@ -920,27 +920,65 @@ function intentToLegacyType(intent: SectionIntent): ExtractedSection['type'] {
 }
 
 function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
+  let copyright: string | undefined;
+  let logoText: string | undefined;
+  const linkGroups: Record<string, Array<{ name: string; url: string }>> = {};
+  
   // Try to extract from footer component
   for (const [path, content] of Object.entries(files.components)) {
-    if (path.toLowerCase().includes('footer')) {
-      const logoMatch = content.match(/font-display[^>]*>([^<]+)/);
-      const copyrightMatch = content.match(/©\s*\d{4}\s*([^<"]+)/);
-      const linkMatches = [...content.matchAll(/href=["']#["'][^>]*>([^<]+)/g)];
-      
-      return {
-        backgroundColor: '#0d1520',
-        textColor: '#ffffff',
-        columns: linkMatches.length > 0 ? 2 : 1,
-        copyright: copyrightMatch ? `© ${copyrightMatch[0]}` : `© ${new Date().getFullYear()} All rights reserved.`,
-      };
+    if (!path.toLowerCase().includes('footer')) continue;
+    
+    const logoMatch = content.match(/(?:font-display|font-heading|font-bold)[^>]*>([^<]+)/);
+    if (logoMatch) logoText = logoMatch[1].trim();
+    
+    const copyrightMatch = content.match(/©\s*\d{4}\s*([^<"]+)/);
+    if (copyrightMatch) copyright = `© ${copyrightMatch[0].trim()}`;
+    
+    // Extract link groups from footer
+    // Pattern: footerLinks = { company: [...], resources: [...] }
+    const groupRegex = /(\w+)\s*:\s*\[\s*((?:\{[^}]*\}\s*,?\s*)+)\]/g;
+    let gMatch;
+    while ((gMatch = groupRegex.exec(content)) !== null) {
+      const groupName = gMatch[1];
+      const groupContent = gMatch[2];
+      const links: Array<{ name: string; url: string }> = [];
+      const linkRegex = /name\s*:\s*["']([^"']+)["'][\s\S]*?(?:path|to|href|url)\s*:\s*["']([^"']+)["']/g;
+      let lm;
+      while ((lm = linkRegex.exec(groupContent)) !== null) {
+        links.push({ name: lm[1], url: lm[2] });
+      }
+      if (links.length > 0) linkGroups[groupName] = links;
+    }
+    
+    // Fallback: inline links  
+    if (Object.keys(linkGroups).length === 0) {
+      const inlineLinks: Array<{ name: string; url: string }> = [];
+      const linkRegex = /(?:to|href)=["']([^"'#]+)["'][^>]*>([^<{]+)</g;
+      let lm;
+      while ((lm = linkRegex.exec(content)) !== null) {
+        const name = lm[2].trim();
+        if (name && name.length < 30 && !/icon|svg|className/i.test(name)) {
+          inlineLinks.push({ name, url: lm[1] });
+        }
+      }
+      if (inlineLinks.length > 0) linkGroups['main'] = inlineLinks;
     }
   }
   
+  // Detect footer colors from CSS
+  const primaryMatch = files.indexCss?.match(/--primary:\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/);
+  const bgColorMatch = files.indexCss?.match(/--background:\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/);
+  const isDark = bgColorMatch && parseFloat(bgColorMatch[3]) < 20;
+  const footerBg = primaryMatch
+    ? hslToHex(`hsl(${primaryMatch[1]}, ${primaryMatch[2]}%, ${primaryMatch[3]}%)`)
+    : isDark ? '#0d1520' : '#1a1a2e';
+  
   return {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: footerBg,
     textColor: '#ffffff',
-    columns: 2,
-    copyright: `© ${new Date().getFullYear()} All rights reserved.`,
+    columns: Object.keys(linkGroups).length > 1 ? Object.keys(linkGroups).length + 1 : 2,
+    copyright: copyright || `© ${new Date().getFullYear()} ${logoText || ''} All rights reserved.`.trim(),
+    linkGroups: Object.keys(linkGroups).length > 0 ? linkGroups : undefined,
   };
 }
 
