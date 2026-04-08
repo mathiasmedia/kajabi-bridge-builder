@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Separator } from '@/components/ui/separator';
 import { useExportStore } from '@/store/useExportStore';
 import type { ComparisonMismatch } from '@/lib/render-check-compare';
 import type { RefinementSuggestion } from '@/lib/render-check-refinement';
