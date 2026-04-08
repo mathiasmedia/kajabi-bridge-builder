@@ -453,9 +453,12 @@ interface ComponentAnalysis {
   body?: string;
   ctaText?: string;
   ctaUrl?: string;
+  secondaryCtaText?: string;
   items?: ExtractedSection['items'];
   hasImages: boolean;
   hasPricing: boolean;
+  hasIcons?: boolean;
+  hasChecklist?: boolean;
   media: MediaAnalysis;
 }
 
