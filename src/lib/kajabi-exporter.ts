@@ -1,5 +1,27 @@
 import JSZip from 'jszip';
 import type { TransformationPlan, KajabiThemeData, TransformationOperation } from '@/types';
+import { validateAndFix, type ValidationResult } from '@/lib/export-validator';
+
+export type { ValidationResult } from '@/lib/export-validator';
+
+/**
+ * Run pre-export validation without building the zip.
+ * Returns the validation report so the UI can show it.
+ */
+export function preValidateExport(
+  plan: TransformationPlan,
+  theme: KajabiThemeData,
+): ValidationResult {
+  const settingsData = JSON.parse(JSON.stringify(theme.settingsData));
+  const current = settingsData.current;
+  let overridesCss = theme.files['assets/overrides.css'] || '';
+
+  for (const op of plan.operations) {
+    applyOperation(op, current, (css) => { overridesCss += '\n' + css; });
+  }
+
+  return validateAndFix(settingsData, theme);
+}
 
 export async function applyPlanAndExport(
   plan: TransformationPlan,
@@ -17,6 +39,13 @@ export async function applyPlanAndExport(
 
   // Sanitize the entire current object to fix common AI output issues
   sanitizeSettingsData(current);
+
+  // Run the full validation + auto-fix pipeline
+  const validation = validateAndFix(settingsData, theme);
+  if (!validation.ready) {
+    const msg = validation.errors.join('; ');
+    throw new Error(`Export blocked by structural errors: ${msg}`);
+  }
 
   // Build the zip — Kajabi requires STORE compression (no deflation)
   const zip = new JSZip();

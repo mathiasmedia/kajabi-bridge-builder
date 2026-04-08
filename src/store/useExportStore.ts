@@ -4,6 +4,7 @@ import { loadKajabiThemeFromZip, getThemeSections, getContentForPage } from '@/l
 import { extractDesignFromSource, type SourceProjectFiles } from '@/lib/source-extractor';
 import { buildTransformationPlan } from '@/lib/transformation-planner';
 import { applyPlanAndExport } from '@/lib/kajabi-exporter';
+import { preValidateExport, type ValidationResult } from '@/lib/kajabi-exporter';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ExportStore {
@@ -17,6 +18,7 @@ interface ExportStore {
   isLoading: boolean;
   loadingMessage: string;
   error: string | null;
+  exportValidation: ValidationResult | null;
 
   // Actions
   setWorkspaceProjects: (projects: WorkspaceProject[]) => void;
@@ -27,6 +29,7 @@ interface ExportStore {
   buildPlan: () => void;
   buildPlanWithAI: () => Promise<void>;
   exportZip: () => Promise<Blob | null>;
+  runExportValidation: () => ValidationResult | null;
   updateOperation: (index: number, updates: Partial<any>) => void;
   removeOperation: (index: number) => void;
   reset: () => void;
@@ -45,6 +48,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
   isLoading: false,
   loadingMessage: '',
   error: null,
+  exportValidation: null,
 
   setWorkspaceProjects: (projects) => set({ workspaceProjects: projects }),
 
@@ -248,6 +252,14 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       console.error('AI plan failed:', e);
       set({ error: `AI transform failed: ${e instanceof Error ? e.message : e}`, isLoading: false });
     }
+  },
+
+  runExportValidation: () => {
+    const { transformationPlan, baseTheme } = get();
+    if (!transformationPlan || !baseTheme) return null;
+    const result = preValidateExport(transformationPlan, baseTheme);
+    set({ exportValidation: result });
+    return result;
   },
 
   exportZip: async () => {
