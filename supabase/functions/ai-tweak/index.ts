@@ -53,14 +53,11 @@ An image is attached. Analyze it with extreme precision:
 - addSection: { type, sectionId, section:{type,settings,blocks,block_order}, label }
 - addBlock: { type, sectionId, blockId, block:{type,settings}, label }
 
-## CRITICAL RULES
-- NEVER add new sections unless the user EXPLICITLY asks for a new section
-- NEVER add default/placeholder sections like "Amazing Feature", "Lorem ipsum", etc.
-- NEVER duplicate existing sections or operations
-- When modifying, change existing operations in-place rather than adding parallel ones
+## IMPORTANT
+- Do NOT add sections that aren't requested or visible in the reference
+- Do NOT duplicate existing sections
+- When modifying, change existing operations rather than adding parallel ones
 - Merge CSS changes into the existing addCssOverride rather than adding a second one
-- The number of operations returned should be similar to the input (±5 operations)
-- If the tweak is about colors/fonts/text, ONLY modify the relevant operations — leave everything else untouched
 
 Return ONLY valid JSON: { "operations": [...], "changelog": "brief description of what changed" }`;
 
@@ -89,8 +86,8 @@ Apply the tweak and return the modified operations array as JSON.`;
       userContent = textPart;
     }
 
-    // Always use flash for tweaks to avoid timeouts
-    const model = "google/gemini-2.5-flash";
+    // Use pro model when image is attached for better visual understanding
+    const model = imageBase64 ? "google/gemini-2.5-pro" : "google/gemini-2.5-flash";
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
