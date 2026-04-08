@@ -68,8 +68,8 @@ serve(async (req) => {
       for (const [secId, blocks] of Object.entries(blockMap)) {
         const secName = baseSections?.[secId] || 'unknown';
         lines.push(`  Section "${secId}" (${secName}):`);
-        (blocks as any[]).forEach((b: any, i: number) => {
-          lines.push(`    block[${i}] type=${b.type} — "${b.textPreview}"`);
+        (blocks as any[]).forEach((b: any) => {
+          lines.push(`    blockId="${b.blockId}" type=${b.type} — "${b.textPreview}"`);
         });
       }
       blockMapStr = lines.join("\n");
