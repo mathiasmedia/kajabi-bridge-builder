@@ -1042,7 +1042,77 @@ function normalizeBlock(block: any): { type: string; settings: Record<string, an
 
 // ── Intent classification ──
 
-type SectionIntent = 'hero' | 'stats' | 'feature-grid' | 'testimonial-band' | 'cta-band' | 'content-media-split' | 'footer' | 'heading-separator' | 'content';
+type SectionIntent = 'hero' | 'stats' | 'feature-grid' | 'program-cards' | 'testimonial-band' | 'cta-band' | 'content-media-split' | 'footer' | 'heading-separator' | 'faq' | 'content';
+
+/** Map upstream extractor intent (snake_case) to edge function intent (kebab-case) */
+function mapUpstreamIntent(upstreamIntent: string | undefined): SectionIntent | null {
+  if (!upstreamIntent) return null;
+  const map: Record<string, SectionIntent> = {
+    'hero': 'hero',
+    'stats': 'stats',
+    'feature_grid': 'feature-grid',
+    'program_cards': 'program-cards',
+    'testimonial_band': 'testimonial-band',
+    'cta_band': 'cta-band',
+    'content_media_split': 'content-media-split',
+    'heading_divider': 'heading-separator',
+    'faq': 'faq',
+    'footer_like': 'footer',
+    'unknown': 'content',
+  };
+  return map[upstreamIntent] || null;
+}
+
+/** Build richness requirements string based on intent + section flags */
+function buildRichnessGuard(intent: SectionIntent, section: any): string {
+  const lines: string[] = ['## RICHNESS REQUIREMENTS (MANDATORY)'];
+
+  switch (intent) {
+    case 'stats':
+      lines.push('- You MUST create one feature block per stat item with the numeric VALUE in an <h4> and the LABEL in a <p>.');
+      lines.push('- Heading-only output is INVALID for stats. Each block must have value + label.');
+      lines.push(`- Expected block count: ${section.items?.length || 4} stat blocks.`);
+      break;
+    case 'program-cards':
+      lines.push('- You MUST create one feature/card block per program/course item.');
+      lines.push('- Each block MUST include: title, description, and price (if available).');
+      lines.push('- Do NOT collapse multiple programs into one text block.');
+      lines.push(`- Expected block count: 1 heading block + ${section.items?.length || 3} item blocks.`);
+      break;
+    case 'testimonial-band':
+      lines.push('- You MUST create one text/feature block per testimonial.');
+      lines.push('- Each block MUST include the quote text (in italics) and the person\'s name.');
+      lines.push('- Do NOT output a heading-only testimonial section.');
+      lines.push(`- Expected block count: 1 heading block + ${section.items?.length || 3} testimonial blocks.`);
+      break;
+    case 'cta-band':
+      lines.push('- You MUST include a heading + body text block AND a cta block with btn_text.');
+      lines.push('- If the source has CTA text/action, preserve it.');
+      break;
+    case 'faq':
+      lines.push('- Create one accordion block or multiple text blocks for Q&A pairs.');
+      lines.push('- If accordion block type is available, prefer it.');
+      lines.push('- Each Q&A should have the question as a heading and the answer as body text.');
+      if (section.items?.length) {
+        lines.push(`- Expected: ${section.items.length} Q&A items.`);
+      }
+      break;
+    case 'content-media-split':
+      lines.push('- Create a text block (width "5"-"6") + image block (width "5"-"6") side by side.');
+      break;
+    case 'feature-grid':
+      lines.push('- Create one feature block per item. Include title + description in each.');
+      lines.push(`- Expected block count: 1 heading block + ${section.items?.length || 3} feature blocks.`);
+      break;
+    case 'heading-separator':
+      lines.push('- A single text block with the heading is acceptable ONLY for true dividers.');
+      break;
+    default:
+      lines.push('- Include all meaningful content from the source. Do not produce thin/placeholder blocks.');
+  }
+
+  return lines.join('\n');
+}
 
 function classifySectionIntent(section: any): SectionIntent {
   const type = String(section?.type || '').toLowerCase();
@@ -1050,14 +1120,19 @@ function classifySectionIntent(section: any): SectionIntent {
   const hasItems = Array.isArray(section?.items) && section.items.length > 0;
   const hasBody = typeof section?.body === 'string' && section.body.length > 20;
   const hasCta = typeof section?.ctaText === 'string' && section.ctaText.trim().length > 0;
+  const hasStats = section?.hasStats === true;
+  const hasTestimonials = section?.hasTestimonials === true;
+  const hasPricing = section?.hasPricing === true;
 
   if (type === 'hero') return 'hero';
-  if (type === 'testimonials' || heading.includes('testimonial') || heading.includes('what our') || heading.includes('reviews')) return 'testimonial-band';
+  if (hasTestimonials || type === 'testimonials' || heading.includes('testimonial') || heading.includes('what our') || heading.includes('reviews')) return 'testimonial-band';
   if (heading.includes('footer') || type === 'footer') return 'footer';
+  if (hasStats || heading.includes('stat') || heading.includes('number') || heading.includes('impact') || heading.includes('result')) return 'stats';
+  if (hasPricing || heading.includes('program') || heading.includes('course') || heading.includes('service')) return 'program-cards';
   if ((type === 'cta' || heading.includes('ready to') || heading.includes('get started') || heading.includes('sign up')) && !hasItems) return 'cta-band';
-  if (type === 'features' || heading.includes('feature') || heading.includes('program') || heading.includes('course') || heading.includes('service')) return 'feature-grid';
+  if (type === 'faq' || heading.includes('faq') || heading.includes('frequently')) return 'faq';
+  if (type === 'features' || heading.includes('feature')) return 'feature-grid';
   if (hasItems && !hasCta) return 'feature-grid';
-  if (heading.includes('stat') || heading.includes('number') || heading.includes('impact') || heading.includes('result')) return 'stats';
   if (type === 'content' && !hasBody && !hasItems && !hasCta) return 'heading-separator';
   if (section?.image || heading.includes('about')) return 'content-media-split';
   if (hasCta && !hasItems) return 'cta-band';
