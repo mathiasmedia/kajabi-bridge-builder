@@ -145,7 +145,7 @@ ${result.html}
         ref={iframeRef}
         title="Kajabi Theme Preview"
         className="w-full border-0 rounded bg-white"
-        style={{ height: '520px' }}
+        style={{ minHeight: '600px', height: 'calc(100vh - 420px)' }}
         sandbox="allow-same-origin"
       />
     </div>
