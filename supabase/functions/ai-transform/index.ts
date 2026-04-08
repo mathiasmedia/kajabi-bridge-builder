@@ -162,8 +162,8 @@ async function handleSectionStep(apiKey: string, body: any) {
     extractedDesign = {},
     themeStructure = {},
     availableSectionTypes = [],
-    sectionToGenerate, // The extracted section to create
-    existingOperations = [], // Operations from globals step + previous sections
+    sectionToGenerate,
+    existingOperations = [],
   } = body;
 
   if (!sectionToGenerate) {
@@ -171,16 +171,33 @@ async function handleSectionStep(apiKey: string, body: any) {
   }
 
   const sectionTypesList = availableSectionTypes.join(", ");
-
-  // Find source component content relevant to this section
   const sectionContext = findSectionSourceContext(sourceFiles, sectionToGenerate);
+
+  // Determine intent and allowed types
+  const intent = classifySectionIntent(sectionToGenerate);
+  const allowedTypes = getTypesForIntent(intent, availableSectionTypes);
 
   const systemPrompt = `You are an expert web-to-Kajabi theme transformer.
 
-In THIS step you create exactly ONE new Kajabi section that matches a specific source section.
+In THIS step you create exactly ONE new Kajabi section that faithfully recreates a source section.
 You MUST output exactly ONE addSection operation.
 
-OPERATION TYPES (allowed in this step):
+SECTION INTENT: "${intent}"
+This section should be a "${intent}" section. Use an appropriate Kajabi section type.
+
+ALLOWED SECTION TYPES for this intent: ${allowedTypes.join(", ")}
+You MUST use one of these types. Do NOT use "page_content" unless the source is truly a generic content block.
+
+TYPE SELECTION RULES:
+- stats / numbers → use "text-columns" or "section" with multiple stat blocks
+- features / grid → use "text-columns" or "section" with feature blocks  
+- testimonials → use "section" or "text-columns" with testimonial blocks
+- CTA → use "section" with text + cta blocks
+- content / media split → use "text-and-image" or "section"
+- heading-only separator → use "section" with a single text block ONLY if the source truly has no body content
+- footer-like content → DO NOT generate. Return an empty operations array instead.
+
+OPERATION FORMAT:
 - addSection: { type, sectionId, section:{type,name,settings,block_order,blocks}, label }
 
 COMPLETE addSection EXAMPLE:
@@ -195,40 +212,53 @@ COMPLETE addSection EXAMPLE:
       "background_color": "#0b1214",
       "text_color": "#8a9ba8",
       "heading_color": "#e0e8e4",
+      "heading": "Our Impact",
       "padding_desktop": {"top":"80","bottom":"80"},
       "padding_mobile": {"top":"48","bottom":"48"}
     },
-    "block_order": ["1718825317501","1718825317502"],
+    "block_order": ["1718825317501","1718825317502","1718825317503"],
     "blocks": {
       "1718825317501": {
         "type": "text_column",
-        "settings": {"heading":"2,400+","text":"<p>Graduates Certified</p>","text_align":"center"}
+        "settings": {"heading":"2,400+","text":"<p>Graduates certified worldwide</p>","text_align":"center"}
       },
       "1718825317502": {
         "type": "text_column",
-        "settings": {"heading":"27","text":"<p>Years Teaching</p>","text_align":"center"}
+        "settings": {"heading":"27","text":"<p>Years of teaching excellence</p>","text_align":"center"}
+      },
+      "1718825317503": {
+        "type": "text_column",
+        "settings": {"heading":"12","text":"<p>Reef locations across the globe</p>","text_align":"center"}
       }
     }
   }
 }
 
-SECTION TYPE CONSTRAINT:
-addSection type MUST be one of: ${sectionTypesList}
-Map source content to the closest available type.
+CRITICAL CONTENT RULES:
+- EVERY block MUST have substantive content: heading AND body text at minimum.
+- Include buttons (btn_text + btn_action) when the source has CTA behavior.
+- Include ALL items from the source (e.g. all stats, all features, all testimonials).
+- Use rich HTML for text blocks: <p>, <h3>, <strong>, <em>.
+- Use actual source text, no placeholders like "Lorem ipsum".
+- No external image URLs.
+- If the source section has 4 feature cards, generate 4 blocks. Not 1.
+- Do NOT generate heading-only sections unless the source truly has no body content.
 
-ID FORMAT: Section IDs and Block IDs must be 13-digit numeric-only strings.
+ID FORMAT: 13-digit numeric-only strings.
 DATA FORMAT: padding_desktop/padding_mobile must be objects, not strings.
 
-CONTENT RULES:
-- Use actual source text from the section, no placeholders.
-- No external image URLs.
-- Use rich HTML for text blocks.
-- Include ALL items/blocks from the source section.
-
-The section must have complete blocks with real content.`;
+FOOTER RULE: If this section is a footer, return {"operations":[],"cssOverrides":""}. Do NOT create footer sections.`;
 
   const userPrompt = `## Source section to recreate
 ${JSON.stringify(sectionToGenerate, null, 2)}
+
+## Source section extracted content
+- Intent: ${intent}
+- Heading: ${sectionToGenerate.heading || "none"}
+- Body: ${sectionToGenerate.body || "none"}
+- CTA: ${sectionToGenerate.ctaText || "none"} → ${sectionToGenerate.ctaUrl || "none"}
+- Items count: ${sectionToGenerate.items?.length || 0}
+${sectionToGenerate.items ? "- Items: " + JSON.stringify(sectionToGenerate.items, null, 2) : ""}
 
 ## Relevant source component code
 ${sectionContext}
@@ -241,13 +271,13 @@ ${JSON.stringify({
     buttonStyle: extractedDesign?.buttonStyle,
   }, null, 2)}
 
-## Available section types
-${sectionTypesList}
+## Allowed section types for "${intent}" intent
+${allowedTypes.join(", ")}
 
 ## Current theme sections (for reference)
 ${JSON.stringify(Object.keys(themeStructure.sections || {}), null, 2)}
 
-Create exactly ONE addSection operation for this section. Include all content items as blocks.`;
+Create exactly ONE addSection operation with RICH content blocks. Include ALL items/cards/stats from the source.`;
 
   const models = ["google/gemini-3-flash-preview", "google/gemini-2.5-flash"];
   let lastError = "";
@@ -280,10 +310,12 @@ Create exactly ONE addSection operation for this section. Include all content it
       );
 
       if (finalizedAddSection) {
-        if (!normalizedAddSection && rawAddSection) {
-          console.log(`ai-transform [section:${sectionToGenerate.type}] [${model}] repaired incomplete addSection using source fallback`);
-        }
         return jsonResponse({ operations: [finalizedAddSection] });
+      }
+
+      // If no addSection but intent is footer-like, that's expected
+      if (intent === 'footer') {
+        return jsonResponse({ operations: [] });
       }
 
       lastError = "No valid addSection operation produced";
@@ -613,6 +645,58 @@ function createFallbackBlockSettings(block: Record<string, any>) {
   if (typeof block.image === "string") settings.image = block.image;
   if (typeof block.url === "string") settings.url = block.url;
   return settings;
+}
+
+
+// ── Section intent classification ─────────────────────────────────────
+
+type SectionIntent = 'hero' | 'stats' | 'feature-grid' | 'testimonial-band' | 'cta-band' | 'content-media-split' | 'footer' | 'heading-separator' | 'content';
+
+function classifySectionIntent(section: any): SectionIntent {
+  const type = String(section?.type || '').toLowerCase();
+  const heading = String(section?.heading || '').toLowerCase();
+  const hasItems = Array.isArray(section?.items) && section.items.length > 0;
+  const hasBody = typeof section?.body === 'string' && section.body.length > 20;
+  const hasCta = typeof section?.ctaText === 'string' && section.ctaText.trim().length > 0;
+
+  if (type === 'hero') return 'hero';
+  if (type === 'testimonials' || heading.includes('testimonial') || heading.includes('what our') || heading.includes('reviews')) return 'testimonial-band';
+  if (type === 'cta' || heading.includes('ready to') || heading.includes('get started') || heading.includes('join') || heading.includes('sign up')) return 'cta-band';
+  if (heading.includes('footer') || type === 'footer') return 'footer';
+  if (type === 'features' || heading.includes('feature') || heading.includes('program') || heading.includes('course') || heading.includes('service')) return 'feature-grid';
+  if (heading.includes('stat') || heading.includes('number') || heading.includes('impact') || heading.includes('result')) return 'stats';
+  if (type === 'content' && !hasBody && !hasItems && !hasCta) return 'heading-separator';
+  if (section?.image || heading.includes('about')) return 'content-media-split';
+  return 'content';
+}
+
+function getTypesForIntent(intent: SectionIntent, availableTypes: string[]): string[] {
+  const available = new Set(availableTypes);
+
+  const intentToTypes: Record<SectionIntent, string[]> = {
+    'hero': ['newsletter_hero', 'section', 'page_content'],
+    'stats': ['text-columns', 'section', 'page_content'],
+    'feature-grid': ['text-columns', 'section', 'page_content'],
+    'testimonial-band': ['text-columns', 'section', 'page_content'],
+    'cta-band': ['section', 'page_content', 'newsletter_hero'],
+    'content-media-split': ['text-and-image', 'section', 'page_content'],
+    'footer': [],
+    'heading-separator': ['section', 'page_content'],
+    'content': ['section', 'text-columns', 'page_content', 'text-and-image'],
+  };
+
+  const preferred = intentToTypes[intent] || intentToTypes['content'];
+  const result = preferred.filter(t => available.has(t));
+  // Always include at least one fallback
+  if (result.length === 0) {
+    for (const t of ['section', 'page_content']) {
+      if (available.has(t)) { result.push(t); break; }
+    }
+  }
+  if (result.length === 0 && availableTypes.length > 0) {
+    result.push(availableTypes[0]);
+  }
+  return result;
 }
 
 

@@ -105,8 +105,14 @@ function sanitizeSettingsData(current: Record<string, any>) {
     }
   }
 
-  // Remove link_lists if present (Kajabi rejects it)
-  delete current.link_lists;
+  // Validate link_lists entries are real objects (preserve for menu blocks)
+  if (current.link_lists && typeof current.link_lists === 'object') {
+    for (const [menuId, menu] of Object.entries(current.link_lists)) {
+      if (typeof menu === 'string') {
+        try { current.link_lists[menuId] = JSON.parse(menu); } catch { delete current.link_lists[menuId]; }
+      }
+    }
+  }
 
   // Fix sections
   const sections = current.sections || {};

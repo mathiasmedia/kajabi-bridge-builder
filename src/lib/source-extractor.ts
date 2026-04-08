@@ -225,28 +225,96 @@ function extractSections(files: SourceProjectFiles): ExtractedSection[] {
     
     const type = inferSectionType(name);
     
-    // Try to find this component's file and extract heading
+    // Try to find this component's file and extract rich content
     let heading = name.replace(/([A-Z])/g, ' $1').trim();
+    let body: string | undefined;
+    let ctaText: string | undefined;
+    let ctaUrl: string | undefined;
+    let items: ExtractedSection['items'] = [];
+    
     for (const [path, content] of Object.entries(files.components)) {
       const fileName = path.split('/').pop()?.replace(/\.(tsx|jsx)$/, '') || '';
       if (fileName === name) {
+        // Extract heading
         const h2Match = content.match(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/);
         if (h2Match) {
-          heading = h2Match[1]
-            .replace(/<[^>]+>/g, '')
-            .replace(/\{["']\s*["']\}/g, ' ')
-            .replace(/\{[^}]*\}/g, '')
-            .replace(/\s+/g, ' ')
-            .trim() || heading;
+          heading = cleanJsxText(h2Match[1]) || heading;
         }
+        
+        // Extract body text from paragraphs
+        const pMatches = [...content.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)];
+        const bodyTexts = pMatches
+          .map(m => cleanJsxText(m[1]))
+          .filter(t => t && t.length > 15);
+        if (bodyTexts.length > 0) {
+          body = bodyTexts.join(' ');
+        }
+        
+        // Extract CTA buttons
+        const btnMatch = content.match(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/);
+        if (btnMatch) {
+          ctaText = btnMatch[1].trim();
+          const hrefMatch = content.match(/(?:to|href)=["']([^"']+)["'][^>]*>\s*<Button|<Button[^>]*(?:to|href)=["']([^"']+)["']/);
+          ctaUrl = hrefMatch ? (hrefMatch[1] || hrefMatch[2]) : '/';
+        }
+        
+        // Extract repeated items (cards, features, stats)
+        const mapMatch = content.match(/\.map\(\s*\(\s*(\w+)/);
+        if (mapMatch) {
+          // Look for data arrays
+          const arrayMatch = content.match(/(?:const|let)\s+\w+\s*=\s*\[([\s\S]*?)\]/);
+          if (arrayMatch) {
+            const itemMatches = [...arrayMatch[1].matchAll(/\{([^}]+)\}/g)];
+            items = itemMatches.slice(0, 8).map(m => {
+              const itemStr = m[1];
+              const titleMatch = itemStr.match(/(?:title|heading|name|label)\s*:\s*["']([^"']+)["']/);
+              const descMatch = itemStr.match(/(?:description|body|text|subtitle)\s*:\s*["']([^"']+)["']/);
+              const iconMatch = itemStr.match(/(?:icon|image)\s*:\s*["']?(\w+)["']?/);
+              return {
+                heading: titleMatch?.[1],
+                body: descMatch?.[1],
+                icon: iconMatch?.[1],
+              };
+            }).filter(item => item.heading || item.body);
+          }
+        }
+        
+        // Also extract items from repeated JSX patterns (e.g. multiple cards)
+        if (items.length === 0) {
+          const cardMatches = [...content.matchAll(/<(?:Card|div)[^>]*class[^>]*>[\s\S]*?<h[2-4][^>]*>([\s\S]*?)<\/h[2-4]>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/g)];
+          if (cardMatches.length >= 2) {
+            items = cardMatches.slice(0, 8).map(m => ({
+              heading: cleanJsxText(m[1]),
+              body: cleanJsxText(m[2]),
+            })).filter(item => item.heading);
+          }
+        }
+        
         break;
       }
     }
     
-    sections.push({ id: `extracted-${sectionIndex++}`, type, heading });
+    sections.push({
+      id: `extracted-${sectionIndex++}`,
+      type,
+      heading,
+      body,
+      ctaText,
+      ctaUrl,
+      items: items && items.length > 0 ? items : undefined,
+    });
   }
   
   return sections;
+}
+
+function cleanJsxText(text: string): string {
+  return text
+    .replace(/<[^>]+>/g, '')
+    .replace(/\{["']\s*["']\}/g, ' ')
+    .replace(/\{[^}]*\}/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function inferSectionType(name: string): ExtractedSection['type'] {
