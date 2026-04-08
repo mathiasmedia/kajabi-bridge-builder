@@ -676,8 +676,14 @@ function analyzeInlineSection(
     body,
     ctaText,
     ctaUrl: ctaText ? '/' : undefined,
+    secondaryCtaText,
     items,
     hasImages: hasImg,
+    hasPricing: hasPrice,
+    hasIcons,
+    hasChecklist,
+    media,
+  };
     hasPricing: hasPrice,
     media,
   };
