@@ -140,7 +140,7 @@ Apply the tweak and return the modified operations array as JSON.`;
           : "AI did not return valid operations", 
         raw: content.slice(0, 500) 
       }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
