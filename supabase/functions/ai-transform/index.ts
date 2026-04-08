@@ -360,12 +360,15 @@ Block text must be rich HTML. Use width for column layouts.`;
       if (Array.isArray(rawOps)) {
         for (const op of rawOps) {
           if (op?.type === "addSection") {
-            const blockCount = isPlainObject(op.section?.blocks) ? Object.keys(op.section.blocks).length : 0;
+            const blocksType = op.section?.blocks === null ? 'null' : Array.isArray(op.section?.blocks) ? 'array' : typeof op.section?.blocks;
+            const blockCount = isPlainObject(op.section?.blocks) ? Object.keys(op.section.blocks).length : (Array.isArray(op.section?.blocks) ? op.section.blocks.length : 0);
             const blockOrderLen = Array.isArray(op.section?.block_order) ? op.section.block_order.length : 0;
-            console.log(`ai-transform [section] RAW addSection: blocks=${blockCount}, block_order=${blockOrderLen}, sectionType=${op.section?.type}`);
+            console.log(`ai-transform [section] RAW addSection: blocksType=${blocksType}, blocks=${blockCount}, block_order=${blockOrderLen}, sectionType=${op.section?.type}`);
+            // Log a snippet of the raw section for debugging
+            console.log(`ai-transform [section] RAW section keys: ${Object.keys(op.section || {}).join(',')}`);
             if (blockCount > 0) {
-              const firstBlock = Object.values(op.section.blocks)[0] as any;
-              console.log(`ai-transform [section] RAW first block: type=${firstBlock?.type}, hasSettings=${isPlainObject(firstBlock?.settings)}, hasText=${!!firstBlock?.settings?.text}`);
+              const firstBlock = Array.isArray(op.section.blocks) ? op.section.blocks[0] : Object.values(op.section.blocks)[0];
+              console.log(`ai-transform [section] RAW first block: ${JSON.stringify(firstBlock).slice(0, 300)}`);
             }
           }
         }
