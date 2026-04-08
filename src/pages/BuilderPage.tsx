@@ -180,7 +180,7 @@ export default function BuilderPage() {
       const { sections: baseSections, blockMap } = await getBaseThemeInfo();
 
       const body: any = {
-        planJson: template.plan_json,
+        planJson: compactPlanForTweak(template.plan_json as any),
         extractedDesign: template.extracted_design_json,
         tweakInstruction: instruction,
         baseSections,
