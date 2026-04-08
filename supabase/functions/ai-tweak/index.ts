@@ -15,7 +15,7 @@ serve(async (req) => {
     });
 
   try {
-    const { planJson, extractedDesign, tweakInstruction, imageBase64, baseSections, blockMap } = await req.json();
+    const { planJson, extractedDesign, tweakInstruction, imageBase64, baseSections, blockMap, visionDesign } = await req.json();
 
     if (!tweakInstruction) {
       return respond({ error: "tweakInstruction is required" });
