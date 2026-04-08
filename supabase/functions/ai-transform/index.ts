@@ -32,6 +32,7 @@ type TransformPayload = {
  *   bg_type: "none"|"color"|"image"|"video"
  *   background_color: CSS color (e.g. "RGBA(22, 30, 42, 0.86)")
  *   bg_image, bg_video, bg_position, full_width, full_height, vertical, horizontal
+ *   multiple_columns_on_desktop, column_one_width, column_two_width, column_three_width, multiple_column_gap
  *   padding_desktop/padding_mobile: {top,left,right,bottom}
  *   equal_height: "true"|"false"
  *
@@ -43,7 +44,9 @@ type TransformPayload = {
  * Block "text" settings:
  *   text: rich HTML (<h1>, <h2>, <h4>, <p>, <span style="...">)
  *   width: "4"|"6"|"8"|"12" (grid columns, 12 = full width)
+ *   block_column: "first"|"second"|"third"
  *   text_align: "left"|"center"|"right"
+ *   mobile_text_align: "left"|"center"|"right"
  *   use_btn: "true"|"false"
  *   btn_text, btn_action, new_tab
  *   background_color, padding_desktop, padding_mobile, margin_desktop, margin_mobile
@@ -52,13 +55,13 @@ type TransformPayload = {
  * Block "feature" settings:
  *   text: rich HTML (<h4>Title</h4><p>Description</p>)
  *   image, image_alt, image_width, hide_image
- *   width: "4"|"6" (for multi-column layouts)
- *   text_align, use_btn, btn_text, btn_action
+ *   width: "4"|"6"|"12" (for multi-column layouts or desktop columns)
+ *   block_column, text_align, mobile_text_align, use_btn, btn_text, btn_action
  *   background_color, padding_desktop, padding_mobile
  *
  * Block "cta" settings:
  *   btn_text, btn_action, new_tab
- *   width, text_align
+ *   width, block_column, text_align, mobile_text_align
  *   btn_text_color, btn_background_color, btn_border_radius
  *
  * Block "card" settings:
@@ -123,7 +126,7 @@ Do NOT add new sections in this step. Do NOT output addSection operations.
 
 KAJABI SCHEMA RULES:
 - Sections do NOT have heading/subheading/text settings. All content goes in BLOCKS.
-- Section settings: bg_type, background_color, bg_image, full_width, padding_desktop, padding_mobile, vertical, horizontal
+- Section settings: bg_type, background_color, bg_image, full_width, padding_desktop, padding_mobile, vertical, horizontal, multiple_columns_on_desktop, column_one_width, column_two_width, column_three_width, multiple_column_gap
 - Block types: text, feature, card, cta, image (use these exact names)
 - Text block settings: text (rich HTML), width, text_align, use_btn, btn_text, btn_action, background_color
 - CTA block settings: btn_text, btn_action, btn_text_color, btn_background_color
@@ -132,11 +135,11 @@ KAJABI SCHEMA RULES:
 - Menu/link_list blocks have settings.menu referencing a link_list ID
 
 BACKGROUND COLOR RULES:
-- Do NOT set a global "background_color" key. Instead, set bg_type and background_color on EACH SECTION individually.
-- For the hero section, use updateSectionSetting with key "bg_type" = "color" and key "background_color" = the desired dark/light color.
-- For header/footer sections, also use updateSectionSetting for background_color.
-- Kajabi auto-applies "background-light" or "background-dark" CSS classes based on the section's background_color, which adjusts text color automatically.
-- So do NOT set text colors via CSS for sections — just set the right background_color per section.
+- Do NOT set a global "background_color" key. Instead, set bg_type and background_color on EACH SECTION individually when needed.
+- For normal light/white sections, use bg_type="none" and omit background_color rather than adding a faint translucent wash.
+- NEVER use barely-visible or near-transparent section background colors.
+- For intentionally dark sections like hero/CTA bands, use a clearly visible solid or high-opacity background_color.
+- Set readable global/body text colors. Never use very light paragraph text on light sections.
 
 OPERATION TYPES (allowed in this step):
 - updateGlobalSetting: { type, key, value, label } — for fonts, NOT for background_color
@@ -289,18 +292,20 @@ Create exactly ONE addSection operation that faithfully recreates a source secti
 
 CRITICAL KAJABI SCHEMA RULES:
 - Section type MUST be "section" (the only type that supports rich content blocks)
-- Section settings: bg_type ("none"|"color"|"image"), background_color, padding_desktop, padding_mobile, full_width, vertical, horizontal, equal_height
-- IMPORTANT: Always set bg_type="color" and background_color on EVERY section. Use the source design's background color for that section.
-  Kajabi auto-applies "background-light" or "background-dark" classes based on the background_color, which adjusts text color automatically.
-  For dark designs, use a dark background_color (e.g. "#0b1214"). For light designs, use a light color (e.g. "#ffffff").
+- Section settings: bg_type ("none"|"color"|"image"), background_color, padding_desktop, padding_mobile, full_width, vertical, horizontal, equal_height, multiple_columns_on_desktop, column_one_width, column_two_width, column_three_width, multiple_column_gap
+- Default full_width to false. Only use full_width=true if the user explicitly wants a full-bleed section.
+- Do NOT set background_color on every section.
+- For normal light sections, use bg_type="none" and leave background_color empty/omitted.
+- If you use background_color, it must be clearly intentional and visibly opaque — never a faint low-alpha wash.
+- Body text on light sections must be dark and readable.
 - Section does NOT have heading, subheading, or text settings! ALL content goes in BLOCKS.
 - Section does NOT have heading, subheading, or text settings! ALL content goes in BLOCKS.
 
 VALID BLOCK TYPES: text, feature, card, cta, image
-- "text" block: settings.text = rich HTML (<h1>/<h2>/<h4>/<p>), settings.width ("4"|"6"|"8"|"12"), text_align, use_btn, btn_text, btn_action, background_color
-- "feature" block: settings.text = rich HTML (<h4>Title</h4><p>Desc</p>), settings.image, settings.width ("4"|"6"), text_align, use_btn, btn_text, btn_action, hide_image
-- "cta" block: settings.btn_text, settings.btn_action, settings.width, btn_text_color, btn_background_color
-- "image" block: settings.image, settings.image_alt, settings.width
+- "text" block: settings.text = rich HTML (<h1>/<h2>/<h4>/<p>), settings.width ("4"|"6"|"8"|"12"), block_column, text_align, mobile_text_align, use_btn, btn_text, btn_action, background_color
+- "feature" block: settings.text = rich HTML (<h4>Title</h4><p>Desc</p>), settings.image, settings.width ("4"|"6"|"12"), block_column, text_align, mobile_text_align, use_btn, btn_text, btn_action, hide_image
+- "cta" block: settings.btn_text, settings.btn_action, settings.width, block_column, text_align, mobile_text_align, btn_text_color, btn_background_color
+- "image" block: settings.image, settings.image_alt, settings.width, block_column
 - "card" block: similar to feature
 
 ${blockPattern}
@@ -343,6 +348,9 @@ CONTENT RULES:
 - ALL text content goes in block settings.text as rich HTML
 - Use <h1>/<h2> for main headings, <h4> for sub-headings, <p> for body
 - Use width to create multi-column layouts (width "4" = 3 columns, "6" = 2 columns)
+- If a heading introduces cards below it, keep them in the SAME section: heading block width "12", then card blocks width "4" each.
+- For split content/image sections, use desktop columns with section settings multiple_columns_on_desktop="yes", column_one_width="4", column_two_width="4", and put text/CTA blocks in block_column="first" and the image in block_column="second". In this pattern, each block should usually have width "12".
+- For split content/image sections, left-side text and CTA blocks should be left-aligned on desktop and mobile.
 - Include ALL items from source (4 features = 4 feature/card blocks)
 - NEVER compress multiple source items into one block
 - If items count is N, output at least N item blocks plus any heading/introduction block

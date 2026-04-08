@@ -258,35 +258,47 @@ Return valid JSON:
 
 ### DO NOT generate header or footer sections. Skip them entirely.
 
-### NEVER set full_width: true. Leave it out or set to false.
+### Section width
+- NEVER set full_width: true unless the user explicitly asks for a full-bleed section.
+- Default to full_width: false for hero, intro, split-content, testimonial, and CTA sections.
 
 ### Background Colors — BE VERY CAREFUL
 - Do NOT set background_color on sections UNLESS you are intentionally creating a dark/colored section (e.g. a hero with dark overlay, a dark CTA section).
 - Setting background_color causes Kajabi to automatically change text color:
   - Dark background_color → text becomes white/light → invisible if section is actually white
   - Light background_color → text becomes dark → may clash
-- If you want a normal white/light section, simply OMIT background_color entirely.
+- If you want a normal white/light section, set bg_type to "none" and OMIT background_color entirely.
+- NEVER use low-opacity or barely-visible section background colors like faint RGBA washes. Either use a clearly visible solid/opaque background, or no section background at all.
 - Only use background_color for sections that should genuinely have a colored/dark background.
+
+### Text Contrast
+- Body text on light sections must be dark and readable.
+- NEVER use very light, washed-out, low-contrast, or near-white paragraph text on a light background.
+- If a section background is light or absent, body text should be a strong dark neutral.
 
 ### Section Structure — Group related content together
 - A heading that introduces content below it (e.g. "Is Your Brand Holding You Back?" above 3 feature cards) must be in the SAME section as the cards — NOT a separate section.
 - Don't create single-block sections for headings that belong with adjacent content.
+- For heading + 3 cards layouts, use one section with:
+  - heading/introduction block width "12"
+  - 3 card/feature blocks width "4" each below it
 
 ### Multi-Column / Side-by-Side Layouts
-- There is NO "columns" section setting. Kajabi uses a Bootstrap-style 12-column grid.
-- All blocks in a section render inside a single flex-wrap .row container.
-- Each block gets a CSS class col-{width} which determines how wide it is (out of 12).
-- To put blocks side-by-side, give them widths that ADD UP to 12 or less:
-  - Text left + image right → text block width "6", image block width "6"
-  - Text left (wider) + image right → text block width "7", image block width "5"
-  - 3 equal cards → each block width "4" (4+4+4=12)
-  - 4 equal cards → each block width "3" (3+3+3+3=12)
-- If widths add up to MORE than 12, blocks wrap to the next row.
-- For full-width content (heading, CTA), use width "12".
-- Example: "Your Brand Elevated" section with text+CTA left and image right:
-  - block1: text (width "6", contains heading + paragraph + button via use_btn)
-  - block2: image (width "6")
-  - Both sit side-by-side because 6+6=12.
+- Kajabi supports desktop columns using REAL section settings:
+  - multiple_columns_on_desktop: "yes" | "no"
+  - column_one_width, column_two_width, column_three_width
+  - multiple_column_gap
+- Kajabi also supports REAL block placement using block settings:
+  - block_column: "first" | "second" | "third"
+- For a split content/image section like "Your Brand, Elevated":
+  - section.settings.multiple_columns_on_desktop = "yes"
+  - section.settings.column_one_width = "4"
+  - section.settings.column_two_width = "4"
+  - section.settings.full_width = false
+  - text/intro block width = "12", block_column = "first", text_align = "left", mobile_text_align = "left"
+  - CTA block width = "12", block_column = "first", text_align = "left", mobile_text_align = "left"
+  - image block width = "12", block_column = "second"
+- For card rows under a centered heading, do NOT use desktop multi-column section settings unless needed; keep the heading block width "12" and the cards width "4" each in the same section.
 
 ### Block Width
 - Width is "1" to "12" (Bootstrap grid) — controls how many of 12 columns the block occupies
@@ -304,24 +316,30 @@ All sections use type: "section". Available settings:
 - background_color: hex color (ONLY for intentionally dark/colored sections — see rules above)
 - bg_type: "color" | "image" | "video"
 - bg_image: URL for background image
+- full_width: boolean
+- multiple_columns_on_desktop: "yes" | "no"
+- column_one_width: string
+- column_two_width: string
+- column_three_width: string
+- multiple_column_gap: string
 
 ## BLOCK TYPES & SETTINGS
 All blocks go in section.blocks as { "block-id": { type, settings } } with section.block_order listing IDs.
 
 ### text block:
-{ type: "text", settings: { text: "<h1>Heading</h1><p>Paragraph text</p>", width: "12", text_align: "center", use_btn: true/false, btn_text: "Click", btn_action: "#", btn_style: "solid", btn_background_color: "#hex", btn_text_color: "#hex" } }
+{ type: "text", settings: { text: "<h1>Heading</h1><p>Paragraph text</p>", width: "12", text_align: "center", mobile_text_align: "center", block_column: "first", use_btn: true/false, btn_text: "Click", btn_action: "#", btn_style: "solid", btn_background_color: "#hex", btn_text_color: "#hex" } }
 
 ### feature block:
-{ type: "feature", settings: { text: "<h3>Title</h3><p>Description</p>", width: "4", text_align: "center", image: "", image_width: "80", hide_image: true, use_btn: false } }
+{ type: "feature", settings: { text: "<h3>Title</h3><p>Description</p>", width: "4", text_align: "center", mobile_text_align: "center", block_column: "first", image: "", image_width: "80", hide_image: true, use_btn: false } }
 
 ### feature_icon block:
-{ type: "feature_icon", settings: { text: "<h3>Title</h3><p>Description</p>", width: "4", text_align: "center", feature_icon_code: "<svg>...</svg>", feature_icon_color: "#hex", feature_icon_size: "50", use_btn: false } }
+{ type: "feature_icon", settings: { text: "<h3>Title</h3><p>Description</p>", width: "4", text_align: "center", mobile_text_align: "center", block_column: "first", feature_icon_code: "<svg>...</svg>", feature_icon_color: "#hex", feature_icon_size: "50", use_btn: false } }
 
 ### image block:
-{ type: "image", settings: { image: "https://placehold.co/800x400/hex1/hex2?text=...", width: "6", image_width: "", image_border_radius: "4" } }
+{ type: "image", settings: { image: "https://placehold.co/800x400/hex1/hex2?text=...", width: "12", block_column: "second", image_width: "", image_border_radius: "4" } }
 
 ### cta block:
-{ type: "cta", settings: { btn_text: "Button Label", btn_action: "#", btn_style: "solid", btn_size: "medium", btn_width: "auto", btn_background_color: "#hex", btn_text_color: "#hex", btn_border_radius: "4px" } }
+{ type: "cta", settings: { btn_text: "Button Label", btn_action: "#", width: "12", block_column: "first", text_align: "left", mobile_text_align: "left", btn_style: "solid", btn_size: "medium", btn_width: "auto", btn_background_color: "#hex", btn_text_color: "#hex", btn_border_radius: "4px" } }
 
 ## ADDITIONAL RULES
 - Use EXACT TEXT from reference if visible
