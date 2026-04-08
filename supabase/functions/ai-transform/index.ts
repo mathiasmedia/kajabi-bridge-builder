@@ -479,20 +479,15 @@ async function requestTransform({
 }: {
   apiKey: string; model: string; systemPrompt: string; userPrompt: string; maxTokens: number;
 }) {
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      max_completion_tokens: maxTokens,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      tools: [{
+  const maxRetries = 3;
+  const requestBody = JSON.stringify({
+    model,
+    max_completion_tokens: maxTokens,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    tools: [{
         type: "function",
         function: {
           name: "apply_transformations",
