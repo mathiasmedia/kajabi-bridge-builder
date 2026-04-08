@@ -119,3 +119,38 @@ describe('Semantic extraction — Woven Waves', () => {
     }
   });
 });
+
+describe('Semantic extraction — Brand Brilliance Studio (inline sections)', () => {
+  const bundle = getProjectBundle('4c253e87-cce3-43ef-baf0-8d07dea63406');
+  if (!bundle) throw new Error('Brand Brilliance bundle not found');
+
+  const { design } = extractDesignFromSource(bundle.files);
+
+  it('extracts hero with correct heading', () => {
+    expect(design.hero).toBeDefined();
+    expect(design.hero!.heading).toContain('Brands That Get');
+  });
+
+  it('detects inline sections (at least 3)', () => {
+    expect(design.sections.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('identifies testimonial section with 3 items', () => {
+    const testimonials = design.sections.find(s => s.intent === 'testimonial_band');
+    expect(testimonials).toBeDefined();
+    expect(testimonials!.items?.length).toBe(3);
+    expect(testimonials!.items![0].quote).toBeDefined();
+  });
+
+  it('identifies feature/problem section with 3 items', () => {
+    const features = design.sections.find(s => s.intent === 'feature_grid');
+    expect(features).toBeDefined();
+    expect(features!.items?.length).toBe(3);
+  });
+
+  it('identifies CTA section', () => {
+    const cta = design.sections.find(s => s.intent === 'cta_band');
+    expect(cta).toBeDefined();
+    expect(cta!.heading).toContain('Ready to Stand Out');
+  });
+});
