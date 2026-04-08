@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { SourceProjectSnapshot, IngestionWarning } from '@/lib/ingestion';
 import { snapshotToSourceFiles, validateSnapshot, BundledProjectAdapter } from '@/lib/ingestion';
 import { applyStreamlinedHomeRecipes } from '@/lib/theme-recipes/streamlined-home';
+import { runRefinementPass } from '@/lib/refinement-pass';
 
 interface ExportStore {
   // State
@@ -341,7 +342,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         label: 'Replace page content with modified + AI-generated sections',
       });
 
-      // ── Ensure link_lists from nav items if no updateNavigation ops exist ──
+      // ── Ensure link_lists from source nav ──
       const hasNavOps = deduplicatedOps.some(op => op.type === 'updateNavigation');
       if (!hasNavOps && extractedDesign.header?.navItems?.length > 0) {
         deduplicatedOps.push({
@@ -349,6 +350,30 @@ export const useExportStore = create<ExportStore>((set, get) => ({
           menuId: 'main-menu',
           links: extractedDesign.header.navItems,
         } as TransformationOperation);
+      }
+
+      // ── Ensure footer link_lists from source ──
+      if (extractedDesign.footer?.linkGroups) {
+        const footerHasNav = deduplicatedOps.some(
+          op => op.type === 'updateNavigation' && (op as any).menuId === 'footer-menu'
+        );
+        if (!footerHasNav) {
+          const allFooterLinks = Object.values(extractedDesign.footer.linkGroups).flat();
+          if (allFooterLinks.length > 0) {
+            deduplicatedOps.push({
+              type: 'updateNavigation',
+              menuId: 'footer-menu',
+              links: allFooterLinks,
+            } as TransformationOperation);
+          }
+        }
+      }
+
+      // ── Post-AI Refinement Pass ──
+      const refinementResult = runRefinementPass(deduplicatedOps, extractedDesign);
+      deduplicatedOps = refinementResult.operations;
+      if (refinementResult.warnings.length > 0) {
+        console.log('Refinement pass warnings:', refinementResult.warnings);
       }
 
       if (deduplicatedOps.length === 0) {
@@ -368,7 +393,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         baseThemeId: 'streamlined-home',
         extractedDesign,
         operations: deduplicatedOps,
-        validationWarnings: mappingWarnings,
+        validationWarnings: [...mappingWarnings, ...refinementResult.warnings],
       };
 
       set({ transformationPlan: plan, isLoading: false });

@@ -123,24 +123,76 @@ function extractButtonStyle(files: SourceProjectFiles): ExtractedDesign['buttonS
 
 function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
   const navItems: Array<{ name: string; url: string }> = [];
+  const seen = new Set<string>();
   let logoText: string | undefined;
   
-  // Search for footer component for brand name (often contains the logo text)
+  const addNavItem = (name: string, url: string) => {
+    const key = `${name.toLowerCase()}|${url}`;
+    if (seen.has(key)) return;
+    if (!name || name.length >= 30) return;
+    // Skip non-nav items
+    if (/^[<{]|className|onClick|icon|svg/i.test(name)) return;
+    seen.add(key);
+    navItems.push({ name: name.trim(), url });
+  };
+
+  // 1. Extract from header/nav components
   for (const [path, content] of Object.entries(files.components)) {
-    if (path.toLowerCase().includes('footer')) {
-      const logoMatch = content.match(/font-display[^>]*>([^<]+)/);
-      if (logoMatch) logoText = logoMatch[1].trim();
+    const lower = path.toLowerCase();
+    
+    // Logo text from header or footer
+    if (lower.includes('header') || lower.includes('footer')) {
+      if (!logoText) {
+        const logoMatch = content.match(/(?:font-display|font-heading|font-bold[^>]*text-(?:xl|2xl|lg))[^>]*>([^<]+)/);
+        if (logoMatch) logoText = logoMatch[1].trim();
+      }
     }
-    // Search for navigation links
-    if (path.toLowerCase().includes('nav') || path.toLowerCase().includes('header') || path.toLowerCase().includes('footer')) {
-      const linkRegex = /(?:to|href)=["']([^"'#]+)["'][^>]*>([^<]+)</g;
-      let match;
-      while ((match = linkRegex.exec(content)) !== null) {
-        const name = match[2].trim();
-        if (name && name.length < 30) {
-          navItems.push({ name, url: match[1] });
+    
+    // Nav links from header/nav/footer components
+    if (lower.includes('nav') || lower.includes('header') || lower.includes('footer')) {
+      // Array-style nav: const navLinks = [{ name: "Home", path: "/" }, ...]
+      const arrayMatch = content.match(/(?:navLinks|links|navItems|menuItems)\s*=\s*\[([\s\S]*?)\];/);
+      if (arrayMatch) {
+        const itemRegex = /name\s*:\s*["']([^"']+)["'][\s\S]*?(?:path|to|href|url)\s*:\s*["']([^"']+)["']/g;
+        let m;
+        while ((m = itemRegex.exec(arrayMatch[1])) !== null) {
+          addNavItem(m[1], m[2]);
         }
       }
+      
+      // Inline links (including href="#" placeholder links from footers)
+      const linkRegex = /(?:to|href)=["']([^"']+)["'][^>]*>([^<{]+)</g;
+      let match;
+      while ((match = linkRegex.exec(content)) !== null) {
+        const url = match[1];
+        const name = match[2].trim();
+        addNavItem(name, url === '#' ? '/' : url);
+      }
+    }
+  }
+
+  // 2. Fallback: extract routes from App.tsx to infer navigation
+  if (navItems.length === 0 && files.appTsx) {
+    const routeRegex = /path=["']([^"'*]+)["']/g;
+    let match;
+    while ((match = routeRegex.exec(files.appTsx)) !== null) {
+      const path = match[1];
+      if (path === '/') {
+        addNavItem('Home', '/');
+      } else {
+        const name = path.replace(/^\//, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        addNavItem(name, path);
+      }
+    }
+  }
+
+  // 3. Fallback: extract from inline index page nav patterns
+  if (navItems.length === 0) {
+    const indexPage = files.indexPage || '';
+    const linkRegex = /(?:to|href)=["']([^"'#]+)["'][^>]*>([^<{]+)</g;
+    let match;
+    while ((match = linkRegex.exec(indexPage)) !== null) {
+      addNavItem(match[2], match[1]);
     }
   }
   
@@ -870,27 +922,66 @@ function intentToLegacyType(intent: SectionIntent): ExtractedSection['type'] {
 }
 
 function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
+  let copyright: string | undefined;
+  let logoText: string | undefined;
+  const linkGroups: Record<string, Array<{ name: string; url: string }>> = {};
+  
   // Try to extract from footer component
   for (const [path, content] of Object.entries(files.components)) {
-    if (path.toLowerCase().includes('footer')) {
-      const logoMatch = content.match(/font-display[^>]*>([^<]+)/);
-      const copyrightMatch = content.match(/©\s*\d{4}\s*([^<"]+)/);
-      const linkMatches = [...content.matchAll(/href=["']#["'][^>]*>([^<]+)/g)];
-      
-      return {
-        backgroundColor: '#0d1520',
-        textColor: '#ffffff',
-        columns: linkMatches.length > 0 ? 2 : 1,
-        copyright: copyrightMatch ? `© ${copyrightMatch[0]}` : `© ${new Date().getFullYear()} All rights reserved.`,
-      };
+    if (!path.toLowerCase().includes('footer')) continue;
+    
+    const logoMatch = content.match(/(?:font-display|font-heading|font-bold)[^>]*>([^<]+)/);
+    if (logoMatch) logoText = logoMatch[1].trim();
+    
+    const copyrightMatch = content.match(/©\s*\d{4}\s*([^<"]+)/);
+    if (copyrightMatch) copyright = `© ${copyrightMatch[0].trim()}`;
+    
+    // Extract link groups from footer
+    // Pattern: footerLinks = { company: [...], resources: [...] }
+    const groupRegex = /(\w+)\s*:\s*\[\s*((?:\{[^}]*\}\s*,?\s*)+)\]/g;
+    let gMatch;
+    while ((gMatch = groupRegex.exec(content)) !== null) {
+      const groupName = gMatch[1];
+      const groupContent = gMatch[2];
+      const links: Array<{ name: string; url: string }> = [];
+      const linkRegex = /name\s*:\s*["']([^"']+)["'][\s\S]*?(?:path|to|href|url)\s*:\s*["']([^"']+)["']/g;
+      let lm;
+      while ((lm = linkRegex.exec(groupContent)) !== null) {
+        links.push({ name: lm[1], url: lm[2] });
+      }
+      if (links.length > 0) linkGroups[groupName] = links;
+    }
+    
+    // Fallback: inline links (including href="#" placeholder links)
+    if (Object.keys(linkGroups).length === 0) {
+      const inlineLinks: Array<{ name: string; url: string }> = [];
+      const linkRegex = /(?:to|href)=["']([^"']+)["'][^>]*>([^<{]+)</g;
+      let lm;
+      while ((lm = linkRegex.exec(content)) !== null) {
+        const name = lm[2].trim();
+        const url = lm[1];
+        if (name && name.length < 30 && !/icon|svg|className/i.test(name)) {
+          inlineLinks.push({ name, url: url === '#' ? '/' : url });
+      }
+    }
+      if (inlineLinks.length > 0) linkGroups['main'] = inlineLinks;
     }
   }
   
+  // Detect footer colors from CSS
+  const primaryMatch = files.indexCss?.match(/--primary:\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/);
+  const bgColorMatch = files.indexCss?.match(/--background:\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/);
+  const isDark = bgColorMatch && parseFloat(bgColorMatch[3]) < 20;
+  const footerBg = primaryMatch
+    ? hslToHex(`hsl(${primaryMatch[1]}, ${primaryMatch[2]}%, ${primaryMatch[3]}%)`)
+    : isDark ? '#0d1520' : '#1a1a2e';
+  
   return {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: footerBg,
     textColor: '#ffffff',
-    columns: 2,
-    copyright: `© ${new Date().getFullYear()} All rights reserved.`,
+    columns: Object.keys(linkGroups).length > 1 ? Object.keys(linkGroups).length + 1 : 2,
+    copyright: copyright || `© ${new Date().getFullYear()} ${logoText || ''} All rights reserved.`.trim(),
+    linkGroups: Object.keys(linkGroups).length > 0 ? linkGroups : undefined,
   };
 }
 
