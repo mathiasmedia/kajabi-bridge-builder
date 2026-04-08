@@ -263,6 +263,20 @@ export Kajabi zip`}</pre>
             <li><strong>Media handling:</strong> images and richer media are the least mature part of the pipeline.</li>
           </ul>
 
+          <h2>Most likely next failure mode</h2>
+          <ul>
+            <li>Once project-to-project ingestion replaces hardcoded bundles, the next likely breakage will be <strong>extraction inconsistency</strong> across different Lovable project structures (varying component naming, nested layouts, non-standard CSS setups).</li>
+            <li>After that, <strong>template-specific Kajabi field mismatches</strong> will matter more — different base themes expect different setting keys, block types, and layout assumptions that the current coercion logic does not account for.</li>
+          </ul>
+
+          <h2>Current test fixture(s)</h2>
+          <ul>
+            <li><strong>Base theme:</strong> <code>streamlined-home</code></li>
+            <li><strong>Primary source project:</strong> Woven Waves Landing (<code>eb365d77-280e-413a-ac01-0dbd5bf741fc</code>)</li>
+            <li><strong>Primary page:</strong> <code>index</code></li>
+            <li><strong>Known failing patterns:</strong> empty AI addSection stubs, stringified <code>content_for_index</code>, weak font transfer, AI-invented section types rejected by coercion</li>
+          </ul>
+
           <h2>Current architecture snapshot</h2>
           <ul>
             <li><strong>Frontend:</strong> React + Vite + TypeScript + Tailwind.</li>
