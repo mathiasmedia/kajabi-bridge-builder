@@ -15,7 +15,7 @@ serve(async (req) => {
     });
 
   try {
-    const { planJson, extractedDesign, tweakInstruction, imageBase64 } = await req.json();
+    const { planJson, extractedDesign, tweakInstruction, imageBase64, baseSections } = await req.json();
 
     if (!tweakInstruction) {
       return respond({ error: "tweakInstruction is required" });
@@ -56,10 +56,19 @@ serve(async (req) => {
       return { _index: i, ...op };
     });
 
+    // Build section map string for the prompt
+    const sectionMapStr = baseSections && Object.keys(baseSections).length > 0
+      ? Object.entries(baseSections).map(([id, name]) => `  - "${id}" → ${name}`).join("\n")
+      : "  (no section map available — use generic selectors)";
+
     const systemPrompt = `You are a Kajabi theme editor. You receive an existing transformation plan and a tweak instruction. Return ONLY the changes needed as patches.
 
 ${imageBase64 ? `## IMAGE ANALYSIS
 An image is attached. Analyze colors, fonts, layout, and text precisely. Apply changes to match.` : ''}
+
+## BASE THEME SECTIONS (index page)
+These are the REAL section IDs in the base theme. Use these exact IDs in your CSS selectors and operations:
+${sectionMapStr}
 
 ## KAJABI HTML STRUCTURE
 All sections render via section.liquid with this HTML:
@@ -72,6 +81,7 @@ All sections render via section.liquid with this HTML:
 - Feature icon blocks: \`.feature > .feature-icon + .feature__text\`
 - Buttons: \`.btn.btn--{size}.btn--{style}\`
 - NEVER use made-up classes like .hero__heading, .text-column__heading
+- NEVER use made-up section IDs like "hero" — use the real numeric IDs listed above
 - Target real classes: .section, .sizer, .container, .block, .btn, .feature
 
 ## PATCH FORMAT
