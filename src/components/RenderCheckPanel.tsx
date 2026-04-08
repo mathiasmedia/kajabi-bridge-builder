@@ -183,6 +183,30 @@ export default function RenderCheckPanel() {
               </div>
             )}
 
+            {/* Critical regressions count */}
+            {criticalCount > 0 && (
+              <div className="flex items-center gap-1.5 text-xs text-destructive">
+                <ShieldAlert className="h-3.5 w-3.5" />
+                {criticalCount} critical regression(s) detected — rollback-worthy
+              </div>
+            )}
+
+            {/* Expected model summary */}
+            {expected && (
+              <div className="rounded border p-2 space-y-1 text-[11px] text-muted-foreground">
+                <p className="font-medium text-foreground text-xs">Source Expectations</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                  {expected.hero && <p>Hero: {expected.hero.ctaCount} CTA(s){expected.hero.hasBadge ? ', badge' : ''}{expected.hero.hasSubheading ? ', sub' : ''}</p>}
+                  {expected.testimonials.present && <p>Testimonials: {expected.testimonials.count} item(s)</p>}
+                  {expected.programs.present && <p>Programs: {expected.programs.count} card(s){expected.programs.cardStyleIntent !== 'unknown' ? ` (${expected.programs.cardStyleIntent})` : ''}</p>}
+                  {expected.splitSections.length > 0 && <p>Split: {expected.splitSections.length} section(s){expected.splitSections.some(s => s.hasVisualSide) ? ', visual' : ''}</p>}
+                  {expected.ctaBands.length > 0 && <p>CTA bands: {expected.ctaBands.length}{expected.ctaBands.some(b => b.colorIntent === 'dark') ? ' (dark)' : ''}</p>}
+                  <p>Footer: {expected.footer.linkGroupCount} groups{expected.footer.hasSocial ? ', social' : ''}{expected.footer.hasDescription ? ', desc' : ''}</p>
+                  <p>Header: {expected.header.navItemCount} nav{expected.header.hasActionButtons ? ', actions' : ''}</p>
+                </div>
+              </div>
+            )}
+
             {/* Mismatch categories */}
             {Object.keys(grouped).length > 0 && (
               <div className="space-y-1.5">
