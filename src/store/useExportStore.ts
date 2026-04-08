@@ -352,6 +352,45 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         } as TransformationOperation);
       }
 
+      // ── Hero source-locking: force source-derived hero content into replaceText ops ──
+      if (extractedDesign.hero?.heading) {
+        const heroTextOps = deduplicatedOps.filter(
+          op => op.type === 'replaceText' && (op.label || '').toLowerCase().includes('hero')
+        );
+        for (const op of heroTextOps) {
+          const value = (op as any).value || '';
+          const stripped = value.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+          // Check if the hero text actually contains the source heading
+          const srcWords = extractedDesign.hero.heading.split(/\s+/).filter((w: string) => w.length > 3);
+          const hasSourceContent = srcWords.length > 0 &&
+            srcWords.some((word: string) => stripped.toLowerCase().includes(word.toLowerCase()));
+          
+          if (!hasSourceContent && value.includes('<h1>')) {
+            // Rebind: force source hero content into the replaceText op
+            let heroHtml = `<h1>${extractedDesign.hero.heading}</h1>`;
+            if (extractedDesign.hero.eyebrow) {
+              heroHtml = `<p style="text-transform:uppercase; letter-spacing:0.2em; font-size:14px">${extractedDesign.hero.eyebrow}</p>${heroHtml}`;
+            }
+            if (extractedDesign.hero.subheading) {
+              heroHtml += `<p><span style="font-size:20px">${extractedDesign.hero.subheading}</span></p>`;
+            }
+            if (extractedDesign.hero.secondaryCtaText && extractedDesign.hero.secondaryCtaUrl) {
+              heroHtml += `<p><a href="${extractedDesign.hero.secondaryCtaUrl}" style="font-size:16px; text-decoration:underline">${extractedDesign.hero.secondaryCtaText}</a></p>`;
+            }
+            (op as any).value = heroHtml;
+            // Also bind CTA button text
+            const ctaOps = deduplicatedOps.filter(
+              o => o.type === 'updateBlockSetting' && (o as any).key === 'btn_text' &&
+                (o.label || '').toLowerCase().includes('hero')
+            );
+            if (ctaOps.length > 0 && extractedDesign.hero.ctaText) {
+              (ctaOps[0] as any).value = extractedDesign.hero.ctaText;
+            }
+            console.log('Hero source-locking: rebound hero text from source-derived content');
+          }
+        }
+      }
+
       // ── Ensure footer link_lists from source ──
       if (extractedDesign.footer?.linkGroups) {
         const footerHasNav = deduplicatedOps.some(

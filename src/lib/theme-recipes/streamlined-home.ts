@@ -48,8 +48,12 @@ export function applyStreamlinedHomeRecipes(
       return applyTestimonialRecipe(op, matchingSection!, warnings);
     }
 
-    if (intent === 'icon_card_row') {
+     if (intent === 'icon_card_row') {
       return applyIconCardRowRecipe(op, matchingSection!, warnings);
+    }
+
+    if (intent === 'content_media_split') {
+      return applyContentMediaSplitRecipe(op, matchingSection!, warnings, extractedDesign);
     }
 
     // Apply own-row recipe to all sections for blocks that need vertical stacking
@@ -409,6 +413,110 @@ function applyCtaBandRecipe(
   return {
     ...op,
     section: { ...op.section, settings, blocks, block_order: blockOrder },
+  };
+}
+
+// ── Content/Media Split Recipe (Branded Visual Panel) ───────────────────
+
+function applyContentMediaSplitRecipe(
+  op: Extract<TransformationOperation, { type: 'addSection' }>,
+  section: ExtractedSection,
+  warnings: ValidationWarning[],
+  design?: ExtractedDesign,
+): TransformationOperation {
+  const blocks = { ...op.section.blocks };
+  const blockOrder = [...(op.section.block_order || [])];
+
+  // Detect if visual side is missing — generate a branded panel fallback
+  const hasImageBlock = blockOrder.some(bid => {
+    const b = blocks[bid];
+    return b?.type === 'image' && b.settings?.image;
+  });
+  const hasVisualPlaceholder = blockOrder.some(bid => {
+    const text = (blocks[bid]?.settings?.text || '').toLowerCase();
+    return text.includes('visual placeholder') || text.includes('image placeholder') || text.includes('[placeholder]');
+  });
+
+  if (!hasImageBlock && (hasVisualPlaceholder || blockOrder.length <= 1)) {
+    // Replace placeholder with a branded visual panel
+    const brandColor = design?.colors?.find(c => c.usage === 'primary')?.value || '#3B82F6';
+    const logoText = design?.header?.logoText || design?.footer?.logoText || '';
+    const panelId = String(Math.floor(1000000000000 + Math.random() * 9000000000000));
+
+    // Build a branded panel block
+    let panelHtml = `<div style="text-align:center; padding:40px;">`;
+    if (logoText) {
+      panelHtml += `<p style="font-size:32px; font-weight:700; color:${brandColor}; letter-spacing:0.05em">${logoText}</p>`;
+    }
+    panelHtml += `<p style="font-size:14px; color:#888; margin-top:12px">Brand Identity</p>`;
+    panelHtml += `</div>`;
+
+    // Find and replace any visual placeholder block, or add new one
+    let replacedPlaceholder = false;
+    for (const bid of blockOrder) {
+      const text = (blocks[bid]?.settings?.text || '').toLowerCase();
+      if (text.includes('visual placeholder') || text.includes('image placeholder') || text.includes('[placeholder]')) {
+        blocks[bid] = {
+          type: 'text',
+          settings: {
+            text: panelHtml,
+            width: '5',
+            text_align: 'center',
+            background_color: `${brandColor}11`,
+            border_radius: '16',
+            padding_desktop: { top: '32', right: '24', bottom: '32', left: '24' },
+          },
+        };
+        replacedPlaceholder = true;
+        break;
+      }
+    }
+
+    if (!replacedPlaceholder && blockOrder.length <= 1) {
+      blocks[panelId] = {
+        type: 'text',
+        settings: {
+          text: panelHtml,
+          width: '5',
+          text_align: 'center',
+          background_color: `${brandColor}11`,
+          border_radius: '16',
+          padding_desktop: { top: '32', right: '24', bottom: '32', left: '24' },
+        },
+      };
+      blockOrder.push(panelId);
+    }
+
+    warnings.push({
+      severity: 'info',
+      message: `Content/media split: replaced generic placeholder with branded visual panel${logoText ? ` featuring "${logoText}"` : ''}`,
+      target: section.id,
+    });
+  }
+
+  // Ensure text side preserves checklist as <ul> if source has it
+  if (section.hasChecklist) {
+    for (const bid of blockOrder) {
+      const block = blocks[bid];
+      if (block?.type === 'text' && block.settings?.text) {
+        const text = block.settings.text;
+        // Check if checklist was collapsed into paragraphs
+        if (!text.includes('<ul') && !text.includes('<li') && text.includes('✓')) {
+          // Already has check marks — leave as-is, just warn
+        } else if (!text.includes('<ul') && !text.includes('<li') && section.items && section.items.length >= 2) {
+          warnings.push({
+            severity: 'info',
+            message: `Content split section has checklist in source but output may have collapsed items into paragraphs`,
+            target: section.id,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    ...op,
+    section: { ...op.section, blocks, block_order: blockOrder },
   };
 }
 
