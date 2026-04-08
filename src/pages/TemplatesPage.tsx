@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Brain, Loader2, Trash2, FileJson, Star, AlertTriangle, CheckCircle, Lightbulb } from 'lucide-react';
+import { ArrowLeft, Brain, Loader2, Trash2, FileJson, Star, AlertTriangle, CheckCircle, Lightbulb, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
