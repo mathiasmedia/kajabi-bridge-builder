@@ -9,7 +9,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { planJson, extractedDesign, tweakInstruction } = await req.json();
+    const { planJson, extractedDesign, tweakInstruction, imageBase64 } = await req.json();
 
     if (!tweakInstruction) {
       return new Response(JSON.stringify({ error: "tweakInstruction is required" }), {
@@ -23,6 +23,8 @@ serve(async (req) => {
     const operations = planJson?.operations || [];
 
     const systemPrompt = `You are a Kajabi theme export editor. You receive an existing transformation plan (a list of operations) and a tweak instruction. Your job is to return a MODIFIED version of the operations array with the requested changes applied.
+
+If an image is attached, analyze it carefully — the user may want you to match colors, layout, typography, or other design elements from the image and apply them to the Kajabi theme.
 
 RULES:
 - Return the COMPLETE operations array, not just the changed ones
@@ -48,7 +50,9 @@ OPERATION TYPES:
 
 Return ONLY valid JSON: { "operations": [...], "changelog": "brief description of what changed" }`;
 
-    const userPrompt = `## Current Plan (${operations.length} operations)
+    // Build user message content — text or multimodal with image
+    let userContent: any;
+    const textPart = `## Current Plan (${operations.length} operations)
 ${JSON.stringify(operations, null, 2).slice(0, 20000)}
 
 ## Extracted Design Summary
@@ -60,6 +64,15 @@ ${tweakInstruction}
 
 Apply the tweak and return the modified operations array as JSON.`;
 
+    if (imageBase64) {
+      userContent = [
+        { type: "text", text: textPart },
+        { type: "image_url", image_url: { url: imageBase64 } },
+      ];
+    } else {
+      userContent = textPart;
+    }
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -67,10 +80,10 @@ Apply the tweak and return the modified operations array as JSON.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
+          { role: "user", content: userContent },
         ],
       }),
     });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Brain, Loader2, Trash2, Star, AlertTriangle, CheckCircle, Lightbulb, RefreshCw, Send, Wrench, Download } from 'lucide-react';
+import { ArrowLeft, Brain, Loader2, Trash2, Star, AlertTriangle, CheckCircle, Lightbulb, RefreshCw, Send, Wrench, Download, ImagePlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +44,7 @@ export default function TemplatesPage() {
   const [tweakPrompt, setTweakPrompt] = useState('');
   const [tweaking, setTweaking] = useState(false);
   const [tweakLog, setTweakLog] = useState<Record<string, string[]>>({});
+  const [tweakImage, setTweakImage] = useState<string | null>(null); // base64 data URL
   const [planVersion, setPlanVersion] = useState(0); // force preview re-render
 
   useEffect(() => { loadTemplates(); }, []);
@@ -90,19 +91,20 @@ export default function TemplatesPage() {
     finally { setCritiquing(null); }
   };
 
-  const applyTweak = async (template: SavedTemplate, instruction: string) => {
+  const applyTweak = async (template: SavedTemplate, instruction: string, imageData?: string | null) => {
     setTweaking(true);
-    const logEntry = `🔧 ${instruction}`;
+    const logEntry = `🔧 ${instruction}${imageData ? ' 📷' : ''}`;
     setTweakLog(prev => ({ ...prev, [template.id]: [...(prev[template.id] || []), logEntry] }));
 
     try {
-      const { data, error } = await supabase.functions.invoke('ai-tweak', {
-        body: {
-          planJson: template.plan_json,
-          extractedDesign: template.extracted_design_json,
-          tweakInstruction: instruction,
-        },
-      });
+      const body: any = {
+        planJson: template.plan_json,
+        extractedDesign: template.extracted_design_json,
+        tweakInstruction: instruction,
+      };
+      if (imageData) body.imageBase64 = imageData;
+
+      const { data, error } = await supabase.functions.invoke('ai-tweak', { body });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
@@ -142,10 +144,22 @@ export default function TemplatesPage() {
   };
 
   const handleTweakSubmit = (template: SavedTemplate) => {
-    if (!tweakPrompt.trim()) return;
-    const instruction = tweakPrompt.trim();
+    if (!tweakPrompt.trim() && !tweakImage) return;
+    const instruction = tweakPrompt.trim() || 'Analyze the attached image and apply matching design changes';
+    const img = tweakImage;
     setTweakPrompt('');
-    applyTweak(template, instruction);
+    setTweakImage(null);
+    applyTweak(template, instruction, img);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
+    const reader = new FileReader();
+    reader.onload = () => setTweakImage(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const handleReExport = async (template: SavedTemplate) => {
@@ -359,8 +373,23 @@ export default function TemplatesPage() {
                   </ScrollArea>
 
                   {/* Tweak input pinned at bottom */}
-                  <div className="p-2 border-t shrink-0">
+                  <div className="p-2 border-t shrink-0 space-y-1.5">
+                    {tweakImage && (
+                      <div className="relative inline-block">
+                        <img src={tweakImage} alt="Tweak reference" className="h-12 rounded border border-border" />
+                        <button
+                          onClick={() => setTweakImage(null)}
+                          className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
                     <div className="flex gap-1.5">
+                      <label className="cursor-pointer flex items-center justify-center h-8 w-8 shrink-0 rounded-md border border-input bg-background hover:bg-accent transition-colors">
+                        <ImagePlus className="h-3.5 w-3.5 text-muted-foreground" />
+                        <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={tweaking} />
+                      </label>
                       <Input
                         placeholder="Describe a tweak…"
                         value={tweakPrompt}
@@ -373,7 +402,7 @@ export default function TemplatesPage() {
                         size="icon"
                         className="h-8 w-8 shrink-0"
                         onClick={() => handleTweakSubmit(selected)}
-                        disabled={!tweakPrompt.trim() || tweaking}
+                        disabled={(!tweakPrompt.trim() && !tweakImage) || tweaking}
                       >
                         <Send className="h-3.5 w-3.5" />
                       </Button>
