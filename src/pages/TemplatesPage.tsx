@@ -8,6 +8,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useExportStore } from '@/store/useExportStore';
+import { hasProjectBundle } from '@/lib/project-bundles';
 import AppHeader from '@/components/AppHeader';
 
 interface SavedTemplate {
