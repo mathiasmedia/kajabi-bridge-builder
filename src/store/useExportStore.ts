@@ -13,6 +13,7 @@ import { applyStreamlinedHomeRecipes } from '@/lib/theme-recipes/streamlined-hom
 import { runRefinementPass } from '@/lib/refinement-pass';
 import { runRenderCheck, type RenderCheckOutput } from '@/lib/renderer-integration';
 import { generateRefinementSuggestions, applyDeterministicRefinements, type RefinementResult } from '@/lib/render-check-refinement';
+import { extractStyleIntents, detectRegressions, type RegressionReport } from '@/lib/refinement-guardrails';
 
 interface ExportStore {
   // State
@@ -33,6 +34,7 @@ interface ExportStore {
   isRenderChecking: boolean;
   refinementResult: RefinementResult | null;
   previousScore: number | null;
+  regressionReport: RegressionReport | null;
 
   // Actions
   setWorkspaceProjects: (projects: WorkspaceProject[]) => void;
@@ -77,6 +79,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
   isRenderChecking: false,
   refinementResult: null,
   previousScore: null,
+  regressionReport: null,
 
   setWorkspaceProjects: (projects) => set({ workspaceProjects: projects }),
 
@@ -619,11 +622,12 @@ export const useExportStore = create<ExportStore>((set, get) => ({
     });
   },
 
-  applyAllSafeRefinements: () => {
-    const { transformationPlan, refinementResult, renderCheckResult } = get();
-    if (!transformationPlan || !refinementResult) return;
+  applyAllSafeRefinements: async () => {
+    const { transformationPlan, refinementResult, renderCheckResult, baseTheme, extractedDesign } = get();
+    if (!transformationPlan || !refinementResult || !baseTheme || !extractedDesign) return;
 
-    const previousScore = renderCheckResult?.comparison?.score ?? null;
+    const beforeComparison = renderCheckResult?.comparison ?? null;
+    const previousScore = beforeComparison?.score ?? null;
     const deterministicSuggestions = refinementResult.suggestions.filter(
       s => s.strategy === 'apply_deterministic_fix' && s.proposedOperations?.length
     );
@@ -634,16 +638,59 @@ export const useExportStore = create<ExportStore>((set, get) => ({
       deterministicSuggestions,
     );
 
+    const newPlan = { ...transformationPlan, operations };
+
+    // Run render check on the new plan to detect regressions
     set({
-      transformationPlan: { ...transformationPlan, operations },
-      renderCheckResult: null, // invalidate
+      transformationPlan: newPlan,
+      isRenderChecking: true,
       previousScore,
-      refinementResult: {
-        ...refinementResult,
-        suggestions: refinementResult.suggestions.filter(s => !applied.includes(s.id)),
-        deterministicCount: 0,
-      },
+      regressionReport: null,
     });
+
+    try {
+      const afterResult = await runRenderCheck(
+        newPlan, baseTheme, extractedDesign,
+        (msg) => set({ loadingMessage: msg }),
+      );
+
+      // Detect regressions
+      let regressionReport: RegressionReport | null = null;
+      if (beforeComparison && afterResult.comparison) {
+        const sourceIntents = refinementResult.sourceIntents || extractStyleIntents(extractedDesign);
+        regressionReport = detectRegressions(beforeComparison, afterResult.comparison, sourceIntents);
+
+        // If critical regressions, roll back
+        if (regressionReport.hasCritical) {
+          console.warn('Critical regressions detected — rolling back refinements', regressionReport.regressions);
+          set({
+            transformationPlan, // restore original
+            renderCheckResult: renderCheckResult, // restore original
+            isRenderChecking: false,
+            regressionReport,
+            refinementResult, // keep suggestions available
+          });
+          return;
+        }
+      }
+
+      set({
+        renderCheckResult: afterResult,
+        isRenderChecking: false,
+        regressionReport,
+        refinementResult: {
+          ...refinementResult,
+          suggestions: refinementResult.suggestions.filter(s => !applied.includes(s.id)),
+          deterministicCount: 0,
+        },
+      });
+    } catch (e) {
+      // On error, keep the applied changes but flag
+      set({
+        renderCheckResult: null,
+        isRenderChecking: false,
+      });
+    }
   },
 }));
 
