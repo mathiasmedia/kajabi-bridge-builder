@@ -210,7 +210,7 @@ function sanitizeSettingsData(current: Record<string, any>) {
   }
 }
 
-function applyOperation(
+export function applyOperation(
   op: TransformationOperation,
   current: Record<string, any>,
   addCss: (css: string) => void,

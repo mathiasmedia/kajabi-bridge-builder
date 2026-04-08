@@ -9,7 +9,7 @@
  */
 
 import type { KajabiThemeData, TransformationPlan, ExtractedDesign } from '@/types';
-import { applyOperationToSettings } from '@/lib/kajabi-exporter';
+import { applyOperation } from '@/lib/kajabi-exporter';
 import { renderPageFromData } from '@/lib/kajabi-renderer-engine';
 import { runStructuralComparison, type ComparisonResult } from '@/lib/render-check-compare';
 
