@@ -1,5 +1,6 @@
 import type { ExtractedDesign, ExtractedColor, ExtractedSection, ExtractedAsset, SectionIntent, ExtractionWarning, MediaIntent, ImageTarget, ImageTargetRole } from '@/types';
 
+
 // Source project extractor - analyzes a Lovable project's code to extract design information
 // This runs in the browser and uses cross-project tools via the store
 
@@ -123,14 +124,15 @@ function extractButtonStyle(files: SourceProjectFiles): ExtractedDesign['buttonS
 
 function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
   const navItems: Array<{ name: string; url: string }> = [];
+  const actionButtons: Array<{ text: string; url: string; variant?: 'primary' | 'outline' }> = [];
   const seen = new Set<string>();
   let logoText: string | undefined;
+  let sticky = false;
   
   const addNavItem = (name: string, url: string) => {
     const key = `${name.toLowerCase()}|${url}`;
     if (seen.has(key)) return;
     if (!name || name.length >= 30) return;
-    // Skip non-nav items
     if (/^[<{]|className|onClick|icon|svg/i.test(name)) return;
     seen.add(key);
     navItems.push({ name: name.trim(), url });
@@ -148,8 +150,10 @@ function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
       }
     }
     
-    // Nav links from header/nav/footer components
-    if (lower.includes('nav') || lower.includes('header') || lower.includes('footer')) {
+    if (lower.includes('nav') || lower.includes('header')) {
+      // Detect sticky header
+      if (/sticky\s+top-0|fixed\s+top-0/i.test(content)) sticky = true;
+
       // Array-style nav: const navLinks = [{ name: "Home", path: "/" }, ...]
       const arrayMatch = content.match(/(?:navLinks|links|navItems|menuItems)\s*=\s*\[([\s\S]*?)\];/);
       if (arrayMatch) {
@@ -160,18 +164,38 @@ function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
         }
       }
       
-      // Inline links (including href="#" placeholder links from footers)
+      // Inline links
       const linkRegex = /(?:to|href)=["']([^"']+)["'][^>]*>([^<{]+)</g;
       let match;
       while ((match = linkRegex.exec(content)) !== null) {
         const url = match[1];
         const name = match[2].trim();
-        addNavItem(name, url === '#' ? '/' : url);
+        if (name && name.length < 30 && !/icon|svg|className/i.test(name)) {
+          addNavItem(name, url === '#' ? '/' : url);
+        }
+      }
+
+      // Detect action buttons in header (right-side CTAs)
+      // Pattern: <Link to="/..."><Button ...>Text</Button></Link>
+      // Typically after the nav section, often in a div with hidden md:flex
+      const actionBtnRegex = /<Link\s+to=["']([^"']+)["'][^>]*>\s*<Button[^>]*(?:variant=["']([^"']+)["'])?[^>]*>([^<]+)<\/Button>/g;
+      let abm;
+      while ((abm = actionBtnRegex.exec(content)) !== null) {
+        const url = abm[1];
+        const variant = abm[2];
+        const text = abm[3].trim();
+        if (text && text.length < 30 && !navItems.some(n => n.name === text)) {
+          actionButtons.push({
+            text,
+            url,
+            variant: variant === 'outline' ? 'outline' : 'primary',
+          });
+        }
       }
     }
   }
 
-  // 2. Fallback: extract routes from App.tsx to infer navigation
+  // 2. Fallback: extract routes from App.tsx
   if (navItems.length === 0 && files.appTsx) {
     const routeRegex = /path=["']([^"'*]+)["']/g;
     let match;
@@ -208,7 +232,8 @@ function extractHeader(files: SourceProjectFiles): ExtractedDesign['header'] {
       { name: 'About', url: '/about' },
     ],
     logoText,
-    sticky: false,
+    sticky,
+    actionButtons: actionButtons.length > 0 ? actionButtons : undefined,
   };
 }
 
