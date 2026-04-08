@@ -58,7 +58,6 @@ interface ExportStore {
   generateRefinements: () => void;
   applyRefinement: (suggestionId: string) => void;
   applyAllSafeRefinements: () => void;
-  regressionReport: RegressionReport | null;
 }
 
 
