@@ -406,10 +406,11 @@ function applyCtaBandRecipe(
   if (primaryBid && blocks[primaryBid]) {
     const tb = blocks[primaryBid];
     // Full width for the block, centered text
-    tb.settings.width = '8';
+    tb.settings.width = '7';
     tb.settings.text_align = tb.settings.text_align || 'center';
     // Inner panel: background, padding, border-radius, box-shadow
-    tb.settings.background_color = tb.settings.background_color || '#FFFFFF';
+    tb.settings.background_color = tb.settings.background_color || (isDark ? darkCardBg : '#FFFFFF');
+    tb.settings.box_shadow = tb.settings.box_shadow || (isDark ? 'none' : 'large');
     tb.settings.box_shadow = tb.settings.box_shadow || 'large';
     tb.settings.border_radius = tb.settings.border_radius || '16';
     tb.settings.padding_desktop = tb.settings.padding_desktop || {
@@ -734,4 +735,56 @@ function findMatchingExtractedSection(
   }
 
   return undefined;
+}
+
+// ── Dark-site detection helpers ─────────────────────────────────────────
+
+function detectDarkDesign(design: ExtractedDesign): boolean {
+  const bgColor = design.colors.find(c => c.usage === 'background');
+  if (!bgColor) return false;
+  const val = bgColor.value;
+  // Handle hex
+  if (val.startsWith('#')) {
+    const hex = val.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return (r + g + b) / 3 < 77; // ~30% luminance
+  }
+  // Handle HSL string "H S% L%"
+  const hslMatch = val.match(/([\d.]+)\s+([\d.]+)%?\s+([\d.]+)%?/);
+  if (hslMatch) {
+    const l = parseFloat(hslMatch[3]);
+    return l < 30;
+  }
+  return false;
+}
+
+function lightenHex(color: string, factor: number): string {
+  // Handle HSL string
+  if (!color.startsWith('#')) {
+    const hslMatch = color.match(/([\d.]+)\s+([\d.]+)%?\s+([\d.]+)%?/);
+    if (hslMatch) {
+      const h = parseFloat(hslMatch[1]);
+      const s = parseFloat(hslMatch[2]);
+      const l = Math.min(100, parseFloat(hslMatch[3]) + factor * 100);
+      // Convert HSL to hex
+      const a2 = (s / 100) * Math.min(l / 100, 1 - l / 100);
+      const f = (n: number) => {
+        const k = (n + h / 30) % 12;
+        const c = l / 100 - a2 * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+        return Math.round(255 * c).toString(16).padStart(2, '0');
+      };
+      return `#${f(0)}${f(8)}${f(4)}`;
+    }
+    return '#1a2a30';
+  }
+  const clean = color.replace('#', '');
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  const lr = Math.min(255, Math.round(r + (255 - r) * factor));
+  const lg = Math.min(255, Math.round(g + (255 - g) * factor));
+  const lb = Math.min(255, Math.round(b + (255 - b) * factor));
+  return `#${lr.toString(16).padStart(2, '0')}${lg.toString(16).padStart(2, '0')}${lb.toString(16).padStart(2, '0')}`;
 }
