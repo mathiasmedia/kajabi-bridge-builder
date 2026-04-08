@@ -57,6 +57,19 @@ export interface ExtractedColor {
   usage: 'primary' | 'secondary' | 'background' | 'text' | 'accent' | 'other';
 }
 
+export type SectionIntent =
+  | 'hero'
+  | 'stats'
+  | 'feature_grid'
+  | 'program_cards'
+  | 'testimonial_band'
+  | 'cta_band'
+  | 'content_media_split'
+  | 'heading_divider'
+  | 'faq'
+  | 'footer_like'
+  | 'unknown';
+
 export interface ExtractedSection {
   id: string;
   type: 'hero' | 'features' | 'testimonials' | 'cta' | 'content' | 'gallery' | 'pricing' | 'faq' | 'contact' | 'custom';
@@ -72,7 +85,34 @@ export interface ExtractedSection {
     body?: string;
     image?: string;
     icon?: string;
+    value?: string;
+    price?: string;
+    quote?: string;
+    name?: string;
+    role?: string;
+    ctaText?: string;
+    ctaUrl?: string;
   }>;
+  // Semantic extraction metadata
+  intent: SectionIntent;
+  confidence: number; // 0-1
+  evidence: string[];
+  sourceFile?: string;
+  repeatedItemCount: number;
+  hasHeading: boolean;
+  hasBody: boolean;
+  hasButtons: boolean;
+  hasImages: boolean;
+  hasStats: boolean;
+  hasTestimonials: boolean;
+  hasPricing: boolean;
+  hasRepeatedCards: boolean;
+}
+
+export interface ExtractionWarning {
+  sectionId: string;
+  severity: 'error' | 'warning' | 'info';
+  message: string;
 }
 
 export interface ExtractedAsset {
