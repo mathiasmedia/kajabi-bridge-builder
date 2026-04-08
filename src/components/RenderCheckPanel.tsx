@@ -36,6 +36,15 @@ export default function RenderCheckPanel() {
   const [showPreview, setShowPreview] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
+  const openPreviewTab = useCallback(() => {
+    if (!renderCheckResult?.renderedHtml) return;
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(renderCheckResult.renderedHtml);
+      win.document.close();
+    }
+  }, [renderCheckResult]);
+
   // Auto-generate refinements when render check completes
   useEffect(() => {
     if (renderCheckResult?.success && renderCheckResult.comparison && !refinementResult) {
