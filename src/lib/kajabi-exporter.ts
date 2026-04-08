@@ -280,6 +280,11 @@ export function applyOperation(
           current.content_for_index = JSON.parse(current.content_for_index.replace(/'/g, '"'));
         } catch { current.content_for_index = []; }
       }
+      // On the first addSection, clear default sections so only AI-generated ones render
+      if (Array.isArray(current.content_for_index) && !current._clearedDefaults) {
+        current.content_for_index = [];
+        current._clearedDefaults = true;
+      }
       if (Array.isArray(current.content_for_index) && !current.content_for_index.includes(op.sectionId)) {
         current.content_for_index.push(op.sectionId);
       }
