@@ -67,6 +67,8 @@ export const useExportStore = create<ExportStore>((set, get) => ({
   loadingMessage: '',
   error: null,
   exportValidation: null,
+  renderCheckResult: null,
+  isRenderChecking: false,
 
   setWorkspaceProjects: (projects) => set({ workspaceProjects: projects }),
 
@@ -557,6 +559,32 @@ export const useExportStore = create<ExportStore>((set, get) => ({
 
   setError: (error) => set({ error }),
   setLoading: (isLoading, loadingMessage = '') => set({ isLoading, loadingMessage }),
+
+  runRenderCheck: async () => {
+    const { transformationPlan, baseTheme, extractedDesign } = get();
+    if (!transformationPlan || !baseTheme || !extractedDesign) {
+      set({ error: 'Missing data for render check' });
+      return;
+    }
+    set({ isRenderChecking: true, renderCheckResult: null });
+    try {
+      const result = await runRenderCheck(
+        transformationPlan,
+        baseTheme,
+        extractedDesign,
+        (msg) => set({ loadingMessage: msg }),
+      );
+      set({ renderCheckResult: result, isRenderChecking: false });
+    } catch (e) {
+      set({
+        renderCheckResult: {
+          success: false,
+          error: `Render check failed: ${e instanceof Error ? e.message : e}`,
+        },
+        isRenderChecking: false,
+      });
+    }
+  },
 }));
 
 // ── Deduplication pass ────────────────────────────────────────────────
