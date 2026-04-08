@@ -268,8 +268,12 @@ async function handleSectionStep(apiKey: string, body: any) {
   }
 
   const sectionContext = findSectionSourceContext(sourceFiles, sectionToGenerate);
-  const intent = classifySectionIntent(sectionToGenerate);
+  // Use upstream intent from extractor (primary), fall back to local classification
+  const intent: SectionIntent = mapUpstreamIntent(sectionToGenerate.intent) || classifySectionIntent(sectionToGenerate);
   const blockPattern = getBlockPatternForIntent(intent);
+
+  // Build richness requirements based on intent + upstream metadata
+  const richnessGuard = buildRichnessGuard(intent, sectionToGenerate);
 
   const dedupWarning = existingSectionHeadings.length > 0
     ? `\n\nDEDUPLICATION: These headings already exist. Do NOT repeat them:\n${existingSectionHeadings.map((h: string) => `- "${h}"`).join("\n")}\nIf already covered, return {"operations":[],"cssOverrides":""}.`
