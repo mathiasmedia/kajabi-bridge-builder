@@ -11,6 +11,7 @@ import type { SourceProjectSnapshot, IngestionWarning } from '@/lib/ingestion';
 import { snapshotToSourceFiles, validateSnapshot, BundledProjectAdapter } from '@/lib/ingestion';
 import { applyStreamlinedHomeRecipes } from '@/lib/theme-recipes/streamlined-home';
 import { runRefinementPass } from '@/lib/refinement-pass';
+import { runRenderCheck, type RenderCheckOutput } from '@/lib/renderer-integration';
 
 interface ExportStore {
   // State
@@ -27,6 +28,8 @@ interface ExportStore {
   loadingMessage: string;
   error: string | null;
   exportValidation: ValidationResult | null;
+  renderCheckResult: RenderCheckOutput | null;
+  isRenderChecking: boolean;
 
   // Actions
   setWorkspaceProjects: (projects: WorkspaceProject[]) => void;
@@ -46,6 +49,7 @@ interface ExportStore {
   reset: () => void;
   setError: (error: string | null) => void;
   setLoading: (loading: boolean, message?: string) => void;
+  runRenderCheck: () => Promise<void>;
 }
 
 
@@ -63,6 +67,8 @@ export const useExportStore = create<ExportStore>((set, get) => ({
   loadingMessage: '',
   error: null,
   exportValidation: null,
+  renderCheckResult: null,
+  isRenderChecking: false,
 
   setWorkspaceProjects: (projects) => set({ workspaceProjects: projects }),
 
@@ -553,6 +559,32 @@ export const useExportStore = create<ExportStore>((set, get) => ({
 
   setError: (error) => set({ error }),
   setLoading: (isLoading, loadingMessage = '') => set({ isLoading, loadingMessage }),
+
+  runRenderCheck: async () => {
+    const { transformationPlan, baseTheme, extractedDesign } = get();
+    if (!transformationPlan || !baseTheme || !extractedDesign) {
+      set({ error: 'Missing data for render check' });
+      return;
+    }
+    set({ isRenderChecking: true, renderCheckResult: null });
+    try {
+      const result = await runRenderCheck(
+        transformationPlan,
+        baseTheme,
+        extractedDesign,
+        (msg) => set({ loadingMessage: msg }),
+      );
+      set({ renderCheckResult: result, isRenderChecking: false });
+    } catch (e) {
+      set({
+        renderCheckResult: {
+          success: false,
+          error: `Render check failed: ${e instanceof Error ? e.message : e}`,
+        },
+        isRenderChecking: false,
+      });
+    }
+  },
 }));
 
 // ── Deduplication pass ────────────────────────────────────────────────

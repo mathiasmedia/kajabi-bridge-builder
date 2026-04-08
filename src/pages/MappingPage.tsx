@@ -10,6 +10,7 @@ import { useExportStore } from '@/store/useExportStore';
 import { generateChangeSummary, type ChangeSummaryItem } from '@/lib/kajabi-exporter';
 import AppHeader from '@/components/AppHeader';
 import ThemePreview from '@/components/ThemePreview';
+import RenderCheckPanel from '@/components/RenderCheckPanel';
 
 const OP_TYPE_COLORS: Record<string, string> = {
   addSection: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
@@ -241,6 +242,8 @@ export default function MappingPage() {
                 </ScrollArea>
               </CardContent>
             </Card>
+
+            <RenderCheckPanel />
           </div>
 
           <Card className="min-w-0 max-w-full overflow-hidden">
