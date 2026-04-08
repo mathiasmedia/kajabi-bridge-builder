@@ -350,7 +350,7 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
   const hasImg = /<img[\s>]/.test(content) || /import\s+\w+\s+from\s+["']@\/assets\//.test(content);
   const hasQuote = /quote|testimonial/i.test(content);
   const hasPrice = /price|\$\d|price:/i.test(content);
-  const hasAccordion = /accordion|faq|question|answer/i.test(content);
+  const hasAccordion = /Accordion|AccordionItem|AccordionTrigger|AccordionContent/i.test(content);
 
   // ── Extract repeated array data ──
   const arrayMatch = content.match(/(?:const|let)\s+(\w+)\s*(?::\s*\w+(?:<[^>]+>)?\s*\[\])?\s*=\s*\[([\s\S]*?)\];/);
