@@ -48,8 +48,12 @@ export function applyStreamlinedHomeRecipes(
       return applyTestimonialRecipe(op, matchingSection!, warnings);
     }
 
-    if (intent === 'icon_card_row') {
+     if (intent === 'icon_card_row') {
       return applyIconCardRowRecipe(op, matchingSection!, warnings);
+    }
+
+    if (intent === 'content_media_split') {
+      return applyContentMediaSplitRecipe(op, matchingSection!, warnings, extractedDesign);
     }
 
     // Apply own-row recipe to all sections for blocks that need vertical stacking

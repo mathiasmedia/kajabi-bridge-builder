@@ -41,6 +41,18 @@ export function runRefinementPass(
   // 4. Hero richness safety
   validateHeroRichness(ops, design, warnings);
 
+  // 5. Source-binding integrity (NEW)
+  validateSourceBinding(ops, design, warnings);
+
+  // 6. Header action cluster completeness (NEW)
+  validateHeaderActionCluster(ops, design, warnings);
+
+  // 7. Branded visual panel check (NEW)
+  validateBrandedVisualPanels(ops, design, warnings);
+
+  // 8. CTA band source-recipe check (NEW)
+  validateCtaBandRecipe(ops, design, warnings);
+
   return { operations: ops, warnings };
 }
 
@@ -340,6 +352,260 @@ function validateHeroRichness(
         warnings.push({
           severity: 'info',
           message: 'Hero had 2 CTAs in source but only one preserved — secondary CTA may be inline fallback',
+        });
+      }
+    }
+  }
+}
+
+// ── Source-Binding Integrity Check ──────────────────────────────────────
+
+const GENERIC_PLACEHOLDER_PATTERNS = [
+  /lorem ipsum/i,
+  /placeholder/i,
+  /your heading here/i,
+  /your text here/i,
+  /sample text/i,
+  /card title/i,
+  /add your title/i,
+  /get started today/i,
+  /welcome to our site/i,
+  /this is a sample/i,
+];
+
+function isGenericPlaceholder(text: string): boolean {
+  const stripped = text.replace(/<[^>]+>/g, '').trim();
+  if (!stripped) return false;
+  return GENERIC_PLACEHOLDER_PATTERNS.some(p => p.test(stripped));
+}
+
+function validateSourceBinding(
+  ops: TransformationOperation[],
+  design: ExtractedDesign,
+  warnings: ValidationWarning[],
+) {
+  // 1. Hero source-binding check
+  if (design.hero?.heading) {
+    const heroOps = ops.filter(op =>
+      op.type === 'replaceText' && (op.label || '').toLowerCase().includes('hero'),
+    );
+    
+    for (const op of heroOps) {
+      const value = (op as any).value || '';
+      const stripped = value.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      
+      // Check if hero text contains source heading content
+      const sourceHeadingWords = design.hero.heading.split(/\s+/).filter(w => w.length > 3);
+      const hasSourceContent = sourceHeadingWords.length > 0 &&
+        sourceHeadingWords.some(word => stripped.toLowerCase().includes(word.toLowerCase()));
+      
+      if (!hasSourceContent && stripped.length > 10) {
+        warnings.push({
+          severity: 'warning',
+          message: `Hero text does not contain source heading "${design.hero.heading.slice(0, 40)}..." — may have fallen back to base-theme defaults`,
+        });
+      }
+      
+      if (isGenericPlaceholder(value)) {
+        warnings.push({
+          severity: 'warning',
+          message: `Hero contains generic placeholder text despite source hero content being available`,
+        });
+      }
+    }
+  }
+
+  // 2. Check addSection ops for placeholder text when source has real content
+  const addOps = ops.filter(
+    (op): op is Extract<TransformationOperation, { type: 'addSection' }> => op.type === 'addSection',
+  );
+
+  for (const op of addOps) {
+    const blocks = Object.values(op.section?.blocks || {}) as any[];
+    for (const block of blocks) {
+      const text = block.settings?.text || '';
+      if (isGenericPlaceholder(text)) {
+        warnings.push({
+          severity: 'warning',
+          message: `Section "${op.label}" block contains generic placeholder text — source content should override`,
+        });
+        break; // One warning per section is enough
+      }
+    }
+  }
+
+  // 3. Check CTA band source binding
+  const ctaSections = design.sections.filter(s => s.intent === 'cta_band');
+  for (const src of ctaSections) {
+    if (!src.heading) continue;
+    const matchingOp = addOps.find(op => {
+      const label = (op.label || '').toLowerCase();
+      return label.includes('cta') || label.includes('ready') || label.includes('stand out');
+    });
+    if (matchingOp) {
+      const allText = Object.values(matchingOp.section?.blocks || {})
+        .map((b: any) => b.settings?.text || '').join('');
+      const stripped = allText.replace(/<[^>]+>/g, '');
+      const srcWords = src.heading.split(/\s+/).filter(w => w.length > 3);
+      if (srcWords.length > 0 && !srcWords.some(w => stripped.toLowerCase().includes(w.toLowerCase()))) {
+        warnings.push({
+          severity: 'warning',
+          message: `CTA band heading does not match source "${src.heading.slice(0, 40)}" — may use base-theme default`,
+        });
+      }
+    }
+  }
+
+  // 4. Check split content sections for source binding
+  const splitSections = design.sections.filter(s => s.intent === 'content_media_split');
+  for (const src of splitSections) {
+    if (!src.heading) continue;
+    const matchingOp = addOps.find(op => {
+      const label = (op.label || '').toLowerCase();
+      return label.includes('content') || label.includes('split') || label.includes('elevated') || label.includes('brand');
+    });
+    if (matchingOp) {
+      const allText = Object.values(matchingOp.section?.blocks || {})
+        .map((b: any) => b.settings?.text || '').join('');
+      const stripped = allText.replace(/<[^>]+>/g, '');
+      if (stripped.length > 10 && isGenericPlaceholder(allText)) {
+        warnings.push({
+          severity: 'warning',
+          message: `Content split section does not contain source heading "${src.heading.slice(0, 40)}" — may be defaulting`,
+        });
+      }
+    }
+  }
+}
+
+// ── Header Action Cluster Completeness ──────────────────────────────────
+
+function validateHeaderActionCluster(
+  ops: TransformationOperation[],
+  design: ExtractedDesign,
+  warnings: ValidationWarning[],
+) {
+  if (!design.header?.actionButtons || design.header.actionButtons.length === 0) return;
+
+  const actionBtns = design.header.actionButtons;
+  const navOps = ops.filter(op => op.type === 'updateNavigation');
+  const mainNavOp = navOps.find(op => (op as any).menuId === 'main-menu');
+  
+  if (mainNavOp) {
+    const navLinks = (mainNavOp as any).links as Array<{ name: string; url: string }>;
+    // Check if action buttons were flattened into nav
+    for (const btn of actionBtns) {
+      const inNav = navLinks.some(l => l.name === btn.text);
+      if (inNav) {
+        warnings.push({
+          severity: 'info',
+          message: `Header action button "${btn.text}" was flattened into plain nav — source distinguishes it as a CTA button`,
+        });
+      }
+    }
+  }
+
+  // Check if action buttons exist anywhere in the output
+  const allOpsJson = JSON.stringify(ops);
+  for (const btn of actionBtns) {
+    if (!allOpsJson.includes(btn.text)) {
+      warnings.push({
+        severity: 'warning',
+        message: `Header action button "${btn.text}" from source is missing from output entirely`,
+      });
+    }
+  }
+}
+
+// ── Branded Visual Panel Check ──────────────────────────────────────────
+
+function validateBrandedVisualPanels(
+  ops: TransformationOperation[],
+  design: ExtractedDesign,
+  warnings: ValidationWarning[],
+) {
+  const splitSections = design.sections.filter(s => s.intent === 'content_media_split');
+  const addOps = ops.filter(
+    (op): op is Extract<TransformationOperation, { type: 'addSection' }> => op.type === 'addSection',
+  );
+
+  for (const src of splitSections) {
+    const matchingOp = addOps.find(op => {
+      const label = (op.label || '').toLowerCase();
+      return label.includes('content') || label.includes('split') || label.includes('elevated') || label.includes('brand');
+    });
+
+    if (!matchingOp) continue;
+
+    const blocks = Object.values(matchingOp.section?.blocks || {}) as any[];
+    const hasImageBlock = blocks.some(b => b.type === 'image' && b.settings?.image);
+    const hasVisualPanel = blocks.some(b => {
+      const text = (b.settings?.text || '').toLowerCase();
+      return b.settings?.background_color || b.settings?.box_shadow ||
+        text.includes('brand') || text.includes('logo');
+    });
+
+    // Check if source had a visual side that got lost
+    if (src.hasImages || src.image || src.backgroundImage) {
+      if (!hasImageBlock && !hasVisualPanel) {
+        warnings.push({
+          severity: 'warning',
+          message: `Split section "${src.heading || 'content'}" source has visual side but output has no image or branded panel — became text-only`,
+        });
+      }
+    }
+
+    // Check if any block is just a placeholder "Visual Placeholder"
+    for (const block of blocks) {
+      const text = (block.settings?.text || '').toLowerCase();
+      if (text.includes('visual placeholder') || text.includes('image placeholder') || text.includes('[placeholder]')) {
+        warnings.push({
+          severity: 'warning',
+          message: `Split section "${src.heading || 'content'}" has generic visual placeholder — should use branded panel or real image`,
+        });
+      }
+    }
+  }
+}
+
+// ── CTA Band Source-Recipe Check ────────────────────────────────────────
+
+function validateCtaBandRecipe(
+  ops: TransformationOperation[],
+  design: ExtractedDesign,
+  warnings: ValidationWarning[],
+) {
+  const ctaSources = design.sections.filter(s => s.intent === 'cta_band');
+  const addOps = ops.filter(
+    (op): op is Extract<TransformationOperation, { type: 'addSection' }> => op.type === 'addSection',
+  );
+
+  for (const src of ctaSources) {
+    const matchingOp = addOps.find(op => {
+      const label = (op.label || '').toLowerCase();
+      return label.includes('cta') || label.includes('ready') || label.includes('stand out');
+    });
+    if (!matchingOp) continue;
+
+    // Check dual CTA preservation
+    if (src.secondaryCtaText) {
+      const allText = Object.values(matchingOp.section?.blocks || {})
+        .map((b: any) => (b.settings?.text || '') + (b.settings?.btn_text || '')).join('');
+      if (!allText.includes(src.secondaryCtaText)) {
+        warnings.push({
+          severity: 'warning',
+          message: `CTA band source had secondary CTA "${src.secondaryCtaText}" but it was dropped from output`,
+        });
+      }
+    }
+
+    // Check source recipe: dark section with inner card vs plain section
+    if (src.backgroundColor) {
+      const sectionBg = matchingOp.section?.settings?.background_color;
+      if (!sectionBg) {
+        warnings.push({
+          severity: 'info',
+          message: `CTA band source has background_color "${src.backgroundColor}" but output section has no background_color set`,
         });
       }
     }
