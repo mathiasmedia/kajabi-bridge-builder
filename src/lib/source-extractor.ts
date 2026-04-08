@@ -684,9 +684,6 @@ function analyzeInlineSection(
     hasChecklist,
     media,
   };
-    hasPricing: hasPrice,
-    media,
-  };
 }
 
 function analyzeComponent(name: string, content: string, files: SourceProjectFiles): ComponentAnalysis {
