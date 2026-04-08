@@ -596,22 +596,35 @@ function getBlockPatternForIntent(intent: SectionIntent): string {
 - Section: bg_type="color" or "image", background_color for dark bg`,
 
     'stats': `PATTERN for stats:
-- Multiple feature blocks (width "4" each, hide_image="true")
-- Each: <h4>Number/Stat</h4><p>Description</p>
+- Multiple feature blocks (width "3" or "4" each, hide_image="true")
+- Each feature block: <h4>Number/Value</h4><p>Label/Description</p>
+- CRITICAL: Every stat MUST have a numeric value in <h4> and a label in <p>. Never output label-only blocks.
 - Section: equal_height="true"`,
 
-    'feature-grid': `PATTERN for features/programs:
+    'feature-grid': `PATTERN for features:
 - 1 text block (width "12"): <h2>Section Title</h2><p>Intro text</p>
 - Multiple feature blocks (width "4" or "6" each): <h4>Feature Title</h4><p>Description</p>
 - Include ALL features from source, with use_btn if source has CTAs`,
 
+    'program-cards': `PATTERN for program/course cards:
+- 1 text block (width "12"): <h2>Section Title</h2><p>Intro paragraph</p>
+- Multiple feature blocks (width "4" each, one per program/course):
+  - <h4>Course Title</h4><p>Description</p><p><strong>Price</strong></p>
+  - Include use_btn="true" + btn_text for CTAs when available
+  - Include image if available (do NOT set hide_image)
+- CRITICAL: One block per course/program. Do NOT merge multiple courses into one block.`,
+
     'testimonial-band': `PATTERN for testimonials:
 - 1 text block (width "12"): <h2>Section Title</h2>
-- Multiple text or card blocks (width "4" or "6"): "<p style="font-style:italic">Quote</p><p><strong>Name</strong></p>"`,
+- Multiple feature blocks (width "4", one per testimonial):
+  - <p style="font-style:italic">"Quote text"</p><h4>Person Name</h4><p>Role/Title</p>
+  - hide_image="true"
+- CRITICAL: One block per testimonial. Each MUST have the actual quote text.`,
 
     'cta-band': `PATTERN for CTA:
 - 1 text block (width "8", text_align "center"): <h2>CTA Heading</h2><p>Supporting text</p>
-- 1 cta block: btn_text, btn_action`,
+- 1 cta block: btn_text, btn_action
+- CRITICAL: Must include a cta block with actual button text.`,
 
     'content-media-split': `PATTERN for content/media:
 - 1 text block (width "5"-"6"): heading + body + optional button
@@ -621,6 +634,11 @@ function getBlockPatternForIntent(intent: SectionIntent): string {
 
     'heading-separator': `PATTERN for heading separator:
 - 1 text block (width "8"-"12"): <h2>Heading</h2>`,
+
+    'faq': `PATTERN for FAQ:
+- 1 text block (width "12"): <h2>FAQ Heading</h2>
+- Multiple text blocks (width "12" each) for Q&A pairs: <h4>Question?</h4><p>Answer text</p>
+- If an accordion block type is available, use that instead.`,
 
     'content': `PATTERN for content:
 - 1 text block (width "8"-"12"): <h2>Heading</h2><p>Body text</p>
