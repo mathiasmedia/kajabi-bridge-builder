@@ -83,29 +83,45 @@ export async function applyPlanAndExport(
 /**
  * Sanitize settings_data to fix common AI output issues before zipping.
  */
+// Valid block types for Kajabi "section" type
+const VALID_BLOCK_TYPES = new Set([
+  "text", "feature", "card", "cta", "image", "accordion", "form", "video",
+  "video_embed", "audio", "blog", "code", "countdown", "course_outline",
+  "event", "external_widget", "link_list", "multi_video", "offer", "pricing",
+  "social_icons", "social_share",
+  // Header/footer block types
+  "logo", "menu", "dropdown", "user", "hello_bar", "copyright",
+]);
+
+const BLOCK_TYPE_REMAP: Record<string, string> = {
+  "text_column": "feature",
+  "text-column": "feature",
+  "textcolumn": "feature",
+  "stat": "feature",
+  "testimonial": "text",
+  "quote": "text",
+  "heading": "text",
+  "paragraph": "text",
+  "button": "cta",
+};
+
 function sanitizeSettingsData(current: Record<string, any>) {
-  // Fix content_for_* arrays: parse stringified arrays, remove empty strings
+  // Fix content_for_* arrays
   for (const key of Object.keys(current)) {
     if (key.startsWith('content_for_')) {
       let val = current[key];
-      // Parse stringified array like "['id1','id2']"
       if (typeof val === 'string') {
-        try {
-          val = JSON.parse(val.replace(/'/g, '"'));
-        } catch {
-          // Try manual parse for Python-style arrays
-          const matches = val.match(/[\w\d]+/g);
-          val = matches || [];
+        try { val = JSON.parse(val.replace(/'/g, '"')); } catch {
+          val = val.match(/[\w\d]+/g) || [];
         }
       }
-      // Filter empty strings and ensure array
       if (Array.isArray(val)) {
         current[key] = val.filter((id: string) => typeof id === 'string' && id.trim() !== '');
       }
     }
   }
 
-  // Validate link_lists entries are real objects (preserve for menu blocks)
+  // Validate link_lists
   if (current.link_lists && typeof current.link_lists === 'object') {
     for (const [menuId, menu] of Object.entries(current.link_lists)) {
       if (typeof menu === 'string') {
@@ -119,10 +135,8 @@ function sanitizeSettingsData(current: Record<string, any>) {
   for (const [id, section] of Object.entries(sections)) {
     const s = section as any;
     
-    // Remove empty stub sections (no type)
     if (!s.type) {
       delete sections[id];
-      // Also remove from content_for_* arrays
       for (const key of Object.keys(current)) {
         if (key.startsWith('content_for_') && Array.isArray(current[key])) {
           current[key] = current[key].filter((sid: string) => sid !== id);
@@ -131,27 +145,62 @@ function sanitizeSettingsData(current: Record<string, any>) {
       continue;
     }
 
-    // Fix stringified objects in settings
+    // Remove invalid section-level settings that belong in blocks
     if (s.settings && typeof s.settings === 'object') {
+      const invalidSectionKeys = ['heading', 'subheading', 'text', 'heading_color', 'text_color'];
+      for (const key of invalidSectionKeys) {
+        delete s.settings[key];
+      }
+      // Fix stringified objects
       for (const [sk, sv] of Object.entries(s.settings)) {
         if (typeof sv === 'string' && (sv.startsWith('{') || sv.startsWith('['))) {
-          try {
-            s.settings[sk] = JSON.parse(sv);
-          } catch { /* leave as string */ }
+          try { s.settings[sk] = JSON.parse(sv); } catch { /* leave */ }
         }
       }
     }
 
-    // Fix stringified objects in block settings
+    // Fix blocks
     if (s.blocks && typeof s.blocks === 'object') {
-      for (const block of Object.values(s.blocks)) {
+      for (const [bid, block] of Object.entries(s.blocks)) {
         const b = block as any;
+        
+        // Fix block type
+        if (b.type) {
+          const lower = b.type.toLowerCase();
+          if (BLOCK_TYPE_REMAP[lower]) {
+            b.type = BLOCK_TYPE_REMAP[lower];
+          }
+          if (!VALID_BLOCK_TYPES.has(b.type)) {
+            b.type = "text";
+          }
+        }
+
+        // Fix block settings
         if (b.settings && typeof b.settings === 'object') {
+          // Build text from heading/body if text is missing
+          if (!b.settings.text && (b.settings.heading || b.settings.body || b.settings.description)) {
+            let html = '';
+            if (b.settings.heading) html += `<h4>${b.settings.heading}</h4>`;
+            if (b.settings.body) html += `<p>${b.settings.body}</p>`;
+            else if (b.settings.description) html += `<p>${b.settings.description}</p>`;
+            b.settings.text = html;
+            delete b.settings.heading;
+            delete b.settings.body;
+            delete b.settings.description;
+          }
+
+          // Fix field names
+          if (b.settings.btn_url && !b.settings.btn_action) { b.settings.btn_action = b.settings.btn_url; delete b.settings.btn_url; }
+          if (b.settings.button_label && !b.settings.btn_text) { b.settings.btn_text = b.settings.button_label; delete b.settings.button_label; }
+          if (b.settings.image_link && !b.settings.img_action) { b.settings.img_action = b.settings.image_link; delete b.settings.image_link; }
+
+          // Ensure width default
+          if (!b.settings.width) b.settings.width = "12";
+
+          // Fix stringified objects
           for (const [bk, bv] of Object.entries(b.settings)) {
             if (typeof bv === 'string' && (bv.startsWith('{') || bv.startsWith('['))) {
-              try {
-                b.settings[bk] = JSON.parse(bv);
-              } catch { /* leave as string */ }
+              try { b.settings[bk] = JSON.parse(bv); } catch { /* leave */ }
             }
           }
         }
