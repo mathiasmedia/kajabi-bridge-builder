@@ -226,23 +226,6 @@ export default function MappingPage() {
               </Card>
             )}
 
-            <Card className="min-w-0">
-              <CardHeader>
-                <CardTitle className="text-base">Preview</CardTitle>
-              </CardHeader>
-              <CardContent className="p-2">
-                <ScrollArea className="h-[600px] w-full">
-                  {extractedDesign && transformationPlan ? (
-                    <ThemePreview plan={transformationPlan} design={extractedDesign} />
-                  ) : (
-                    <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                      No preview available
-                    </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-
             <RenderCheckPanel />
           </div>
 
