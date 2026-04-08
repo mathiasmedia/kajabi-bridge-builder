@@ -582,7 +582,7 @@ async function renderSectionBrowser(
     return;
   }
 
-  const template = theme.sections[templateFile];
+  const template = resolvedTemplate;
   const visibleBlocks = (section.blocks || []).filter((b: any) => !b.hidden);
   const sectionCtx = {
     section: {
