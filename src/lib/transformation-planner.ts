@@ -497,10 +497,6 @@ a:hover { opacity: 0.85 !important; }
 @media (max-width: 768px) { .cta-card { padding: 40px 24px !important; } }
 .cta-card h2 { margin-bottom: 16px !important; }
 .cta-card p { color: ${bodyTextHex} !important; max-width: 480px !important; margin: 0 auto !important; }
-.cta-card + .btn, .cta-card ~ .btn {
-  background-color: ${primaryHex} !important;
-  color: ${bgHex} !important;
-}
 
 /* ── Footer ── */
 .footer, .footer__inner { background-color: ${bgHex} !important; border-top: 1px solid rgba(255,255,255,0.06) !important; }
