@@ -225,7 +225,6 @@ export default function MappingPage() {
               </Card>
             )}
 
-            <RenderCheckPanel />
           </div>
 
           <Card className="min-w-0 max-w-full overflow-hidden">
