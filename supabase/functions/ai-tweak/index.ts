@@ -13,7 +13,7 @@ serve(async (req) => {
 
     if (!tweakInstruction) {
       return new Response(JSON.stringify({ error: "tweakInstruction is required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
