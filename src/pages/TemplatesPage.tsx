@@ -144,10 +144,22 @@ export default function TemplatesPage() {
   };
 
   const handleTweakSubmit = (template: SavedTemplate) => {
-    if (!tweakPrompt.trim()) return;
-    const instruction = tweakPrompt.trim();
+    if (!tweakPrompt.trim() && !tweakImage) return;
+    const instruction = tweakPrompt.trim() || 'Analyze the attached image and apply matching design changes';
+    const img = tweakImage;
     setTweakPrompt('');
-    applyTweak(template, instruction);
+    setTweakImage(null);
+    applyTweak(template, instruction, img);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
+    const reader = new FileReader();
+    reader.onload = () => setTweakImage(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const handleReExport = async (template: SavedTemplate) => {
