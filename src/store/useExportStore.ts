@@ -295,7 +295,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
 
       // ── Theme-specific recipe layer ──
       if (currentProject.baseTheme === 'streamlined-home') {
-        const recipeResult = applyStreamlinedHomeRecipes(deduplicatedOps, extractedDesign.sections);
+        const recipeResult = applyStreamlinedHomeRecipes(deduplicatedOps, extractedDesign.sections, extractedDesign);
         deduplicatedOps = recipeResult.operations;
         if (recipeResult.warnings.length > 0) {
           console.log('Theme recipe adjustments:', recipeResult.warnings);
