@@ -190,7 +190,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { name, referenceUrl, referenceImages, description } = await req.json();
+    const { name, referenceUrl, referenceImages, description, visionDesign } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
@@ -199,10 +199,23 @@ serve(async (req) => {
 
     const hasImages = referenceImages && referenceImages.length > 0;
 
+    // If vision design was pre-extracted, include it as rich context
+    const visionContext = visionDesign ? `
+## PRE-EXTRACTED DESIGN (from screenshot analysis — use these EXACT values)
+Style: ${visionDesign.overallStyle || 'N/A'}
+Colors: ${JSON.stringify(visionDesign.colors || {})}
+Typography: ${JSON.stringify(visionDesign.typography || {})}
+Spacing: ${JSON.stringify(visionDesign.spacing || {})}
+Effects: ${JSON.stringify(visionDesign.effects || {})}
+Sections (top to bottom): ${JSON.stringify(visionDesign.sections || [])}
+Text Content: ${JSON.stringify(visionDesign.textContent || {})}
+` : '';
+
     const baseContext = `Project name: ${name}
 ${referenceUrl ? `Reference URL: ${referenceUrl}` : ''}
 ${description ? `Design description: ${description}` : ''}
-${!referenceUrl && !description && !hasImages ? 'Create a modern, professional business website template.' : ''}`;
+${visionContext}
+${!referenceUrl && !description && !hasImages && !visionDesign ? 'Create a modern, professional business website template.' : ''}`;
 
     let imageContent: any[] = [];
     if (hasImages) {
