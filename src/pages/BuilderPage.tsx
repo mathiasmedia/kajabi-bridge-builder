@@ -96,19 +96,24 @@ export default function BuilderPage() {
     finally { setCritiquing(false); }
   };
 
-  const applyTweak = async (instruction: string, imageData?: string | null) => {
+  const applyTweak = async (instruction: string, _imageData?: string | null) => {
     if (!template) return;
     // Save current plan for undo
     setPlanHistory(prev => [...prev, template.plan_json]);
     setTweaking(true);
-    setTweakLog(prev => [...prev, `🔧 ${instruction}${imageData ? ' 📷' : ''}`]);
+    setTweakLog(prev => [...prev, `🔧 ${instruction}`]);
     try {
+      // Send compact plan to avoid request body limits
+      const compactPlan = {
+        operations: (template.plan_json as any).operations || [],
+      };
       const body: any = {
-        planJson: template.plan_json,
+        planJson: compactPlan,
         extractedDesign: template.extracted_design_json,
         tweakInstruction: instruction,
       };
-      if (imageData) body.imageBase64 = imageData;
+      // Note: we don't send imageBase64 to avoid body size issues
+      // Image-based matching should use the analyze→generate flow instead
       const { data, error } = await supabase.functions.invoke('ai-tweak', { body });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
