@@ -11,10 +11,11 @@ const respond = (body: Record<string, unknown>) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
-async function callAI(apiKey: string, model: string, system: string, user: any, maxTokens = 8192) {
-  const res = await fetch(AI_URL, {
+async function callLovableAI(apiKey: string, model: string, system: string, user: any, maxTokens = 8192) {
+  const res = await fetch(LOVABLE_AI_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -26,24 +27,43 @@ async function callAI(apiKey: string, model: string, system: string, user: any, 
       ],
     }),
   });
+  return handleAIResponse(res, model);
+}
 
+async function callOpenAI(apiKey: string, model: string, system: string, user: any, maxTokens = 4096) {
+  const res = await fetch(OPENAI_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    }),
+  });
+  return handleAIResponse(res, model);
+}
+
+async function handleAIResponse(res: Response, model: string) {
   if (!res.ok) {
     const status = res.status;
     const errText = await res.text();
-    console.error(`AI error (${model}):`, status, errText);
+    console.error(`AI error (${model}):`, status, errText.slice(0, 300));
     throw new Error(
       status === 429 ? "Rate limited — try again shortly"
       : status === 402 ? "Credits exhausted"
-      : `AI gateway error: ${status}`
+      : `AI error (${model}): ${status}`
     );
   }
 
   const rawText = await res.text();
-  if (!rawText?.trim()) throw new Error("AI returned empty response");
+  if (!rawText?.trim()) throw new Error(`${model} returned empty response`);
 
   let data;
   try { data = JSON.parse(rawText); } catch {
-    throw new Error("AI returned invalid response");
+    throw new Error(`${model} returned invalid JSON`);
   }
 
   const content = data.choices?.[0]?.message?.content || "";
@@ -60,7 +80,6 @@ function parseJSON(content: string): any {
     if (match) return JSON.parse(match[0]);
   } catch {}
 
-  // Repair attempt
   try {
     cleaned = cleaned.replace(/^[^{]*/, "");
     const open = (cleaned.match(/{/g) || []).length;
@@ -80,15 +99,16 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+
     const hasImages = referenceImages && referenceImages.length > 0;
 
-    // Build user content with images if provided
     const baseContext = `Project name: ${name}
 ${referenceUrl ? `Reference URL: ${referenceUrl}` : ''}
 ${description ? `Design description: ${description}` : ''}
 ${!referenceUrl && !description && !hasImages ? 'Create a modern, professional business website template.' : ''}`;
 
-    let imageContent: any = null;
+    let imageContent: any[] = [];
     if (hasImages) {
       imageContent = referenceImages.slice(0, 2).map((img: string) => ({
         type: "image_url",
@@ -138,7 +158,7 @@ Return valid JSON:
 Return ONLY valid JSON. No markdown.`;
 
     // ── PASS 2 (quality): CSS & visual polish ───────────────────
-    const cssPrompt = `You are a CSS expert for Kajabi themes. Given a design reference, generate a SINGLE comprehensive CSS override that achieves pixel-perfect visual matching.
+    const cssPrompt = `You are a CSS expert for Kajabi themes. Generate a SINGLE comprehensive CSS override for pixel-perfect visual matching.
 
 Return valid JSON:
 {
@@ -154,76 +174,216 @@ Return valid JSON:
 - Section-specific backgrounds and text colors
 - Container max-widths and responsive padding
 - Any gradients, shadows, or special effects
-- Spacing/padding patterns that match the reference
+- Spacing/padding patterns
 
 ## RULES
-- Use specific hex colors from the reference, not generic ones
-- Include hover/transition states for interactive elements
-- Make typography distinctive — match the reference's personality
-- Include responsive adjustments where needed
+- Use specific hex colors, not generic ones
+- Include hover/transition states
+- Make typography distinctive
+- Include responsive adjustments
 
-Return ONLY valid JSON with "css" and "fonts" keys. No markdown.`;
+Return ONLY valid JSON. No markdown.`;
 
-    const structureUserContent = hasImages
+    // ── PASS 3 (vision — OpenAI): Precise design extraction ────
+    const visionPrompt = `You are a design analyst. Analyze the provided screenshot with extreme precision and extract a detailed design specification.
+
+Return valid JSON:
+{
+  "colors": {
+    "background": "#hex",
+    "surface": "#hex",
+    "primary": "#hex",
+    "accent": "#hex",
+    "text": "#hex",
+    "textSecondary": "#hex",
+    "buttonBg": "#hex",
+    "buttonText": "#hex",
+    "border": "#hex"
+  },
+  "typography": {
+    "headingFont": "closest Google Font match",
+    "bodyFont": "closest Google Font match",
+    "h1Size": "px value",
+    "h2Size": "px value",
+    "bodySize": "px value",
+    "headingWeight": "number",
+    "bodyWeight": "number",
+    "letterSpacing": "em value",
+    "lineHeight": "number"
+  },
+  "spacing": {
+    "sectionPadding": "px value",
+    "containerMaxWidth": "px value",
+    "elementGap": "px value"
+  },
+  "effects": {
+    "borderRadius": "px value",
+    "shadows": "CSS shadow or 'none'",
+    "gradients": ["CSS gradient strings if any"]
+  },
+  "sections": ["list of section names from top to bottom"],
+  "textContent": {
+    "headline": "exact headline text",
+    "subheadline": "exact subheadline text",
+    "navItems": ["nav item names"],
+    "buttonLabels": ["button text"]
+  }
+}
+
+Be EXTREMELY precise with colors — use exact hex values, not approximations.
+Return ONLY valid JSON. No markdown.`;
+
+    // Build user content for each pass
+    const structureUser = hasImages
       ? [{ type: "text", text: `${baseContext}\n\nGenerate the structure as JSON.` }, ...imageContent]
       : `${baseContext}\n\nGenerate the structure as JSON.`;
 
-    const cssUserContent = hasImages
+    const cssUser = hasImages
       ? [{ type: "text", text: `${baseContext}\n\nGenerate the CSS override as JSON.` }, ...imageContent]
       : `${baseContext}\n\nGenerate the CSS override as JSON.`;
 
-    // Run BOTH passes in parallel
-    console.log("Starting parallel generation: structure (flash-lite) + CSS (flash)");
-    const [structureResult, cssResult] = await Promise.allSettled([
-      callAI(LOVABLE_API_KEY, "google/gemini-2.5-flash-lite", structurePrompt, structureUserContent, 8192),
-      callAI(LOVABLE_API_KEY, "google/gemini-2.5-flash", cssPrompt, cssUserContent, 4096),
-    ]);
+    // Launch all passes in parallel
+    const passes: Promise<{ content: string; finishReason: string }>[] = [
+      callLovableAI(LOVABLE_API_KEY, "google/gemini-2.5-flash-lite", structurePrompt, structureUser, 8192),
+      callLovableAI(LOVABLE_API_KEY, "google/gemini-2.5-flash", cssPrompt, cssUser, 4096),
+    ];
 
-    // Parse structure (required)
-    if (structureResult.status === "rejected") {
-      return respond({ error: `Structure generation failed: ${structureResult.reason?.message || "Unknown"}` });
+    // Pass 3: OpenAI vision — only when we have images AND an API key
+    const useOpenAIVision = hasImages && OPENAI_API_KEY;
+    if (useOpenAIVision) {
+      const visionUser = [
+        { type: "text", text: `${baseContext}\n\nAnalyze the screenshot and extract the design specification as JSON.` },
+        ...imageContent,
+      ];
+      passes.push(callOpenAI(OPENAI_API_KEY, "gpt-4o", visionPrompt, visionUser, 4096));
+      console.log("3-pass parallel: structure (flash-lite) + CSS (flash) + vision (GPT-4o)");
+    } else {
+      console.log("2-pass parallel: structure (flash-lite) + CSS (flash)" + (hasImages && !OPENAI_API_KEY ? " [no OpenAI key, skipping vision]" : ""));
     }
 
-    const structure = parseJSON(structureResult.value.content);
+    const results = await Promise.allSettled(passes);
+
+    // ── Parse PASS 1: Structure (required) ──────────────────────
+    if (results[0].status === "rejected") {
+      return respond({ error: `Structure generation failed: ${results[0].reason?.message || "Unknown"}` });
+    }
+
+    const structure = parseJSON(results[0].value.content);
     if (!structure?.operations || !Array.isArray(structure.operations)) {
-      const truncated = structureResult.value.finishReason === "length" || structureResult.value.finishReason === "MAX_TOKENS";
+      const truncated = results[0].value.finishReason === "length" || results[0].value.finishReason === "MAX_TOKENS";
       return respond({
         error: truncated ? "Structure response truncated — try simpler description" : "Failed to parse structure",
-        raw: structureResult.value.content.slice(0, 500),
+        raw: results[0].value.content.slice(0, 500),
       });
     }
 
-    // Parse CSS (optional — gracefully degrade)
+    // ── Parse PASS 2: CSS (optional, graceful degradation) ──────
     let cssOverride = "";
-    if (cssResult.status === "fulfilled") {
-      const cssData = parseJSON(cssResult.value.content);
+    let cssFonts: { heading?: string; body?: string } = {};
+    if (results[1].status === "fulfilled") {
+      const cssData = parseJSON(results[1].value.content);
       if (cssData?.css) {
         cssOverride = cssData.css;
-        // Update font info in extractedDesign if available
-        if (cssData.fonts && structure.extractedDesign) {
-          if (cssData.fonts.heading) structure.extractedDesign.headingFont = cssData.fonts.heading;
-          if (cssData.fonts.body) structure.extractedDesign.bodyFont = cssData.fonts.body;
+        cssFonts = cssData.fonts || {};
+      }
+    } else {
+      console.error("CSS pass failed (non-fatal):", results[1].reason?.message);
+    }
+
+    // ── Parse PASS 3: Vision analysis (optional) ────────────────
+    let visionData: any = null;
+    if (useOpenAIVision && results[2]?.status === "fulfilled") {
+      visionData = parseJSON(results[2].value.content);
+      if (visionData) {
+        console.log("Vision analysis succeeded — applying corrections");
+      }
+    } else if (useOpenAIVision && results[2]?.status === "rejected") {
+      console.error("Vision pass failed (non-fatal):", results[2].reason?.message);
+    }
+
+    // ── Merge results ───────────────────────────────────────────
+    let operations = structure.operations.filter((op: any) => op.type !== "addCssOverride");
+    let extractedDesign = structure.extractedDesign || {};
+
+    // If vision data is available, use it to enhance the CSS and design info
+    if (visionData) {
+      // Enhance extractedDesign with precise vision data
+      if (visionData.colors) {
+        extractedDesign = {
+          ...extractedDesign,
+          backgroundColor: visionData.colors.background || extractedDesign.backgroundColor,
+          textColor: visionData.colors.text || extractedDesign.textColor,
+          accentColor: visionData.colors.primary || extractedDesign.accentColor,
+          buttonColor: visionData.colors.buttonBg || extractedDesign.buttonColor,
+          buttonTextColor: visionData.colors.buttonText || extractedDesign.buttonTextColor,
+          colors: Object.values(visionData.colors).filter(Boolean),
+        };
+      }
+      if (visionData.typography) {
+        extractedDesign.headingFont = visionData.typography.headingFont || cssFonts.heading || extractedDesign.headingFont;
+        extractedDesign.bodyFont = visionData.typography.bodyFont || cssFonts.body || extractedDesign.bodyFont;
+      }
+
+      // Inject vision-derived corrections into CSS
+      if (cssOverride && visionData.colors) {
+        const c = visionData.colors;
+        const visionVars = [
+          c.background ? `--color-bg: ${c.background};` : '',
+          c.surface ? `--color-surface: ${c.surface};` : '',
+          c.primary ? `--color-primary: ${c.primary};` : '',
+          c.accent ? `--color-accent: ${c.accent};` : '',
+          c.text ? `--color-text: ${c.text};` : '',
+          c.textSecondary ? `--color-text-secondary: ${c.textSecondary};` : '',
+          c.buttonBg ? `--color-button-bg: ${c.buttonBg};` : '',
+          c.buttonText ? `--color-button-text: ${c.buttonText};` : '',
+        ].filter(Boolean).join('\n  ');
+
+        if (visionVars) {
+          // Prepend vision-derived variables to the CSS
+          cssOverride = `/* Vision-corrected colors */\n:root {\n  ${visionVars}\n}\n\n${cssOverride}`;
+        }
+      }
+
+      // If vision extracted specific text content, try to correct section text
+      if (visionData.textContent?.headline) {
+        for (const op of operations) {
+          if (op.type === "addSection" && op.label?.toLowerCase().includes("hero")) {
+            const blocks = op.section?.blocks;
+            if (blocks) {
+              for (const blockId of Object.keys(blocks)) {
+                const block = blocks[blockId];
+                if (block.type === "text" && block.settings?.text?.includes("<h1")) {
+                  block.settings.text = block.settings.text.replace(
+                    /<h1[^>]*>.*?<\/h1>/i,
+                    `<h1>${visionData.textContent.headline}</h1>`
+                  );
+                }
+              }
+            }
+          }
         }
       }
     } else {
-      console.error("CSS pass failed (non-fatal):", cssResult.reason?.message);
+      // No vision — still use CSS fonts
+      if (cssFonts.heading) extractedDesign.headingFont = cssFonts.heading;
+      if (cssFonts.body) extractedDesign.bodyFont = cssFonts.body;
     }
 
-    // Merge: remove any existing addCssOverride from structure, add the quality one
-    const operations = structure.operations.filter((op: any) => op.type !== "addCssOverride");
+    // Add the final CSS override
     if (cssOverride) {
       operations.push({
         type: "addCssOverride",
         css: cssOverride,
-        label: "AI-generated CSS overrides (quality pass)",
+        label: "AI-generated CSS overrides" + (visionData ? " (vision-enhanced)" : ""),
       });
     }
 
-    console.log(`Done: ${operations.length} operations (${structure.operations.length} structure + CSS)`);
+    const passCount = 1 + (cssOverride ? 1 : 0) + (visionData ? 1 : 0);
+    console.log(`Done: ${operations.length} operations from ${passCount} passes`);
 
     return respond({
       operations,
-      extractedDesign: structure.extractedDesign || null,
+      extractedDesign,
     });
   } catch (e) {
     console.error("ai-generate error:", e);
