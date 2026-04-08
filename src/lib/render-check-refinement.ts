@@ -8,6 +8,7 @@
 import type { ExtractedDesign, TransformationPlan, TransformationOperation } from '@/types';
 import type { RenderCheckOutput } from '@/lib/renderer-integration';
 import type { ComparisonMismatch } from '@/lib/render-check-compare';
+import { extractStyleIntents, preScreenRefinements, type SectionStyleIntent, type GuardrailedResult } from '@/lib/refinement-guardrails';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,10 @@ export interface RefinementResult {
   deterministicCount: number;
   regenerationCount: number;
   warnOnlyCount: number;
+  /** Suggestions rejected by guardrails before application */
+  rejected: Array<{ id: string; reason: string }>;
+  /** Style-intent snapshot for regression detection */
+  sourceIntents: SectionStyleIntent[];
 }
 
 // ── Main entry ─────────────────────────────────────────────────────────────
@@ -46,11 +51,31 @@ export function generateRefinementSuggestions(
     }
   }
 
+  // ── Pre-screen through guardrails ──
+  const sourceIntents = extractStyleIntents(extractedDesign);
+  const guardrailResult = preScreenRefinements(suggestions, sourceIntents);
+
+  // Mark rejected suggestions as warn_only with rejection reason
+  const finalSuggestions = suggestions.map(s => {
+    const rejection = guardrailResult.rejected.find(r => r.id === s.id);
+    if (rejection) {
+      return {
+        ...s,
+        strategy: 'warn_only' as const,
+        severity: 'warning' as const,
+        message: `[Blocked by guardrail] ${s.message} — ${rejection.reason}`,
+      };
+    }
+    return s;
+  });
+
   return {
-    suggestions,
-    deterministicCount: suggestions.filter(s => s.strategy === 'apply_deterministic_fix').length,
-    regenerationCount: suggestions.filter(s => s.strategy === 'regenerate_section' || s.strategy === 'strengthen_existing_section').length,
-    warnOnlyCount: suggestions.filter(s => s.strategy === 'warn_only').length,
+    suggestions: finalSuggestions,
+    deterministicCount: finalSuggestions.filter(s => s.strategy === 'apply_deterministic_fix').length,
+    regenerationCount: finalSuggestions.filter(s => s.strategy === 'regenerate_section' || s.strategy === 'strengthen_existing_section').length,
+    warnOnlyCount: finalSuggestions.filter(s => s.strategy === 'warn_only').length,
+    rejected: guardrailResult.rejected,
+    sourceIntents,
   };
 }
 
@@ -137,13 +162,11 @@ function buildHeroHeadingFix(
 ): RefinementSuggestion | null {
   if (!design.hero?.heading) return null;
 
-  // Find hero-related replaceText ops
   const heroTextOps = plan.operations.filter(
     op => op.type === 'replaceText' && (op.label || '').toLowerCase().includes('hero')
   );
 
   if (heroTextOps.length === 0) {
-    // No hero text ops exist — need to find the hero section and add one
     return {
       id: nextId(),
       mismatchKind: 'missing_hero_heading',
@@ -154,7 +177,6 @@ function buildHeroHeadingFix(
     };
   }
 
-  // Build replacement ops
   const ops: TransformationOperation[] = [];
   for (const op of heroTextOps) {
     if (op.type !== 'replaceText') continue;
@@ -233,8 +255,6 @@ function buildSecondaryCTAFix(
   plan: TransformationPlan,
   mismatch: ComparisonMismatch,
 ): RefinementSuggestion {
-  // Secondary CTA is hard to fix deterministically in most Kajabi themes
-  // Best strategy: ensure it's in the hero text as an inline link
   if (design.hero?.secondaryCtaText && design.hero?.secondaryCtaUrl) {
     const heroTextOps = plan.operations.filter(
       op => op.type === 'replaceText' && (op.label || '').toLowerCase().includes('hero')
@@ -244,7 +264,6 @@ function buildSecondaryCTAFix(
       const firstOp = heroTextOps[0];
       if (firstOp.type === 'replaceText') {
         const currentValue = firstOp.value || '';
-        // Only add if not already present
         if (!currentValue.includes(design.hero.secondaryCtaText)) {
           const secondaryCta = `<p><a href="${design.hero.secondaryCtaUrl}" style="font-size:16px; text-decoration:underline">${design.hero.secondaryCtaText}</a></p>`;
           const newValue = currentValue + secondaryCta;
@@ -283,7 +302,6 @@ function buildRepeatedItemsFix(
   design: ExtractedDesign,
   plan: TransformationPlan,
 ): RefinementSuggestion {
-  // Find which source section lost items
   const sourceSection = design.sections.find(s => {
     if (!s.heading) return false;
     return mismatch.message.toLowerCase().includes(s.heading.toLowerCase().split(/\s+/).filter(w => w.length > 3)[0] || '___');
@@ -371,7 +389,6 @@ function buildFooterFix(
 ): RefinementSuggestion {
   const ops: TransformationOperation[] = [];
 
-  // Add footer link_lists if missing
   if (design.footer?.linkGroups) {
     const allLinks = Object.values(design.footer.linkGroups).flat();
     if (allLinks.length > 0) {
@@ -453,7 +470,6 @@ function buildDefaultTextFix(
   plan: TransformationPlan,
   mismatch: ComparisonMismatch,
 ): RefinementSuggestion {
-  // Default text is hard to fix without knowing which section — flag for strengthening
   return {
     id: nextId(),
     mismatchKind: 'default_text_survived',
@@ -467,7 +483,6 @@ function buildMissingSectionFix(
   mismatch: ComparisonMismatch,
   design: ExtractedDesign,
 ): RefinementSuggestion {
-  // Try to find the source section by heading
   const headingMatch = mismatch.message.match(/"([^"]+)"/);
   const heading = headingMatch?.[1];
   const sourceSection = heading
@@ -513,7 +528,6 @@ export function applyDeterministicRefinements(
     if (!suggestion.proposedOperations?.length) continue;
 
     for (const proposed of suggestion.proposedOperations) {
-      // For replaceText/updateBlockSetting: find and replace existing op
       if (proposed.type === 'replaceText' || proposed.type === 'updateBlockSetting') {
         const idx = ops.findIndex(op =>
           op.type === proposed.type &&
@@ -527,7 +541,6 @@ export function applyDeterministicRefinements(
           ops.push(proposed);
         }
       } else if (proposed.type === 'updateNavigation') {
-        // Replace existing nav op for same menuId, or append
         const idx = ops.findIndex(op =>
           op.type === 'updateNavigation' && (op as any).menuId === (proposed as any).menuId
         );
