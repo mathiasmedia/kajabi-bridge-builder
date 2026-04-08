@@ -297,6 +297,42 @@ function applyTestimonialRecipe(
   };
 }
 
+// ── Icon Card Row Recipe ────────────────────────────────────────────────
+
+function applyIconCardRowRecipe(
+  op: Extract<TransformationOperation, { type: 'addSection' }>,
+  section: ExtractedSection,
+  warnings: ValidationWarning[],
+): TransformationOperation {
+  const blocks = { ...op.section.blocks };
+  const blockOrder = [...(op.section.block_order || [])];
+  let hasCardShell = false;
+
+  for (const bid of blockOrder) {
+    const block = blocks[bid];
+    if (!block) continue;
+    if (block.type === 'text' && block.settings.width === '12') continue;
+
+    if (block.type === 'text' || block.type === 'feature') {
+      block.settings.background_color = block.settings.background_color || '#FFFFFF';
+      block.settings.box_shadow = block.settings.box_shadow || 'medium';
+      block.settings.border_radius = block.settings.border_radius || '12';
+      block.settings.padding_desktop = block.settings.padding_desktop || { top: '24', right: '24', bottom: '24', left: '24' };
+      block.settings.padding_mobile = block.settings.padding_mobile || { top: '20', right: '20', bottom: '20', left: '20' };
+      if (block.type === 'feature') block.settings.hide_image = 'true';
+      hasCardShell = true;
+    }
+  }
+
+  if (!hasCardShell) {
+    warnings.push({ severity: 'warning', message: 'Icon card row rendered without card shell — source has distinct icon cards but output is plain text columns', target: section.id });
+  }
+
+  const settings = { ...op.section.settings };
+  settings.equal_height = 'true';
+  return { ...op, section: { ...op.section, settings, blocks, block_order: blockOrder } };
+}
+
 // ── CTA Band Recipe v2 ─────────────────────────────────────────────────
 
 function applyCtaBandRecipe(
