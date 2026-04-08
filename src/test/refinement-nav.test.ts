@@ -90,8 +90,9 @@ describe('Refinement pass', () => {
     ];
 
     const result = runRefinementPass(ops, design);
-    // The invented section should be removed (no source match + empty content)
-    expect(result.operations.length).toBeLessThan(ops.length);
+    // The invented section should be removed (refinement may add footer-menu ops)
+    const addSectionOps = result.operations.filter(op => op.type === 'addSection');
+    expect(addSectionOps.length).toBe(1); // only the real stats section survives
     // Real section should survive
     expect(result.operations.some(op => op.type === 'addSection' && (op as any).sectionId === 'real-stats')).toBe(true);
   });
