@@ -582,7 +582,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         extractedDesign,
         (msg) => set({ loadingMessage: msg }),
       );
-      set({ renderCheckResult: result, isRenderChecking: false });
+      set({ renderCheckResult: result, isRenderChecking: false, refinementResult: null });
     } catch (e) {
       set({
         renderCheckResult: {
@@ -592,6 +592,58 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         isRenderChecking: false,
       });
     }
+  },
+
+  generateRefinements: () => {
+    const { extractedDesign, transformationPlan, renderCheckResult } = get();
+    if (!extractedDesign || !transformationPlan || !renderCheckResult) return;
+    const result = generateRefinementSuggestions(extractedDesign, transformationPlan, renderCheckResult);
+    set({ refinementResult: result });
+  },
+
+  applyRefinement: (suggestionId: string) => {
+    const { transformationPlan, refinementResult } = get();
+    if (!transformationPlan || !refinementResult) return;
+    const suggestion = refinementResult.suggestions.find(s => s.id === suggestionId);
+    if (!suggestion || suggestion.strategy !== 'apply_deterministic_fix' || !suggestion.proposedOperations?.length) return;
+
+    const { operations } = applyDeterministicRefinements(transformationPlan.operations, [suggestion]);
+    set({
+      transformationPlan: { ...transformationPlan, operations },
+      renderCheckResult: null, // invalidate — needs re-check
+      refinementResult: {
+        ...refinementResult,
+        suggestions: refinementResult.suggestions.filter(s => s.id !== suggestionId),
+        deterministicCount: refinementResult.deterministicCount - 1,
+      },
+    });
+  },
+
+  applyAllSafeRefinements: () => {
+    const { transformationPlan, refinementResult, renderCheckResult } = get();
+    if (!transformationPlan || !refinementResult) return;
+
+    const previousScore = renderCheckResult?.comparison?.score ?? null;
+    const deterministicSuggestions = refinementResult.suggestions.filter(
+      s => s.strategy === 'apply_deterministic_fix' && s.proposedOperations?.length
+    );
+    if (deterministicSuggestions.length === 0) return;
+
+    const { operations, applied } = applyDeterministicRefinements(
+      transformationPlan.operations,
+      deterministicSuggestions,
+    );
+
+    set({
+      transformationPlan: { ...transformationPlan, operations },
+      renderCheckResult: null, // invalidate
+      previousScore,
+      refinementResult: {
+        ...refinementResult,
+        suggestions: refinementResult.suggestions.filter(s => !applied.includes(s.id)),
+        deterministicCount: 0,
+      },
+    });
   },
 }));
 
