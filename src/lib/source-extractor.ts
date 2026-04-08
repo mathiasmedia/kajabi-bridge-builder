@@ -1,4 +1,4 @@
-import type { ExtractedDesign, ExtractedColor, ExtractedSection, ExtractedAsset } from '@/types';
+import type { ExtractedDesign, ExtractedColor, ExtractedSection, ExtractedAsset, SectionIntent, ExtractionWarning } from '@/types';
 
 // Source project extractor - analyzes a Lovable project's code to extract design information
 // This runs in the browser and uses cross-project tools via the store
