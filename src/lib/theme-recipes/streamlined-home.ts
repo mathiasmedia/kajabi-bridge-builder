@@ -597,12 +597,13 @@ function findMatchingExtractedSection(
   // Try keyword match
   const intentKeywords: Record<string, string[]> = {
     program_cards: ['program', 'course', 'depth', 'offering'],
-    cta_band: ['cta', 'plunge', 'ready', 'call to action', 'get started'],
-    testimonial_band: ['testimonial', 'diver', 'founder', 'review', 'what our'],
+    cta_band: ['cta', 'plunge', 'ready', 'call to action', 'get started', 'stand out'],
+    testimonial_band: ['testimonial', 'diver', 'founder', 'review', 'what our', 'loved'],
     stats: ['stat', 'number', 'metric'],
     hero: ['hero'],
     feature_grid: ['feature', 'problem', 'solution'],
-    content_media_split: ['content', 'media', 'split', 'elevated'],
+    icon_card_row: ['icon', 'problem', 'holding', 'challenge', 'benefit'],
+    content_media_split: ['content', 'media', 'split', 'elevated', 'brand', 'solution'],
   };
 
   for (const s of sections) {
