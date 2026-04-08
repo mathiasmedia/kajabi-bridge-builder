@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ExportProject, ExtractedDesign, KajabiThemeData, TransformationPlan, TransformationOperation, WorkspaceProject } from '@/types';
+import type { ExportProject, ExtractedDesign, KajabiThemeData, TransformationPlan, TransformationOperation, WorkspaceProject, ExtractionWarning } from '@/types';
 import { loadKajabiThemeFromZip, getThemeSections, getContentForPage } from '@/lib/kajabi-theme-loader';
 import { extractDesignFromSource, type SourceProjectFiles } from '@/lib/source-extractor';
 import { buildTransformationPlan } from '@/lib/transformation-planner';
