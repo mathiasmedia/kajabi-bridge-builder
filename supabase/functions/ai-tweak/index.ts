@@ -8,13 +8,17 @@ const corsHeaders = {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const respond = (body: Record<string, unknown>) =>
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
   try {
     const { planJson, extractedDesign, tweakInstruction, imageBase64 } = await req.json();
 
     if (!tweakInstruction) {
-      return new Response(JSON.stringify({ error: "tweakInstruction is required" }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond({ error: "tweakInstruction is required" });
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -22,27 +26,65 @@ serve(async (req) => {
 
     const operations = planJson?.operations || [];
 
-    const systemPrompt = `You are a Kajabi theme editor focused on PIXEL-PERFECT visual matching. You receive an existing transformation plan and a tweak instruction (often with a reference image). Return a MODIFIED version of the operations array.
+    // Build a compact summary of operations for AI context (index + type + label only)
+    const opSummary = operations.map((op: any, i: number) => {
+      const parts = [`[${i}] ${op.type}`];
+      if (op.label) parts.push(op.label);
+      if (op.sectionId) parts.push(`section:${op.sectionId}`);
+      if (op.key) parts.push(`key:${op.key}`);
+      // For CSS overrides, include a truncated version
+      if (op.type === "addCssOverride" && op.css) {
+        parts.push(`css:(${op.css.length} chars)`);
+      }
+      return parts.join(" | ");
+    }).join("\n");
 
-${imageBase64 ? `## IMAGE ANALYSIS (CRITICAL)
-An image is attached. Analyze it with extreme precision:
-1. Extract EXACT hex colors for every distinct color visible (backgrounds, text, accents, buttons, borders)
-2. Identify font families (match to closest Google Font) and note sizes/weights
-3. Map the visual layout section-by-section from top to bottom
-4. Read ALL visible text verbatim — reproduce it exactly
-5. Note spacing patterns, border-radius, shadows, gradients
-6. Compare the image against the current plan and make the plan match the image` : ''}
+    // Only send full details of non-addSection operations (those are huge)
+    const compactOps = operations.map((op: any, i: number) => {
+      if (op.type === "addSection") {
+        // Only send section name and id, not the full block content
+        return {
+          _index: i,
+          type: op.type,
+          label: op.label,
+          sectionId: op.sectionId,
+          sectionName: op.section?.name,
+          blockCount: op.section?.block_order?.length || 0,
+          settings: op.section?.settings,
+        };
+      }
+      return { _index: i, ...op };
+    });
 
-## RULES
-- Return the COMPLETE operations array, not just changed ones
-- You can modify, add, or remove operations
-- Keep unchanged operations exactly as-is
-- For CSS changes: find addCssOverride and modify/extend its css string
-- For color changes: update the relevant setting operations AND the CSS override
-- The addCssOverride is your most powerful tool — use it for precise visual control
-- When matching an image, prioritize: exact colors > exact text > layout > spacing > typography
+    const systemPrompt = `You are a Kajabi theme editor. You receive an existing transformation plan and a tweak instruction. Return ONLY the changes needed as patches.
 
-## OPERATION TYPES
+${imageBase64 ? `## IMAGE ANALYSIS
+An image is attached. Analyze colors, fonts, layout, and text precisely. Apply changes to match.` : ''}
+
+## PATCH FORMAT
+Return a JSON object with these optional arrays:
+
+{
+  "modify": [
+    { "index": 0, "changes": { "value": "new value" } }
+  ],
+  "add": [
+    { "type": "updateSectionSetting", "sectionId": "header", "key": "text_color", "value": "#fff", "label": "Header text white" }
+  ],
+  "remove": [3, 7],
+  "replaceCss": "full new CSS string if CSS needs changing",
+  "changelog": "brief description"
+}
+
+## PATCH RULES
+- "modify": change specific fields of an existing operation by its index. Only include the fields that change.
+- "add": add new operations (same format as operation types below)
+- "remove": array of indices to remove
+- "replaceCss": if the addCssOverride needs changes, provide the COMPLETE new CSS string. This replaces the existing one.
+- Keep patches minimal — only change what the tweak instruction asks for
+- Do NOT return unchanged operations
+
+## OPERATION TYPES (for "add")
 - updateGlobalSetting: { type, key, value, label }
 - updateSectionSetting: { type, sectionId, key, value, label }
 - updateBlockSetting: { type, sectionId, blockId, key, value, label }
@@ -51,32 +93,23 @@ An image is attached. Analyze it with extreme precision:
 - addCssOverride: { type, css, label }
 - updateNavigation: { type, menuId, links:[{name,url}] }
 - addSection: { type, sectionId, section:{type,settings,blocks,block_order}, label }
-- addBlock: { type, sectionId, blockId, block:{type,settings}, label }
 
-## IMPORTANT
-- Do NOT add sections that aren't requested or visible in the reference
-- Do NOT duplicate existing sections
-- When modifying, change existing operations rather than adding parallel ones
-- Merge CSS changes into the existing addCssOverride rather than adding a second one
+Return ONLY valid JSON. No markdown fences.`;
 
-Return ONLY valid JSON: { "operations": [...], "changelog": "brief description of what changed" }`;
+    const textPart = `## Current Plan Summary (${operations.length} operations)
+${opSummary}
 
-    let userContent: any;
-    const planStr = JSON.stringify(operations).slice(0, 12000);
-    const textPart = `## Current Plan (${operations.length} operations)
-${planStr}
+## Operation Details
+${JSON.stringify(compactOps).slice(0, 10000)}
 
-## Extracted Design Summary
-Colors: ${JSON.stringify(extractedDesign?.colors?.slice(0, 8))}
+## Design Context
+Colors: ${JSON.stringify(extractedDesign?.colors?.slice(0, 6))}
 Fonts: heading="${extractedDesign?.headingFont}", body="${extractedDesign?.bodyFont}"
-Background: ${extractedDesign?.backgroundColor || 'unknown'}
-Accent: ${extractedDesign?.accentColor || 'unknown'}
 
 ## Tweak Instruction
-${tweakInstruction}
+${tweakInstruction}`;
 
-Apply the tweak and return the modified operations array as JSON.`;
-
+    let userContent: any;
     if (imageBase64) {
       userContent = [
         { type: "text", text: textPart },
@@ -86,7 +119,6 @@ Apply the tweak and return the modified operations array as JSON.`;
       userContent = textPart;
     }
 
-    // Use pro model when image is attached for better visual understanding
     const model = imageBase64 ? "google/gemini-2.5-pro" : "google/gemini-2.5-flash";
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -97,7 +129,7 @@ Apply the tweak and return the modified operations array as JSON.`;
       },
       body: JSON.stringify({
         model,
-        max_tokens: 8192,
+        max_tokens: 4096,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent },
@@ -109,12 +141,10 @@ Apply the tweak and return the modified operations array as JSON.`;
       const status = response.status;
       const errText = await response.text();
       console.error("AI gateway error:", status, errText);
-      const msg = status === 429 ? "Rate limited — try again shortly" 
-        : status === 402 ? "Credits exhausted" 
+      const msg = status === 429 ? "Rate limited — try again shortly"
+        : status === 402 ? "Credits exhausted"
         : `AI gateway error: ${status}`;
-      return new Response(JSON.stringify({ error: msg }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return respond({ error: msg });
     }
 
     const data = await response.json();
@@ -123,38 +153,69 @@ Apply the tweak and return the modified operations array as JSON.`;
 
     // Strip markdown fences
     content = content.replace(/^```(?:json)?\s*/im, "").replace(/```\s*$/im, "").trim();
-    content = content.replace(/^'''(?:json)?\s*/im, "").replace(/'''\s*$/im, "").trim();
 
-    let result;
+    let patch;
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
-      result = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+      patch = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
     } catch {
-      result = null;
+      patch = null;
     }
 
-    if (!result?.operations || !Array.isArray(result.operations)) {
+    if (!patch || (!patch.modify && !patch.add && !patch.remove && !patch.replaceCss)) {
       const truncated = finishReason === "length" || finishReason === "MAX_TOKENS";
-      return new Response(JSON.stringify({ 
-        error: truncated 
-          ? "AI response was truncated — try a simpler tweak" 
-          : "AI did not return valid operations", 
-        raw: content.slice(0, 500) 
-      }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return respond({
+        error: truncated
+          ? "AI response was truncated — try a simpler tweak"
+          : "AI did not return valid patches",
+        raw: content.slice(0, 500),
       });
     }
 
-    return new Response(JSON.stringify({
-      operations: result.operations,
-      changelog: result.changelog || "Changes applied",
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // Apply patches to operations
+    let result = [...operations];
+
+    // 1. Apply modifications
+    if (patch.modify && Array.isArray(patch.modify)) {
+      for (const mod of patch.modify) {
+        const idx = mod.index;
+        if (idx >= 0 && idx < result.length && mod.changes) {
+          result[idx] = { ...result[idx], ...mod.changes };
+        }
+      }
+    }
+
+    // 2. Replace CSS if provided
+    if (patch.replaceCss && typeof patch.replaceCss === "string") {
+      const cssIdx = result.findIndex((op: any) => op.type === "addCssOverride");
+      if (cssIdx >= 0) {
+        result[cssIdx] = { ...result[cssIdx], css: patch.replaceCss };
+      } else {
+        result.push({ type: "addCssOverride", css: patch.replaceCss, label: "AI CSS override" });
+      }
+    }
+
+    // 3. Remove operations (process in reverse to maintain indices)
+    if (patch.remove && Array.isArray(patch.remove)) {
+      const sortedRemoves = [...patch.remove].sort((a: number, b: number) => b - a);
+      for (const idx of sortedRemoves) {
+        if (idx >= 0 && idx < result.length) {
+          result.splice(idx, 1);
+        }
+      }
+    }
+
+    // 4. Add new operations
+    if (patch.add && Array.isArray(patch.add)) {
+      result.push(...patch.add);
+    }
+
+    return respond({
+      operations: result,
+      changelog: patch.changelog || "Changes applied",
     });
   } catch (e) {
     console.error("ai-tweak error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return respond({ error: e instanceof Error ? e.message : "Unknown error" });
   }
 });
