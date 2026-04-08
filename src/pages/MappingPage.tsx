@@ -48,6 +48,7 @@ export default function MappingPage() {
     }
   }, [transformationPlan, runExportValidation]);
 
+  const [isSaving, setIsSaving] = useState(false);
   const canExport = exportValidation?.ready !== false;
 
   if (!currentProject || (!transformationPlan && !isLoading)) {
@@ -63,7 +64,6 @@ export default function MappingPage() {
   }
 
   const changeSummary = transformationPlan ? generateChangeSummary(transformationPlan) : [];
-  const [isSaving, setIsSaving] = useState(false);
 
   const handleExport = async () => {
     if (!canExport) return;
