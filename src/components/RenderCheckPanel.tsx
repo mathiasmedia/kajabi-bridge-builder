@@ -228,24 +228,15 @@ export default function RenderCheckPanel() {
 
             {/* Actions row */}
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="ghost" className="text-xs" onClick={() => setShowPreview(!showPreview)}>
-                {showPreview ? 'Hide' : 'Show'} Preview
-              </Button>
+              {result.renderedHtml && (
+                <Button size="sm" variant="ghost" className="text-xs" onClick={openPreviewTab}>
+                  <ExternalLink className="mr-1 h-3 w-3" /> Open Preview
+                </Button>
+              )}
               <Button size="sm" variant="outline" className="text-xs" onClick={runRenderCheck}>
                 <RotateCcw className="mr-1 h-3 w-3" /> Re-check
               </Button>
             </div>
-
-            {showPreview && result.renderedHtml && (
-              <ScrollArea className="h-[500px] w-full rounded border">
-                <iframe
-                  srcDoc={result.renderedHtml}
-                  className="h-[2000px] w-full border-0"
-                  sandbox="allow-same-origin"
-                  title="Kajabi Render Check Preview"
-                />
-              </ScrollArea>
-            )}
           </>
         )}
       </CardContent>
