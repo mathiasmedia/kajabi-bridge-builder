@@ -19,7 +19,7 @@ async function getBaseTheme(existing?: KajabiThemeData | null): Promise<KajabiTh
   if (existing) return existing;
   if (cachedBaseTheme) return cachedBaseTheme;
 
-  const resp = await fetch('/base-themes/streamlined-home.zip');
+  const resp = await fetch('/base-themes/pro-template.zip');
   if (!resp.ok) throw new Error('Failed to fetch base theme zip');
   const buf = await resp.arrayBuffer();
   cachedBaseTheme = await loadKajabiThemeFromZip(buf);
