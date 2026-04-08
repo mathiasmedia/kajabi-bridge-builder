@@ -14,26 +14,29 @@ export interface SourceProjectFiles {
   pages: Record<string, string>;
 }
 
-export function extractDesignFromSource(files: SourceProjectFiles): ExtractedDesign {
+export function extractDesignFromSource(files: SourceProjectFiles): { design: ExtractedDesign; warnings: ExtractionWarning[] } {
   const colors = extractColors(files.indexCss || '', files.tailwindConfig || '');
   const fonts = extractFonts(files.indexCss || '', files.tailwindConfig || '');
   const buttonStyle = extractButtonStyle(files);
   const header = extractHeader(files);
   const hero = extractHero(files);
-  const sections = extractSections(files);
+  const { sections, warnings } = extractSectionsV2(files);
   const footer = extractFooter(files);
   const assets = extractAssets(files);
 
   return {
-    colors,
-    headingFont: fonts.heading,
-    bodyFont: fonts.body,
-    buttonStyle,
-    header,
-    hero,
-    sections,
-    footer,
-    assets,
+    design: {
+      colors,
+      headingFont: fonts.heading,
+      bodyFont: fonts.body,
+      buttonStyle,
+      header,
+      hero,
+      sections,
+      footer,
+      assets,
+    },
+    warnings,
   };
 }
 
