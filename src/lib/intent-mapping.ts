@@ -5,7 +5,7 @@
  * block patterns, and quality guards.
  */
 
-import type { SectionIntent, ExtractedSection, TransformationOperation, ValidationWarning } from '@/types';
+import type { SectionIntent, ExtractedSection, TransformationOperation, ValidationWarning, MediaIntent } from '@/types';
 
 // ── Intent → Kajabi section type rules ──────────────────────────────────
 
@@ -140,6 +140,75 @@ export function validateMappingQuality(
   const dividerSections = sections.filter(s => s.intent === 'heading_divider' && s.confidence < 0.6);
   for (const s of dividerSections) {
     warnings.push({ severity: 'info', message: `Heading divider "${s.heading}" has low confidence (${s.confidence}) — may be misclassified`, target: s.id });
+  }
+
+  // ── Media quality guards ──
+
+  // Hero missing background image
+  const heroSections = sections.filter(s => s.intent === 'hero');
+  for (const s of heroSections) {
+    if (s.mediaIntent === 'background_image' && s.imageTargets.length > 0) {
+      const heroOps = operations.filter(op => {
+        if (op.type === 'updateSectionSetting' && (op as any).key === 'bg_image') return true;
+        if (op.type === 'addSection' && (op.label || '').toLowerCase().includes('hero')) {
+          const bgImg = (op as any).section?.settings?.bg_image;
+          return !!bgImg;
+        }
+        return false;
+      });
+      if (heroOps.length === 0) {
+        warnings.push({ severity: 'warning', message: `Hero has background image in source but output has no bg_image`, target: s.id });
+      }
+    }
+  }
+
+  // Program cards losing images
+  for (const s of programSections) {
+    if (s.mediaIntent === 'repeated_card_images' && s.imageTargets.length > 0) {
+      const matchingOp = addSectionOps.find(op => {
+        const label = (op.label || '').toLowerCase();
+        return label.includes('program') || label.includes('course');
+      });
+      if (matchingOp) {
+        const blocks = Object.values(matchingOp.section?.blocks || {});
+        const hasAnyImage = blocks.some((b: any) => b.settings?.image);
+        if (!hasAnyImage) {
+          warnings.push({ severity: 'warning', message: `Program cards have ${s.imageTargets.length} images in source but output blocks have no images`, target: s.id });
+        }
+      }
+    }
+  }
+
+  // Content media split losing image
+  const mediaSplitSections = sections.filter(s => s.intent === 'content_media_split' && s.mediaIntent !== 'no_media');
+  for (const s of mediaSplitSections) {
+    const matchingOp = addSectionOps.find(op => (op.label || '').toLowerCase().includes('content'));
+    if (matchingOp) {
+      const blocks = Object.values(matchingOp.section?.blocks || {});
+      const hasImage = blocks.some((b: any) => b.type === 'image' || b.settings?.image);
+      if (!hasImage) {
+        warnings.push({ severity: 'warning', message: `Content/media split section "${s.heading}" lost its image in output`, target: s.id });
+      }
+    }
+  }
+
+  // Available images not consumed
+  const allTargets = sections.flatMap(s => s.imageTargets || []);
+  const consumedUrls = new Set<string>();
+  for (const op of operations) {
+    const opStr = JSON.stringify(op);
+    for (const t of allTargets) {
+      if (t.url && opStr.includes(t.url)) {
+        consumedUrls.add(t.url);
+      }
+    }
+  }
+  const unconsumedTargets = allTargets.filter(t => t.url && !consumedUrls.has(t.url));
+  if (unconsumedTargets.length > 0) {
+    warnings.push({
+      severity: 'info',
+      message: `${unconsumedTargets.length} image URL(s) available but not consumed in output: ${unconsumedTargets.map(t => t.role).join(', ')}`,
+    });
   }
 
   return warnings;
