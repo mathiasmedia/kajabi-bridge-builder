@@ -149,22 +149,27 @@ export default function TemplatesPage() {
   };
 
   const handleReExport = async (template: SavedTemplate) => {
-    if (!template.source_project_id) { toast.error('No source project linked'); return; }
-    const store = useExportStore.getState();
-    store.createExportProject({
-      id: crypto.randomUUID(),
-      name: `Re-export ${template.source_project_name || 'Project'}`,
-      sourceProjectId: template.source_project_id,
-      sourceProjectName: template.source_project_name || '',
-      baseTheme: 'streamlined-home', page: 'index',
-      notes: `Re-export based on template "${template.name}"`,
-      createdAt: new Date().toISOString(), status: 'new',
-    });
-    await store.loadBaseTheme('/base-themes/streamlined-home.zip');
-    await store.ingestProject({ projectId: template.source_project_id, page: 'index' });
-    const updated = useExportStore.getState();
-    if (updated.sourceFiles && !updated.error) updated.extractDesign();
-    navigate('/extract');
+    toast.info('Building zip from current plan…');
+    try {
+      // Ensure base theme is loaded
+      let baseTheme = useExportStore.getState().baseTheme;
+      if (!baseTheme) {
+        await useExportStore.getState().loadBaseTheme('/base-themes/streamlined-home.zip');
+        baseTheme = useExportStore.getState().baseTheme;
+      }
+      if (!baseTheme) { toast.error('Failed to load base theme'); return; }
+
+      const blob = await applyPlanAndExport(template.plan_json, baseTheme);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${template.name.replace(/\s+/g, '-').toLowerCase()}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Zip downloaded');
+    } catch (e) {
+      toast.error(`Export failed: ${e instanceof Error ? e.message : e}`);
+    }
   };
 
   const handleDownloadZip = async (template: SavedTemplate) => {
