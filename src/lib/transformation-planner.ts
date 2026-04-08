@@ -95,6 +95,9 @@ export function buildTransformationPlan(
   // ── Dynamic site analysis ──
   const siteIsDark = detectDarkSite(extracted);
   const darkCardBg = siteIsDark ? darkenHex(bgColor ? toHex(bgColor.value) : '#0b1214', 0.15) : '#FFFFFF';
+  // Pre-compute text colors for inline styles (Kajabi strips auto-inversion when span style= is present)
+  const inlineFgHex = headingColor ? toHex(headingColor.value) : '#d6e8e2';
+  const inlineBodyHex = textColor ? toHex(textColor.value) : '#8a9ba8';
 
   // ── 7. Map sections ──
   const validSectionIds = contentFor.filter(id => id && sections[id]);
@@ -114,7 +117,7 @@ export function buildTransformationPlan(
     
     const textBlock = findBlock(heroSection, 'text');
     if (textBlock) {
-      const heroHtml = buildHeroHtml(extracted, primaryColor ? toHex(primaryColor.value) : '#2eb89a');
+      const heroHtml = buildHeroHtml(extracted, primaryColor ? toHex(primaryColor.value) : '#2eb89a', inlineFgHex, inlineBodyHex);
       operations.push({ type: 'replaceText', sectionId: heroId, blockId: textBlock.id, key: 'text', value: heroHtml, label: 'Hero content' });
       operations.push({ type: 'updateBlockSetting', sectionId: heroId, blockId: textBlock.id, key: 'text_align', value: 'center', label: 'Hero text align' });
       operations.push({ type: 'updateBlockSetting', sectionId: heroId, blockId: textBlock.id, key: 'width', value: '8', label: 'Hero text width' });
@@ -163,14 +166,14 @@ export function buildTransformationPlan(
     // Render all stats (not just 3) — use inline styles so colors survive Kajabi rendering
     statsContent.forEach((stat, i) => {
       if (i < featureBlocks.length) {
-        const html = `<h3 style="color:${statPrimaryHex}; font-size:48px; font-weight:700; line-height:1.1; margin-bottom:4px">${stat.title}</h3>\n<h4 style="font-size:16px; font-weight:600; margin-bottom:8px">${stat.subtitle}</h4>\n<p style="font-size:14px; line-height:1.5">${stat.body}</p>`;
+        const html = `<h3 style="color:${statPrimaryHex}; font-size:48px; font-weight:700; line-height:1.1; margin-bottom:4px">${stat.title}</h3>\n<h4 style="color:${inlineFgHex}; font-size:16px; font-weight:600; margin-bottom:8px">${stat.subtitle}</h4>\n<p style="color:${inlineBodyHex}; font-size:14px; line-height:1.5">${stat.body}</p>`;
         operations.push({ type: 'replaceText', sectionId: featuresId, blockId: featureBlocks[i].id, key: 'text', value: html, label: `Stat ${i + 1} text` });
         operations.push({ type: 'updateBlockSetting', sectionId: featuresId, blockId: featureBlocks[i].id, key: 'hide_image', value: 'true', label: `Stat ${i + 1} hide image` });
         operations.push({ type: 'updateBlockSetting', sectionId: featuresId, blockId: featureBlocks[i].id, key: 'text_align', value: 'center', label: `Stat ${i + 1} align` });
       } else {
         // Need to add extra stat blocks beyond what exists in the base theme
         const blockId = `stat_extra_${i}`;
-        const html = `<h3 style="color:${statPrimaryHex}; font-size:48px; font-weight:700; line-height:1.1; margin-bottom:4px">${stat.title}</h3>\n<h4 style="font-size:16px; font-weight:600; margin-bottom:8px">${stat.subtitle}</h4>\n<p style="font-size:14px; line-height:1.5">${stat.body}</p>`;
+        const html = `<h3 style="color:${statPrimaryHex}; font-size:48px; font-weight:700; line-height:1.1; margin-bottom:4px">${stat.title}</h3>\n<h4 style="color:${inlineFgHex}; font-size:16px; font-weight:600; margin-bottom:8px">${stat.subtitle}</h4>\n<p style="color:${inlineBodyHex}; font-size:14px; line-height:1.5">${stat.body}</p>`;
         operations.push({
           type: 'addBlock',
           sectionId: featuresId,
