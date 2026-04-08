@@ -92,6 +92,8 @@ const VALID_BLOCK_TYPES = new Set([
   // Header/footer block types
   "logo", "menu", "dropdown", "user", "hello_bar", "copyright",
 ]);
+// feature_icon is a valid Kajabi block type (renders icon + text via block_feature_icon.liquid)
+VALID_BLOCK_TYPES.add("feature_icon");
 
 const BLOCK_TYPE_REMAP: Record<string, string> = {
   "text_column": "feature",
