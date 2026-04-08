@@ -235,11 +235,11 @@ export default function MappingPage() {
           </div>
 
           {/* Right column: Operations — full width, no truncation */}
-          <Card>
+          <Card className="overflow-hidden min-w-0">
             <CardHeader>
               <CardTitle className="text-base">Operations ({changeSummary.length})</CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-0 min-w-0">
               <ScrollArea className="h-[calc(100vh-200px)]">
                 <div className="p-3 space-y-1.5">
                   {changeSummary.map((item, i) => (
