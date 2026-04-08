@@ -1111,11 +1111,14 @@ function buildRichnessGuard(intent: SectionIntent, section: any): string {
       lines.push('- If the source has CTA text/action, preserve it.');
       break;
     case 'faq':
-      lines.push('- Create one accordion block or multiple text blocks for Q&A pairs.');
-      lines.push('- If accordion block type is available, prefer it.');
-      lines.push('- Each Q&A should have the question as a heading and the answer as body text.');
+      lines.push('- IMPORTANT: FAQ MUST only be generated if the source has real Q&A content.');
+      lines.push('- If the source has no clear questions and answers, return {"operations":[],"cssOverrides":""}.');
+      lines.push('- Use accordion blocks if available. Otherwise use text blocks with <h4>Question?</h4><p>Answer</p> pattern.');
+      lines.push('- Each Q&A MUST have a question (ending in ?) and an answer body.');
       if (section.items?.length) {
-        lines.push(`- Expected: ${section.items.length} Q&A items.`);
+        lines.push(`- Expected: ${section.items.length} Q&A items. Use ALL of them.`);
+      } else {
+        lines.push('- WARNING: No Q&A items extracted. If you cannot produce real Q&A content from the source, return empty operations.');
       }
       break;
     case 'content-media-split':
@@ -1195,7 +1198,7 @@ function classifySectionIntent(section: any): SectionIntent {
   if (hasStats || heading.includes('stat') || heading.includes('number') || heading.includes('impact') || heading.includes('result')) return 'stats';
   if (hasPricing || heading.includes('program') || heading.includes('course') || heading.includes('service')) return 'program-cards';
   if ((type === 'cta' || heading.includes('ready to') || heading.includes('get started') || heading.includes('sign up')) && !hasItems) return 'cta-band';
-  if (type === 'faq' || heading.includes('faq') || heading.includes('frequently')) return 'faq';
+  // FAQ removed from fallback classification — requires strong upstream evidence only
   if (type === 'features' || heading.includes('feature')) return 'feature-grid';
   if (hasItems && !hasCta) return 'feature-grid';
   if (type === 'content' && !hasBody && !hasItems && !hasCta) return 'heading-separator';
