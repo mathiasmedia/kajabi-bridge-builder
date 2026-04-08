@@ -103,7 +103,12 @@ Generate the complete transformation plan as JSON.`;
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
+    const finishReason = data.choices?.[0]?.finish_reason || "";
+    let content = data.choices?.[0]?.message?.content || "";
+
+    // Strip markdown fences
+    content = content.replace(/^```json\s*/im, "").replace(/^```\s*/im, "").replace(/```\s*$/im, "").trim();
+    content = content.replace(/^'''json\s*/im, "").replace(/^'''\s*/im, "").replace(/'''\s*$/im, "").trim();
 
     let result;
     try {
@@ -114,7 +119,11 @@ Generate the complete transformation plan as JSON.`;
     }
 
     if (!result?.operations || !Array.isArray(result.operations)) {
-      return new Response(JSON.stringify({ error: "AI did not return valid operations", raw: content.slice(0, 500) }), {
+      const truncated = finishReason === "length" || finishReason === "MAX_TOKENS";
+      return new Response(JSON.stringify({ 
+        error: truncated ? "AI response was truncated — try a simpler description" : "AI did not return valid operations", 
+        raw: content.slice(0, 500) 
+      }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
