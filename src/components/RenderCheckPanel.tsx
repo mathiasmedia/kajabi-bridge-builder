@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { useExportStore } from '@/store/useExportStore';
 import type { ComparisonMismatch } from '@/lib/render-check-compare';
 import type { RefinementSuggestion } from '@/lib/render-check-refinement';
+import type { ExpectedRenderModel } from '@/lib/render-check-expectations';
 
 const SEVERITY_ICON: Record<string, React.ReactNode> = {
   error: <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />,
@@ -17,6 +18,8 @@ const SEVERITY_ICON: Record<string, React.ReactNode> = {
 const CATEGORY_LABELS: Record<string, string> = {
   hero: 'Hero', cta: 'CTA', section: 'Sections', navigation: 'Navigation',
   footer: 'Footer', content: 'Content', render: 'Render',
+  testimonial: 'Testimonials', programs: 'Program Cards',
+  split_section: 'Split Sections', cta_band: 'CTA Bands',
 };
 
 const STRATEGY_LABELS: Record<string, { label: string; color: string }> = {
@@ -68,6 +71,9 @@ export default function RenderCheckPanel() {
     (acc[m.category] = acc[m.category] || []).push(m);
     return acc;
   }, {}) || {};
+
+  const criticalCount = comparison?.mismatches?.filter(m => m.critical).length || 0;
+  const expected = comparison?.expected;
 
   const deterministicSuggestions = refinementResult?.suggestions.filter(
     s => s.strategy === 'apply_deterministic_fix' && s.proposedOperations?.length
@@ -177,15 +183,40 @@ export default function RenderCheckPanel() {
               </div>
             )}
 
+            {/* Critical regressions count */}
+            {criticalCount > 0 && (
+              <div className="flex items-center gap-1.5 text-xs text-destructive">
+                <ShieldAlert className="h-3.5 w-3.5" />
+                {criticalCount} critical regression(s) detected — rollback-worthy
+              </div>
+            )}
+
+            {/* Expected model summary */}
+            {expected && (
+              <div className="rounded border p-2 space-y-1 text-[11px] text-muted-foreground">
+                <p className="font-medium text-foreground text-xs">Source Expectations</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                  {expected.hero && <p>Hero: {expected.hero.ctaCount} CTA(s){expected.hero.hasBadge ? ', badge' : ''}{expected.hero.hasSubheading ? ', sub' : ''}</p>}
+                  {expected.testimonials.present && <p>Testimonials: {expected.testimonials.count} item(s)</p>}
+                  {expected.programs.present && <p>Programs: {expected.programs.count} card(s){expected.programs.cardStyleIntent !== 'unknown' ? ` (${expected.programs.cardStyleIntent})` : ''}</p>}
+                  {expected.splitSections.length > 0 && <p>Split: {expected.splitSections.length} section(s){expected.splitSections.some(s => s.hasVisualSide) ? ', visual' : ''}</p>}
+                  {expected.ctaBands.length > 0 && <p>CTA bands: {expected.ctaBands.length}{expected.ctaBands.some(b => b.colorIntent === 'dark') ? ' (dark)' : ''}</p>}
+                  <p>Footer: {expected.footer.linkGroupCount} groups{expected.footer.hasSocial ? ', social' : ''}{expected.footer.hasDescription ? ', desc' : ''}</p>
+                  <p>Header: {expected.header.navItemCount} nav{expected.header.hasActionButtons ? ', actions' : ''}</p>
+                </div>
+              </div>
+            )}
+
             {/* Mismatch categories */}
             {Object.keys(grouped).length > 0 && (
               <div className="space-y-1.5">
                 {Object.entries(grouped).map(([category, items]) => {
                   const expanded = expandedCategories.has(category);
-                  const errorCount = items.filter(i => i.severity === 'error').length;
+                  const critCount = items.filter(i => i.critical).length;
+                  const errorCount = items.filter(i => i.severity === 'error' && !i.critical).length;
                   const warnCount = items.filter(i => i.severity === 'warning').length;
                   return (
-                    <div key={category} className="rounded border">
+                    <div key={category} className={`rounded border ${critCount > 0 ? 'border-destructive/50' : ''}`}>
                       <button
                         className="flex w-full items-center gap-2 p-2 text-left text-xs hover:bg-muted/50"
                         onClick={() => toggleCategory(category)}
@@ -193,6 +224,7 @@ export default function RenderCheckPanel() {
                         {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                         <span className="font-medium">{CATEGORY_LABELS[category] || category}</span>
                         <span className="ml-auto flex gap-1">
+                          {critCount > 0 && <Badge variant="destructive" className="h-4 px-1 text-[10px]">{critCount} crit</Badge>}
                           {errorCount > 0 && <Badge variant="destructive" className="h-4 px-1 text-[10px]">{errorCount}</Badge>}
                           {warnCount > 0 && <Badge variant="outline" className="h-4 px-1 text-[10px] border-amber-500/50 text-amber-500">{warnCount}</Badge>}
                         </span>
@@ -202,7 +234,10 @@ export default function RenderCheckPanel() {
                           {items.map((m, i) => (
                             <div key={i} className="flex items-start gap-1.5 text-[11px]">
                               {SEVERITY_ICON[m.severity]}
-                              <span className="break-words">{m.message}</span>
+                              <span className="break-words">
+                                {m.critical && <Badge variant="destructive" className="mr-1 h-3.5 px-1 text-[8px] align-middle">CRIT</Badge>}
+                                {m.message}
+                              </span>
                             </div>
                           ))}
                         </div>
