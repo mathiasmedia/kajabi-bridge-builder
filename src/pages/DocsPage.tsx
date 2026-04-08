@@ -1,5 +1,7 @@
 import AppHeader from '@/components/AppHeader';
 
+type TableRow = [string, string];
+
 const currentState = {
   works: [
     'Loads the base Kajabi theme zip and parses settings_data.json.',
@@ -77,14 +79,14 @@ const blockerDetails = [
   'Exporter sanitization catches several malformed outputs, but not every template-specific mismatch.',
 ];
 
-const appendixRows = [
+const appendixRows: TableRow[] = [
   ['<code>/</code>', 'Start a new export project and load the base theme + source bundle.'],
   ['<code>/extract</code>', 'Review extracted design tokens and trigger AI plan generation.'],
   ['<code>/mapping</code>', 'Inspect operations, preview the transformed result, and export the zip.'],
   ['<code>/docs</code>', 'This internal status + architecture page.'],
 ];
 
-const coreFileRows = [
+const coreFileRows: TableRow[] = [
   ['<code>src/store/useExportStore.ts</code>', 'Main client orchestrator for loading, extraction, AI planning, and export.'],
   ['<code>src/lib/source-extractor.ts</code>', 'Builds ExtractedDesign from bundled source files.'],
   ['<code>supabase/functions/ai-transform/index.ts</code>', 'Multi-step AI transform function for globals and section generation.'],
@@ -93,7 +95,7 @@ const coreFileRows = [
   ['<code>src/lib/project-bundles.ts</code>', 'Hardcoded source bundles used instead of live project indexing.'],
 ];
 
-const typeRows = [
+const typeRows: TableRow[] = [
   ['<code>ExportProject</code>', 'The active export job metadata and status.'],
   ['<code>ExtractedDesign</code>', 'Parsed colors, fonts, hero, sections, footer, and assets from the source bundle.'],
   ['<code>TransformationPlan</code>', 'The final AI/local operation list plus warnings.'],
