@@ -1140,8 +1140,19 @@ function buildRichnessGuard(intent: SectionIntent, section: any): string {
       lines.push(`- Expected block count: 1 heading block + ${section.items?.length || 3} testimonial blocks.`);
       break;
     case 'cta-band':
-      lines.push('- You MUST include a heading + body text block AND a cta block with btn_text.');
+      lines.push('- You MUST include a heading + body text block with use_btn="true" and btn_text.');
       lines.push('- If the source has CTA text/action, preserve it.');
+      if (section.secondaryCtaText) {
+        lines.push(`- Source has a secondary CTA: "${section.secondaryCtaText}". Include it as a styled link below the primary CTA.`);
+      }
+      break;
+    case 'icon-card-row':
+      lines.push('- You MUST create one feature block per icon card item.');
+      lines.push('- Each block MUST include: title in <h4> and description in <p>.');
+      lines.push('- Set background_color, box_shadow="medium", border_radius="12" on each card block.');
+      lines.push('- Set hide_image="true" since icons are represented inline.');
+      lines.push('- Do NOT collapse multiple icon cards into one text block.');
+      lines.push(`- Expected block count: 1 heading block + ${section.items?.length || 3} card blocks.`);
       break;
     case 'faq':
       lines.push('- IMPORTANT: FAQ MUST only be generated if the source has real Q&A content.');
@@ -1155,7 +1166,14 @@ function buildRichnessGuard(intent: SectionIntent, section: any): string {
       }
       break;
     case 'content-media-split':
-      lines.push('- Create a text block (width "5"-"6") + image block (width "5"-"6") side by side.');
+      lines.push('- Create a text block (width "5"-"6") with heading, body, and checklist/bullets if present.');
+      lines.push('- Create an image block (width "5"-"6") for the visual side.');
+      if (section.hasChecklist) {
+        lines.push('- Source has checklist items. Preserve them as <ul><li>✓ Item</li></ul>, NOT as a plain paragraph.');
+      }
+      if (section.secondaryCtaText) {
+        lines.push(`- Source has a secondary CTA: "${section.secondaryCtaText}". Include as styled link.`);
+      }
       break;
     case 'feature-grid':
       lines.push('- Create one feature block per item. Include title + description in each.');
