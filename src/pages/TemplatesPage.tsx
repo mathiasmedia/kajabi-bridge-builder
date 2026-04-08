@@ -204,6 +204,13 @@ export default function TemplatesPage() {
                       <CardTitle>{selected.name}</CardTitle>
                       <div className="flex gap-2">
                         <Button
+                          size="sm"
+                          onClick={() => handleReExport(selected)}
+                        >
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                          Re-export
+                        </Button>
+                        <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleCritique(selected)}
