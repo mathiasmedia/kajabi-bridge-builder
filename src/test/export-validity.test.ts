@@ -157,9 +157,10 @@ describe('Export Validator', () => {
 
     const result = validateAndFix(settingsData, theme);
     expect(result.ready).toBe(true);
-    expect(settingsData.current.sections.s1.settings.btn_action).toBe('/signup');
-    expect(settingsData.current.sections.s1.settings.btn_url).toBeUndefined();
-    expect(settingsData.current.sections.s1.settings.img_action).toBe('/hero.jpg');
+    const s = settingsData.current.sections.s1.settings as Record<string, any>;
+    expect(s.btn_action).toBe('/signup');
+    expect(s.btn_url).toBeUndefined();
+    expect(s.img_action).toBe('/hero.jpg');
   });
 
   it('removes header/footer from content_for_index', () => {
