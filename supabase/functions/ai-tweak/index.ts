@@ -86,8 +86,8 @@ Apply the tweak and return the modified operations array as JSON.`;
       userContent = textPart;
     }
 
-    // Use pro model when image is attached for better visual understanding
-    const model = imageBase64 ? "google/gemini-2.5-pro" : "google/gemini-2.5-flash";
+    // Always use flash for tweaks to avoid timeouts
+    const model = "google/gemini-2.5-flash";
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
