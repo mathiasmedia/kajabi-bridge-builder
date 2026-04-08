@@ -224,18 +224,24 @@ function applyOperation(
     case 'updateSectionSetting':
       if (sections[op.sectionId]?.settings) {
         sections[op.sectionId].settings[op.key] = op.value;
+      } else {
+        console.warn(`updateSectionSetting SKIPPED: section "${op.sectionId}" not found`);
       }
       break;
 
     case 'updateBlockSetting':
       if (sections[op.sectionId]?.blocks?.[op.blockId]?.settings) {
         sections[op.sectionId].blocks[op.blockId].settings[op.key] = op.value;
+      } else {
+        console.warn(`updateBlockSetting SKIPPED: section "${op.sectionId}" block "${op.blockId}" not found`);
       }
       break;
 
     case 'replaceText':
       if (sections[op.sectionId]?.blocks?.[op.blockId]?.settings) {
         sections[op.sectionId].blocks[op.blockId].settings[op.key] = op.value;
+      } else {
+        console.warn(`replaceText SKIPPED: section "${op.sectionId}" block "${op.blockId}" not found`);
       }
       break;
 

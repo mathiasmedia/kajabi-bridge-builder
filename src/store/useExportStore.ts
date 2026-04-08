@@ -201,6 +201,73 @@ export const useExportStore = create<ExportStore>((set, get) => ({
         }
       }
 
+      // ── Ensure hero content is applied to the actual theme hero section ──
+      if (extractedDesign.hero) {
+        const contentIds = getContentForPage(baseTheme, currentProject.page).filter(Boolean);
+        const heroSectionId = contentIds[0]; // First content section is typically the hero
+        const heroSection = heroSectionId ? themeSections[heroSectionId] as any : null;
+        if (heroSection) {
+          const blockOrder = heroSection.block_order || Object.keys(heroSection.blocks || {});
+          // Check if any replaceText op already targets this section
+          const hasHeroTextOp = operations.some((op: any) =>
+            op.type === 'replaceText' && op.sectionId === heroSectionId
+          );
+          if (!hasHeroTextOp) {
+            console.log(`Hero fix: injecting replaceText ops for hero section ${heroSectionId} with ${blockOrder.length} blocks`);
+            // Find text blocks and inject hero content
+            for (const blockId of blockOrder) {
+              const block = heroSection.blocks?.[blockId] as any;
+              if (!block) continue;
+              const currentText = (block.settings?.text || '').toLowerCase();
+              // Match heading block (contains <h1> or <h2>)
+              if (currentText.includes('<h1') || currentText.includes('<h2')) {
+                let heroHtml = `<h1>${extractedDesign.hero.heading || ''}</h1>`;
+                if (extractedDesign.hero.subheading) {
+                  heroHtml += `<p>${extractedDesign.hero.subheading}</p>`;
+                }
+                operations.push({
+                  type: 'replaceText',
+                  sectionId: heroSectionId,
+                  blockId,
+                  key: 'text',
+                  value: heroHtml,
+                  label: `Hero heading: "${extractedDesign.hero.heading}"`,
+                });
+                // Also set CTA if present
+                if (extractedDesign.hero.ctaText) {
+                  operations.push({
+                    type: 'updateBlockSetting',
+                    sectionId: heroSectionId,
+                    blockId,
+                    key: 'btn_text',
+                    value: extractedDesign.hero.ctaText,
+                    label: `Hero CTA: "${extractedDesign.hero.ctaText}"`,
+                  });
+                  operations.push({
+                    type: 'updateBlockSetting',
+                    sectionId: heroSectionId,
+                    blockId,
+                    key: 'use_btn',
+                    value: 'true',
+                    label: 'Enable hero CTA button',
+                  });
+                }
+                if (extractedDesign.hero.ctaUrl) {
+                  operations.push({
+                    type: 'updateBlockSetting',
+                    sectionId: heroSectionId,
+                    blockId,
+                    key: 'btn_action',
+                    value: extractedDesign.hero.ctaUrl,
+                    label: `Hero CTA URL`,
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+
       if (globalsData.cssOverrides && typeof globalsData.cssOverrides === 'string') {
         operations.push({
           type: 'addCssOverride',
