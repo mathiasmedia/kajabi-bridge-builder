@@ -357,7 +357,7 @@ export const useExportStore = create<ExportStore>((set, get) => ({
           type: 'addCssOverride',
           css: data.cssOverrides,
           label: 'AI-refined CSS overrides',
-        });
+        } as TransformationOperation);
         operations.length = 0;
         operations.push(...nonCssOps);
       }
