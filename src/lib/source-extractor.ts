@@ -960,9 +960,8 @@ function extractFooter(files: SourceProjectFiles): ExtractedDesign['footer'] {
         const url = lm[1];
         if (name && name.length < 30 && !/icon|svg|className/i.test(name)) {
           inlineLinks.push({ name, url: url === '#' ? '/' : url });
-        }
       }
-      }
+    }
       if (inlineLinks.length > 0) linkGroups['main'] = inlineLinks;
     }
   }
