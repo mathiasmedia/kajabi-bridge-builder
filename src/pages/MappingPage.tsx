@@ -9,7 +9,6 @@ import { Separator } from '@/components/ui/separator';
 import { useExportStore } from '@/store/useExportStore';
 import { generateChangeSummary, type ChangeSummaryItem } from '@/lib/kajabi-exporter';
 import AppHeader from '@/components/AppHeader';
-import ThemePreview from '@/components/ThemePreview';
 import RenderCheckPanel from '@/components/RenderCheckPanel';
 
 const OP_TYPE_COLORS: Record<string, string> = {
@@ -225,23 +224,6 @@ export default function MappingPage() {
                 </CardContent>
               </Card>
             )}
-
-            <Card className="min-w-0">
-              <CardHeader>
-                <CardTitle className="text-base">Preview</CardTitle>
-              </CardHeader>
-              <CardContent className="p-2">
-                <ScrollArea className="h-[600px] w-full">
-                  {extractedDesign && transformationPlan ? (
-                    <ThemePreview plan={transformationPlan} design={extractedDesign} />
-                  ) : (
-                    <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                      No preview available
-                    </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
 
             <RenderCheckPanel />
           </div>
