@@ -70,9 +70,15 @@ export default function HomePage() {
               Create Kajabi templates from any reference design
             </p>
           </div>
-          <Button size="lg" onClick={() => setShowNew(true)}>
-            <Plus className="mr-2 h-5 w-5" /> New Project
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="lg" onClick={handleStartDefault} disabled={creatingDefault}>
+              {creatingDefault ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileArchive className="mr-2 h-5 w-5" />}
+              Start with Default
+            </Button>
+            <Button size="lg" onClick={() => setShowNew(true)}>
+              <Plus className="mr-2 h-5 w-5" /> New Project
+            </Button>
+          </div>
         </div>
 
         {loading ? (
