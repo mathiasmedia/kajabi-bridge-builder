@@ -7,12 +7,16 @@ import { applyPlanAndExport } from '@/lib/kajabi-exporter';
 import { preValidateExport, type ValidationResult } from '@/lib/kajabi-exporter';
 import { getRuleForIntent, validateMappingQuality, shouldGenerateSection } from '@/lib/intent-mapping';
 import { supabase } from '@/integrations/supabase/client';
+import type { SourceProjectSnapshot, IngestionWarning } from '@/lib/ingestion';
+import { snapshotToSourceFiles, validateSnapshot, BundledProjectAdapter } from '@/lib/ingestion';
 
 interface ExportStore {
   // State
   currentProject: ExportProject | null;
   workspaceProjects: WorkspaceProject[];
   sourceFiles: SourceProjectFiles | null;
+  sourceSnapshot: SourceProjectSnapshot | null;
+  ingestionWarnings: IngestionWarning[];
   extractedDesign: ExtractedDesign | null;
   extractionWarnings: ExtractionWarning[];
   baseTheme: KajabiThemeData | null;
@@ -26,6 +30,8 @@ interface ExportStore {
   setWorkspaceProjects: (projects: WorkspaceProject[]) => void;
   createExportProject: (project: ExportProject) => void;
   setSourceFiles: (files: SourceProjectFiles) => void;
+  ingestProject: (input: { projectId: string; page?: string }) => Promise<void>;
+  ingestSnapshot: (snapshot: SourceProjectSnapshot, warnings?: IngestionWarning[]) => void;
   loadBaseTheme: (zipUrl: string) => Promise<void>;
   extractDesign: () => void;
   buildPlan: () => void;
