@@ -269,10 +269,21 @@ Create exactly ONE addSection operation for this section. Include all content it
         availableSectionTypes,
         typeof sectionToGenerate?.type === "string" ? sectionToGenerate.type : "",
       );
-      const addSectionOps = parsed.operations.filter((op: any) => op.type === "addSection");
+      const normalizedAddSection = parsed.operations.find((op: any) => op.type === "addSection");
+      const rawAddSection = Array.isArray(result.parsed?.operations)
+        ? result.parsed.operations.find((op: any) => op?.type === "addSection")
+        : null;
+      const finalizedAddSection = finalizeGeneratedSectionOperation(
+        normalizedAddSection ?? rawAddSection,
+        sectionToGenerate,
+        availableSectionTypes,
+      );
 
-      if (addSectionOps.length > 0) {
-        return jsonResponse({ operations: addSectionOps });
+      if (finalizedAddSection) {
+        if (!normalizedAddSection && rawAddSection) {
+          console.log(`ai-transform [section:${sectionToGenerate.type}] [${model}] repaired incomplete addSection using source fallback`);
+        }
+        return jsonResponse({ operations: [finalizedAddSection] });
       }
 
       lastError = "No valid addSection operation produced";
@@ -461,6 +472,14 @@ function normalizeTransformPayload(
       if (!/^\d{13}$/.test(String(op.sectionId || ""))) op.sectionId = createNumericId();
 
       if (isPlainObject(op.section)) {
+        if (typeof op.section.type !== "string" || !op.section.type.trim()) {
+          op.section.type = coerceSectionType(preferredSectionType, validTypes, preferredSectionType);
+        }
+        if (typeof op.section.name !== "string" || !op.section.name.trim()) {
+          op.section.name = typeof op.label === "string" && op.label.trim()
+            ? op.label.trim()
+            : "Generated Section";
+        }
         if (!isPlainObject(op.section.settings)) op.section.settings = {};
         normalizeSectionBlocks(op.section);
       }
@@ -701,6 +720,174 @@ function remapSectionBlockIds(section: any) {
 
 function isPlainObject(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function finalizeGeneratedSectionOperation(
+  rawOp: any,
+  sourceSection: any,
+  availableSectionTypes: string[],
+) {
+  const label = deriveSectionLabel(rawOp, sourceSection);
+  const sectionId = /^\d{13}$/.test(String(rawOp?.sectionId || ""))
+    ? String(rawOp.sectionId)
+    : createNumericId();
+  const rawSection = isPlainObject(rawOp?.section)
+    ? JSON.parse(JSON.stringify(rawOp.section))
+    : {};
+  const existingSettings = isPlainObject(rawSection.settings) ? rawSection.settings : {};
+  const existingBlocks = isPlainObject(rawSection.blocks) ? rawSection.blocks : {};
+  const fallbackBlocks = Object.keys(existingBlocks).length > 0
+    ? existingBlocks
+    : buildFallbackSectionBlocks(sourceSection, label);
+
+  const hydratedOperation = {
+    type: "addSection",
+    sectionId,
+    label,
+    section: {
+      ...rawSection,
+      type: typeof rawSection.type === "string" && rawSection.type.trim()
+        ? rawSection.type
+        : String(sourceSection?.type || label || "section"),
+      name: typeof rawSection.name === "string" && rawSection.name.trim()
+        ? rawSection.name.trim()
+        : label,
+      settings: {
+        ...buildFallbackSectionSettings(sourceSection, label),
+        ...existingSettings,
+      },
+      block_order: Array.isArray(rawSection.block_order) && rawSection.block_order.length > 0
+        ? rawSection.block_order.map((id: unknown) => String(id))
+        : Object.keys(fallbackBlocks),
+      blocks: fallbackBlocks,
+    },
+  };
+
+  const normalized = normalizeTransformPayload(
+    { operations: [hydratedOperation], cssOverrides: "" },
+    availableSectionTypes,
+    typeof sourceSection?.type === "string" ? sourceSection.type : "",
+  );
+
+  return normalized.operations.find((op: any) => op.type === "addSection") || null;
+}
+
+function deriveSectionLabel(rawOp: any, sourceSection: any) {
+  if (typeof rawOp?.label === "string" && rawOp.label.trim()) return rawOp.label.trim();
+  if (typeof rawOp?.section?.name === "string" && rawOp.section.name.trim()) return rawOp.section.name.trim();
+  if (typeof sourceSection?.heading === "string" && sourceSection.heading.trim()) return sourceSection.heading.trim();
+
+  const sectionType = String(sourceSection?.type || rawOp?.section?.type || "section")
+    .replace(/[_-]+/g, " ")
+    .trim();
+
+  return sectionType
+    ? `${sectionType.replace(/\b\w/g, (char) => char.toUpperCase())} Section`
+    : "Generated Section";
+}
+
+function buildFallbackSectionSettings(sourceSection: any, label: string) {
+  const settings: Record<string, any> = {
+    padding_desktop: { top: "80", bottom: "80" },
+    padding_mobile: { top: "48", bottom: "48" },
+  };
+
+  if (typeof sourceSection?.heading === "string" && sourceSection.heading.trim()) {
+    settings.heading = sourceSection.heading.trim();
+  } else {
+    settings.heading = label;
+  }
+
+  if (typeof sourceSection?.body === "string" && sourceSection.body.trim()) {
+    settings.text = toRichText(sourceSection.body);
+  }
+  if (typeof sourceSection?.backgroundColor === "string" && sourceSection.backgroundColor.trim()) {
+    settings.background_color = sourceSection.backgroundColor.trim();
+  }
+  if (typeof sourceSection?.ctaText === "string" && sourceSection.ctaText.trim()) {
+    settings.button_label = sourceSection.ctaText.trim();
+  }
+  if (typeof sourceSection?.ctaUrl === "string" && sourceSection.ctaUrl.trim()) {
+    settings.btn_action = sourceSection.ctaUrl.trim();
+  }
+  if (typeof sourceSection?.image === "string" && sourceSection.image.trim()) {
+    settings.image = sourceSection.image.trim();
+    settings.img_action = sourceSection.image.trim();
+  }
+  if (typeof sourceSection?.backgroundImage === "string" && sourceSection.backgroundImage.trim()) {
+    settings.background_image = sourceSection.backgroundImage.trim();
+  }
+
+  return settings;
+}
+
+function buildFallbackSectionBlocks(sourceSection: any, label: string) {
+  const items = Array.isArray(sourceSection?.items) ? sourceSection.items : [];
+  if (items.length > 0) {
+    return Object.fromEntries(
+      items.map((item: any) => {
+        const blockId = createNumericId();
+        return [blockId, {
+          type: "text",
+          settings: createFallbackBlockSettingsFromContent(item, label),
+        }];
+      }),
+    );
+  }
+
+  const blockId = createNumericId();
+  return {
+    [blockId]: {
+      type: "text",
+      settings: createFallbackBlockSettingsFromContent(sourceSection, label),
+    },
+  };
+}
+
+function createFallbackBlockSettingsFromContent(content: any, label: string) {
+  const settings: Record<string, any> = {
+    text_align: "center",
+  };
+
+  if (typeof content?.heading === "string" && content.heading.trim()) {
+    settings.heading = content.heading.trim();
+  } else {
+    settings.heading = label;
+  }
+
+  const body = typeof content?.body === "string" && content.body.trim()
+    ? content.body
+    : typeof content?.text === "string" && content.text.trim()
+      ? content.text
+      : "";
+  if (body) settings.text = toRichText(body);
+
+  if (typeof content?.image === "string" && content.image.trim()) settings.image = content.image.trim();
+  if (typeof content?.icon === "string" && content.icon.trim()) settings.icon = content.icon.trim();
+  if (typeof content?.ctaText === "string" && content.ctaText.trim()) settings.button_label = content.ctaText.trim();
+  if (typeof content?.ctaUrl === "string" && content.ctaUrl.trim()) settings.btn_action = content.ctaUrl.trim();
+
+  return settings;
+}
+
+function toRichText(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/<[a-z][\s\S]*>/i.test(trimmed)) return trimmed;
+
+  return trimmed
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${escapeHtml(paragraph.trim()).replace(/\n/g, "<br />")}</p>`)
+    .join("");
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function hasCompleteSection(section: any) {
