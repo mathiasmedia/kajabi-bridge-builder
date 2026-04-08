@@ -49,10 +49,27 @@ export function validateAndFix(
   // ── 3. Ensure content_for_* only reference surviving sections ──
   pruneContentForReferences(current, autoFixes);
 
-  // ── 4. Remove link_lists (Kajabi rejects it) ──
+  // ── 4. Validate link_lists (preserve when needed by menu blocks) ──
   if (current.link_lists) {
-    delete current.link_lists;
-    autoFixes.push('Removed link_lists from settings_data (Kajabi rejects it).');
+    if (typeof current.link_lists !== 'object' || Array.isArray(current.link_lists)) {
+      current.link_lists = {};
+      autoFixes.push('Reset malformed link_lists to empty object.');
+    } else {
+      for (const [menuId, menu] of Object.entries(current.link_lists)) {
+        if (typeof menu === 'string') {
+          try {
+            current.link_lists[menuId] = JSON.parse(menu);
+            autoFixes.push(`Parsed stringified link_list "${menuId}".`);
+          } catch {
+            delete current.link_lists[menuId];
+            autoFixes.push(`Removed unparseable link_list "${menuId}".`);
+          }
+        } else if (!menu || typeof menu !== 'object') {
+          delete current.link_lists[menuId];
+          autoFixes.push(`Removed invalid link_list "${menuId}".`);
+        }
+      }
+    }
   }
 
   // ── 5. Ensure no header/footer in content_for_* ──
@@ -61,12 +78,72 @@ export function validateAndFix(
   // ── 6. Check zip structure basics ──
   validateZipStructure(theme, warnings);
 
+  // ── 7. Semantic quality warnings ──
+  addSemanticQualityWarnings(current, warnings);
+
   return {
     errors,
     warnings,
     autoFixes,
     ready: errors.length === 0,
   };
+}
+
+// ── Semantic quality warnings ────────────────────────────────────────
+
+function addSemanticQualityWarnings(
+  current: Record<string, any>,
+  warnings: string[],
+) {
+  const sections = current.sections || {};
+
+  for (const [id, rawSection] of Object.entries(sections)) {
+    const section = rawSection as any;
+    if (!section || !section.type) continue;
+
+    // Warn: heading-only section (no body/buttons/images in any block)
+    const blocks = section.blocks || {};
+    const blockValues = Object.values(blocks) as any[];
+    const hasSubstantiveContent = blockValues.some((b: any) => {
+      const s = b?.settings || {};
+      return (s.text && s.text.length > 20) || s.image || s.button_label || s.btn_text || s.btn_action;
+    });
+    if (blockValues.length <= 1 && !hasSubstantiveContent && section.settings?.heading) {
+      warnings.push(`Section "${id}" appears to be heading-only with no body content.`);
+    }
+
+    // Warn: page_content used as generic homepage section
+    if (section.type === 'page_content') {
+      warnings.push(`Section "${id}" uses "page_content" type which is typically not ideal for homepage sections.`);
+    }
+
+    // Warn: footer-like content in content_for_*
+    const sectionType = (section.type || '').toLowerCase();
+    const sectionName = (section.name || '').toLowerCase();
+    if (sectionType.includes('footer') || sectionName.includes('footer')) {
+      for (const key of Object.keys(current)) {
+        if (key.startsWith('content_for_') && Array.isArray(current[key]) && current[key].includes(id)) {
+          warnings.push(`Footer-like section "${id}" is in ${key} — footers should be layout-level, not page content.`);
+        }
+      }
+    }
+  }
+
+  // Warn: menu blocks referencing missing link_lists
+  const linkLists = current.link_lists || {};
+  for (const [id, rawSection] of Object.entries(sections)) {
+    const section = rawSection as any;
+    const blocks = section?.blocks || {};
+    for (const [bid, block] of Object.entries(blocks)) {
+      const b = block as any;
+      if (b?.type === 'menu' && b?.settings?.menu) {
+        const menuRef = b.settings.menu;
+        if (!linkLists[menuRef]) {
+          warnings.push(`Block "${bid}" in section "${id}" references menu "${menuRef}" which is not in link_lists.`);
+        }
+      }
+    }
+  }
 }
 
 // ── Content-for arrays ──────────────────────────────────────────────────
