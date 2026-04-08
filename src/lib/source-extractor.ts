@@ -274,6 +274,10 @@ function extractSectionsV2(files: SourceProjectFiles): { sections: ExtractedSect
       hasTestimonials: analysis.intent === 'testimonial_band',
       hasPricing: analysis.hasPricing,
       hasRepeatedCards: (analysis.items?.length || 0) >= 2,
+      mediaIntent: analysis.media.mediaIntent,
+      mediaConfidence: analysis.media.mediaConfidence,
+      mediaEvidence: analysis.media.mediaEvidence,
+      imageTargets: analysis.media.imageTargets,
     };
 
     sections.push(section);
