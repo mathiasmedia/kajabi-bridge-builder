@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { SourceProjectSnapshot, IngestionWarning } from '@/lib/ingestion';
 import { snapshotToSourceFiles, validateSnapshot, BundledProjectAdapter } from '@/lib/ingestion';
 import { applyStreamlinedHomeRecipes } from '@/lib/theme-recipes/streamlined-home';
+import { runRefinementPass } from '@/lib/refinement-pass';
 
 interface ExportStore {
   // State
