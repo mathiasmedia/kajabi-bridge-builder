@@ -22,22 +22,27 @@ serve(async (req) => {
 
     const operations = planJson?.operations || [];
 
-    const systemPrompt = `You are a Kajabi theme export editor. You receive an existing transformation plan (a list of operations) and a tweak instruction. Your job is to return a MODIFIED version of the operations array with the requested changes applied.
+    const systemPrompt = `You are a Kajabi theme editor focused on PIXEL-PERFECT visual matching. You receive an existing transformation plan and a tweak instruction (often with a reference image). Return a MODIFIED version of the operations array.
 
-If an image is attached, analyze it carefully — the user may want you to match colors, layout, typography, or other design elements from the image and apply them to the Kajabi theme.
+${imageBase64 ? `## IMAGE ANALYSIS (CRITICAL)
+An image is attached. Analyze it with extreme precision:
+1. Extract EXACT hex colors for every distinct color visible (backgrounds, text, accents, buttons, borders)
+2. Identify font families (match to closest Google Font) and note sizes/weights
+3. Map the visual layout section-by-section from top to bottom
+4. Read ALL visible text verbatim — reproduce it exactly
+5. Note spacing patterns, border-radius, shadows, gradients
+6. Compare the image against the current plan and make the plan match the image` : ''}
 
-RULES:
-- Return the COMPLETE operations array, not just the changed ones
-- You can modify existing operations (change values, settings, CSS)
-- You can add new operations
-- You can remove operations (by omitting them)
-- Keep all unchanged operations exactly as-is
-- For CSS tweaks, find the addCssOverride operation and modify its css string
-- For color changes, find the relevant updateGlobalSetting/updateSectionSetting/updateBlockSetting and change the value
-- For block settings like own_row, width, padding — find the addBlock or updateBlockSetting op and modify it
-- For text changes, find the replaceText operation and modify the value
+## RULES
+- Return the COMPLETE operations array, not just changed ones
+- You can modify, add, or remove operations
+- Keep unchanged operations exactly as-is
+- For CSS changes: find addCssOverride and modify/extend its css string
+- For color changes: update the relevant setting operations AND the CSS override
+- The addCssOverride is your most powerful tool — use it for precise visual control
+- When matching an image, prioritize: exact colors > exact text > layout > spacing > typography
 
-OPERATION TYPES:
+## OPERATION TYPES
 - updateGlobalSetting: { type, key, value, label }
 - updateSectionSetting: { type, sectionId, key, value, label }
 - updateBlockSetting: { type, sectionId, blockId, key, value, label }
@@ -48,16 +53,23 @@ OPERATION TYPES:
 - addSection: { type, sectionId, section:{type,settings,blocks,block_order}, label }
 - addBlock: { type, sectionId, blockId, block:{type,settings}, label }
 
+## IMPORTANT
+- Do NOT add sections that aren't requested or visible in the reference
+- Do NOT duplicate existing sections
+- When modifying, change existing operations rather than adding parallel ones
+- Merge CSS changes into the existing addCssOverride rather than adding a second one
+
 Return ONLY valid JSON: { "operations": [...], "changelog": "brief description of what changed" }`;
 
-    // Build user message content — text or multimodal with image
     let userContent: any;
     const textPart = `## Current Plan (${operations.length} operations)
 ${JSON.stringify(operations, null, 2).slice(0, 20000)}
 
 ## Extracted Design Summary
-Colors: ${JSON.stringify(extractedDesign?.colors?.slice(0, 6), null, 2)}
+Colors: ${JSON.stringify(extractedDesign?.colors?.slice(0, 8))}
 Fonts: heading="${extractedDesign?.headingFont}", body="${extractedDesign?.bodyFont}"
+Background: ${extractedDesign?.backgroundColor || 'unknown'}
+Accent: ${extractedDesign?.accentColor || 'unknown'}
 
 ## Tweak Instruction
 ${tweakInstruction}
@@ -73,6 +85,9 @@ Apply the tweak and return the modified operations array as JSON.`;
       userContent = textPart;
     }
 
+    // Use pro model when image is attached for better visual understanding
+    const model = imageBase64 ? "google/gemini-2.5-pro" : "google/gemini-2.5-flash";
+
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -80,7 +95,7 @@ Apply the tweak and return the modified operations array as JSON.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userContent },
@@ -108,9 +123,8 @@ Apply the tweak and return the modified operations array as JSON.`;
     let content = data.choices?.[0]?.message?.content || "";
 
     // Strip markdown fences
-    content = content.replace(/^```json\s*/im, "").replace(/^```\s*/im, "").replace(/```\s*$/im, "").trim();
-    // Also handle triple single-quotes
-    content = content.replace(/^'''json\s*/im, "").replace(/^'''\s*/im, "").replace(/'''\s*$/im, "").trim();
+    content = content.replace(/^```(?:json)?\s*/im, "").replace(/```\s*$/im, "").trim();
+    content = content.replace(/^'''(?:json)?\s*/im, "").replace(/'''\s*$/im, "").trim();
 
     let result;
     try {
