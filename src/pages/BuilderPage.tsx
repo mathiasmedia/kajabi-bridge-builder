@@ -103,10 +103,31 @@ export default function BuilderPage() {
     setTweaking(true);
     setTweakLog(prev => [...prev, `🔧 ${instruction}${imageData ? ' 📷' : ''}`]);
     try {
+      // Build a section map from the base theme so the AI knows real section IDs
+      let baseSections: Record<string, string> = {};
+      try {
+        const resp = await fetch('/base-themes/pro-template.zip');
+        const buf = await resp.arrayBuffer();
+        const JSZip = (await import('jszip')).default;
+        const zip = await JSZip.loadAsync(buf);
+        // Find settings_data.json (may be nested in a subfolder)
+        const sdFile = Object.keys(zip.files).find(p => p.endsWith('config/settings_data.json'));
+        if (sdFile) {
+          const sd = JSON.parse(await zip.files[sdFile].async('string'));
+          const current = sd.current || sd;
+          const indexSections: string[] = current.content_for_index || [];
+          for (const secId of indexSections) {
+            const sec = current.sections?.[secId];
+            if (sec) baseSections[secId] = sec.name || sec.type || 'unknown';
+          }
+        }
+      } catch (e) { console.warn('Failed to load section map:', e); }
+
       const body: any = {
         planJson: template.plan_json,
         extractedDesign: template.extracted_design_json,
         tweakInstruction: instruction,
+        baseSections,
       };
       if (imageData) body.imageBase64 = imageData;
       const { data, error } = await supabase.functions.invoke('ai-tweak', { body });
