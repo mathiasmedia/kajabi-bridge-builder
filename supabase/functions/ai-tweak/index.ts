@@ -119,12 +119,22 @@ ${tweakInstruction}`;
       userContent = textPart;
     }
 
-    const model = imageBase64 ? "google/gemini-2.5-pro" : "google/gemini-2.5-flash";
+    // Use OpenAI GPT-4o for image tweaks if available, otherwise Gemini
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    const useOpenAI = imageBase64 && OPENAI_API_KEY;
+    
+    const apiUrl = useOpenAI 
+      ? "https://api.openai.com/v1/chat/completions"
+      : "https://ai.gateway.lovable.dev/v1/chat/completions";
+    const apiKey = useOpenAI ? OPENAI_API_KEY : LOVABLE_API_KEY;
+    const model = useOpenAI ? "gpt-4o" : (imageBase64 ? "google/gemini-2.5-flash" : "google/gemini-2.5-flash");
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    console.log(`Tweak using ${model}${useOpenAI ? ' (OpenAI)' : ' (Lovable AI)'}`);
+
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
