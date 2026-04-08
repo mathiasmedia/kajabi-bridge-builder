@@ -460,7 +460,9 @@ ${availableImages.length > 0 ? 'IMPORTANT: Use the available image URLs where co
     }
   }
 
-  return jsonResponse({ error: `Failed to generate section "${sectionToGenerate.heading || sectionToGenerate.type}": ${lastError}` }, 500);
+  // Gracefully skip sections that couldn't be generated instead of failing the whole pipeline
+  console.warn(`ai-transform [section] SKIPPING "${sectionToGenerate.heading || sectionToGenerate.type}": ${lastError}`);
+  return jsonResponse({ operations: [], cssOverrides: "" });
 }
 
 // ── Step 3: Refine existing plan ──
