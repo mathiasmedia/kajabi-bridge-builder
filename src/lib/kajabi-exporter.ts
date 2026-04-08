@@ -298,24 +298,35 @@ function applyOperation(
   }
 }
 
-export function generateChangeSummary(plan: TransformationPlan): string[] {
+export interface ChangeSummaryItem {
+  type: string;
+  label: string;
+  detail: string;
+}
+
+export function generateChangeSummary(plan: TransformationPlan): ChangeSummaryItem[] {
   return plan.operations.map(op => {
     switch (op.type) {
-      case 'updateGlobalSetting': return `Set ${op.label}: ${op.value}`;
-      case 'updateSectionSetting': return `Set ${op.label} on section ${op.sectionId}`;
-      case 'updateBlockSetting': return `Set ${op.label} on block ${op.blockId}`;
-      case 'replaceText': return `Replace ${op.label}`;
-      case 'hideSection': return `Hide section ${op.sectionId}`;
-      case 'showSection': return `Show section ${op.sectionId}`;
-      case 'updateNavigation': return `Update ${op.menuId} navigation (${op.links.length} items)`;
-      case 'addCssOverride': return `Add CSS: ${op.label}`;
-      case 'replaceLogo': return `Replace logo with ${op.fileName}`;
-      case 'replaceImage': return `Replace image: ${op.fileName}`;
-      case 'moveSection': return `Move section ${op.sectionId}`;
-      case 'addAsset': return `Add asset: ${op.fileName}`;
-      case 'addSection': return `Add section: ${op.label}`;
-      case 'addBlock': return `Add block: ${op.label}`;
-      default: return 'Unknown operation';
+      case 'updateGlobalSetting': return { type: op.type, label: op.label, detail: `Key: ${op.key} → ${typeof op.value === 'string' ? op.value : JSON.stringify(op.value).slice(0, 80)}` };
+      case 'updateSectionSetting': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Key: ${op.key} → ${typeof op.value === 'string' ? op.value : JSON.stringify(op.value).slice(0, 60)}` };
+      case 'updateBlockSetting': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Block: ${op.blockId} · Key: ${op.key}` };
+      case 'replaceText': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Block: ${op.blockId} · ${op.value.slice(0, 60)}…` };
+      case 'hideSection': return { type: op.type, label: `Hide section`, detail: `Section ID: ${op.sectionId}` };
+      case 'showSection': return { type: op.type, label: `Show section`, detail: `Section ID: ${op.sectionId}` };
+      case 'updateNavigation': return { type: op.type, label: `Update navigation`, detail: `Menu: ${op.menuId} · ${op.links.length} links: ${op.links.map(l => l.name).join(', ')}` };
+      case 'addCssOverride': return { type: op.type, label: op.label, detail: `${op.css.length} chars of CSS` };
+      case 'replaceLogo': return { type: op.type, label: `Replace logo`, detail: `File: ${op.fileName}` };
+      case 'replaceImage': return { type: op.type, label: `Replace image`, detail: `Target: ${op.target} · File: ${op.fileName}` };
+      case 'moveSection': return { type: op.type, label: `Move section`, detail: `Section: ${op.sectionId}${op.afterSectionId ? ` after ${op.afterSectionId}` : ''}` };
+      case 'addAsset': return { type: op.type, label: `Add asset`, detail: `File: ${op.fileName}` };
+      case 'addSection': {
+        const blockCount = Object.keys(op.section?.blocks || {}).length;
+        const blockTypes = Object.values(op.section?.blocks || {}).map((b: any) => b.type);
+        const bgColor = op.section?.settings?.background_color || 'none';
+        return { type: op.type, label: op.label, detail: `${blockCount} blocks (${blockTypes.join(', ')}) · bg: ${bgColor}` };
+      }
+      case 'addBlock': return { type: op.type, label: op.label, detail: `Section: ${op.sectionId} · Block: ${op.blockId} · Type: ${op.block.type}` };
+      default: return { type: 'unknown', label: 'Unknown operation', detail: '' };
     }
   });
 }
