@@ -14,6 +14,31 @@ import { useExportStore } from '@/store/useExportStore';
 import { applyPlanAndExport } from '@/lib/kajabi-exporter';
 import LiveThemePreview from '@/components/LiveThemePreview';
 
+/** Cached section map so we only parse the zip once */
+let cachedBaseSections: Record<string, string> | null = null;
+async function getBaseSections(): Promise<Record<string, string>> {
+  if (cachedBaseSections) return cachedBaseSections;
+  try {
+    const resp = await fetch('/base-themes/pro-template.zip');
+    const buf = await resp.arrayBuffer();
+    const JSZip = (await import('jszip')).default;
+    const zip = await JSZip.loadAsync(buf);
+    const sdFile = Object.keys(zip.files).find(p => p.endsWith('config/settings_data.json'));
+    if (sdFile) {
+      const sd = JSON.parse(await zip.files[sdFile].async('string'));
+      const current = sd.current || sd;
+      const indexSections: string[] = current.content_for_index || [];
+      const map: Record<string, string> = {};
+      for (const secId of indexSections) {
+        const sec = current.sections?.[secId];
+        if (sec) map[secId] = sec.name || sec.type || 'unknown';
+      }
+      cachedBaseSections = map;
+      return map;
+    }
+  } catch (e) { console.warn('Failed to load section map:', e); }
+  return {};
+}
 interface Template {
   id: string;
   name: string;
