@@ -845,6 +845,8 @@ function buildFallbackSection(sourceSection: any, intent: SectionIntent): any | 
   const heading = sourceSection?.heading || sourceSection?.type || "Section";
   const body = sourceSection?.body || "";
   const items = Array.isArray(sourceSection?.items) ? sourceSection.items : [];
+  const ctaText = sourceSection?.ctaText || "";
+  const ctaUrl = sourceSection?.ctaUrl || "/";
 
   // Heading + body block
   const headingBlockId = createNumericId();
@@ -856,12 +858,22 @@ function buildFallbackSection(sourceSection: any, intent: SectionIntent): any | 
   };
   blockOrder.push(headingBlockId);
 
-  // Item blocks
+  // Item blocks — handle stats (value+label) and features differently
   for (const item of items) {
     const bid = createNumericId();
     let itemHtml = "";
-    if (item.heading) itemHtml += `<h4>${escapeHtml(item.heading)}</h4>`;
-    if (item.body) itemHtml += `<p>${escapeHtml(item.body)}</p>`;
+
+    if (intent === 'stats') {
+      // Stats: value as big heading, label as description
+      const value = item.value || item.heading || "";
+      const label = item.body || item.heading || "";
+      if (value) itemHtml += `<h4>${escapeHtml(value)}</h4>`;
+      if (label && label !== value) itemHtml += `<p>${escapeHtml(label)}</p>`;
+    } else {
+      // Features/programs/generic: heading + body
+      if (item.heading) itemHtml += `<h4>${escapeHtml(item.heading)}</h4>`;
+      if (item.body) itemHtml += `<p>${escapeHtml(item.body)}</p>`;
+    }
     if (!itemHtml) continue;
 
     const width = items.length >= 4 ? "3" : items.length >= 3 ? "4" : "6";
