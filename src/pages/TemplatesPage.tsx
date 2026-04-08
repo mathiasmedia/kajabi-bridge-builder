@@ -105,6 +105,34 @@ export default function TemplatesPage() {
     }
   };
 
+  const handleReExport = async (template: SavedTemplate) => {
+    if (!template.source_project_id) {
+      toast.error('No source project linked to this template');
+      return;
+    }
+    const store = useExportStore.getState();
+    // Create a new export project with the same source
+    store.createExportProject({
+      id: crypto.randomUUID(),
+      name: `Re-export ${template.source_project_name || 'Project'}`,
+      sourceProjectId: template.source_project_id,
+      sourceProjectName: template.source_project_name || '',
+      baseTheme: 'streamlined-home',
+      page: 'index',
+      notes: `Re-export based on template "${template.name}"`,
+      createdAt: new Date().toISOString(),
+      status: 'new',
+    });
+    // Load base theme + ingest
+    await store.loadBaseTheme('/base-themes/streamlined-home.zip');
+    await store.ingestProject({ projectId: template.source_project_id, page: 'index' });
+    const updated = useExportStore.getState();
+    if (updated.sourceFiles && !updated.error) {
+      updated.extractDesign();
+    }
+    navigate('/extract');
+  };
+
   const selected = templates.find(t => t.id === selectedId);
   const selectedCritique = selectedId ? critiques[selectedId] : null;
 
