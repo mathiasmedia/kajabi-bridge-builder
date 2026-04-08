@@ -162,7 +162,13 @@ You MUST use the EXACT block IDs from the theme structure. Do NOT fabricate or i
 The block IDs are the keys under each section's "blocks" object in the theme structure below.
 
 ID FORMAT: 13-digit numeric-only strings.
-Use actual source text, no placeholders. No external image URLs.`;
+Use actual source text, no placeholders.
+
+IMAGE RULES:
+- If available image URLs are provided, use them for hero backgrounds (bg_type="image", bg_image=URL)
+- For hero sections with a background image, set bg_type="image" and bg_image to the hero image URL
+- Only use the provided URLs — do NOT invent image URLs`;
+
 
   // Build explicit hero block reference so the AI can't get IDs wrong
   let heroBlockRef = '';
