@@ -689,6 +689,14 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
 
   // ── Intent classification ──
 
+  // Detect icon presence in items
+  const hasIcons = arrayItems.some(it => it.icon);
+  // Detect checklist/bullet pattern
+  const hasChecklist = /CheckCircle|Check\b|checklist|bullet/i.test(content) || (content.match(/<li[\s>]/g) || []).length >= 2;
+  // Detect dual CTAs
+  const btnMatches = [...content.matchAll(/<Button[^>]*>([A-Za-z][^<]{1,40})<\/Button>/g)];
+  const secondaryCtaText = btnMatches[1]?.[1]?.trim();
+
   // HERO: has h1, usually first section, background image
   if (lower.includes('hero') || (hasH1 && hasImg)) {
     intent = 'hero';
@@ -724,6 +732,17 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
     if (hasImg) evidence.push('Cards include images');
     if (lower.includes('course') || lower.includes('program') || lower.includes('pricing')) {
       evidence.push(`Component name suggests programs/courses`);
+      confidence = 0.95;
+    }
+  }
+
+  // ICON CARD ROW: repeated items with icon + title + description, no price/quote
+  else if (hasMap && arrayItems.length >= 2 && hasIcons && arrayItems.some(it => it.title || it.heading) && !hasPrice && !hasQuote) {
+    intent = 'icon_card_row';
+    confidence = 0.9;
+    evidence.push(`${arrayItems.length} repeated items with icon + heading pattern`);
+    if (lower.includes('problem') || lower.includes('feature') || lower.includes('benefit')) {
+      evidence.push(`Component name suggests icon cards`);
       confidence = 0.95;
     }
   }
@@ -764,11 +783,12 @@ function analyzeComponent(name: string, content: string, files: SourceProjectFil
     evidence.push('Component is a footer');
   }
 
-  // CONTENT MEDIA SPLIT: image + text side by side
+  // CONTENT MEDIA SPLIT: image + text side by side (or checklist + visual)
   else if (hasImg && hasH2 && !hasMap) {
     intent = 'content_media_split';
     confidence = 0.6;
     evidence.push('Contains image + heading without repeated items');
+    if (hasChecklist) { evidence.push('Contains checklist/bullet items'); confidence = 0.75; }
   }
 
   // HEADING DIVIDER: just a heading, minimal content
