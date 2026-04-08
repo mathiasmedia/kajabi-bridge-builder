@@ -346,7 +346,7 @@ export function buildTransformationPlan(
     if (textBlock) {
       // CTA card with darker bg than the section
       const ctaCardBg = siteIsDark ? darkCardBg : 'rgba(255,255,255,0.04)';
-      const ctaHtml = `<div style="background:${ctaCardBg}; border:1px solid rgba(255,255,255,0.08); border-radius:24px; padding:64px 48px; max-width:640px; margin:0 auto 24px">\n<h2>${ctaHeading}</h2>\n<p>${ctaBody}</p>\n</div>`;
+      const ctaHtml = `<div style="background:${ctaCardBg}; border:1px solid rgba(255,255,255,0.08); border-radius:24px; padding:64px 48px; max-width:640px; margin:0 auto 24px">\n<h2 style="color:${inlineFgHex}">${ctaHeading}</h2>\n<p style="color:${inlineBodyHex}">${ctaBody}</p>\n</div>`;
       operations.push({ type: 'replaceText', sectionId, blockId: textBlock.id, key: 'text', value: ctaHtml, label: 'CTA text' });
       operations.push({ type: 'updateBlockSetting', sectionId, blockId: textBlock.id, key: 'text_align', value: 'center', label: 'CTA text align' });
       // Narrower block width (6-7 instead of 12)
