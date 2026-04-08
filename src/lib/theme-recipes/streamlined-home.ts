@@ -39,31 +39,33 @@ export function applyStreamlinedHomeRecipes(
   ops = ops.map(op => {
     if (op.type !== 'addSection') return op;
 
-    const matchingSection = findMatchingExtractedSection(op, sections);
+    const normalized = normalizeSectionChrome(op, warnings);
+
+    const matchingSection = findMatchingExtractedSection(normalized, sections);
     const intent = matchingSection?.intent;
 
     if (intent === 'program_cards') {
-      return applyProgramCardRecipe(op, matchingSection!, warnings, isDark, darkCardBg);
+      return applyProgramCardRecipe(normalized, matchingSection!, warnings, isDark, darkCardBg);
     }
 
     if (intent === 'cta_band') {
-      return applyCtaBandRecipe(op, matchingSection!, warnings, isDark, darkCardBg);
+      return applyCtaBandRecipe(normalized, matchingSection!, warnings, isDark, darkCardBg);
     }
 
     if (intent === 'testimonial_band') {
-      return applyTestimonialRecipe(op, matchingSection!, warnings, isDark, darkCardBg);
+      return applyTestimonialRecipe(normalized, matchingSection!, warnings, isDark, darkCardBg);
     }
 
      if (intent === 'icon_card_row') {
-      return applyIconCardRowRecipe(op, matchingSection!, warnings, isDark, darkCardBg);
+       return applyIconCardRowRecipe(normalized, matchingSection!, warnings, isDark, darkCardBg);
     }
 
     if (intent === 'content_media_split') {
-      return applyContentMediaSplitRecipe(op, matchingSection!, warnings, extractedDesign);
+      return applyContentMediaSplitRecipe(normalized, matchingSection!, warnings, extractedDesign);
     }
 
     // Apply own-row recipe to all sections for blocks that need vertical stacking
-    return applyOwnRowRecipe(op, warnings);
+    return applyOwnRowRecipe(normalized, warnings);
   });
 
   // Hero enrichment — operates on globals replaceText ops, not addSection
@@ -164,6 +166,43 @@ export function getHeroMultiCtaCss(design: ExtractedDesign): { css: string; warn
   }
 
   return { css: '', warnings };
+}
+
+function normalizeSectionChrome(
+  op: Extract<TransformationOperation, { type: 'addSection' }>,
+  warnings: ValidationWarning[],
+): Extract<TransformationOperation, { type: 'addSection' }> {
+  const settings = { ...(op.section.settings || {}) } as Record<string, any>;
+
+  if (settings.full_width !== false) {
+    settings.full_width = false;
+  }
+
+  const bg = typeof settings.background_color === 'string' ? settings.background_color.trim() : '';
+  if (isLowOpacityBackground(bg)) {
+    delete settings.background_color;
+    if (settings.bg_type === 'color') settings.bg_type = 'none';
+    warnings.push({
+      severity: 'info',
+      message: 'Removed a barely-visible section background color and reverted the section to no background.',
+      target: op.sectionId,
+    });
+  }
+
+  return {
+    ...op,
+    section: { ...op.section, settings },
+  };
+}
+
+function isLowOpacityBackground(value: string): boolean {
+  if (!value) return false;
+  const match = value.match(/^rgba?\(([^)]+)\)$/i);
+  if (!match) return false;
+  const parts = match[1].split(',').map(part => part.trim());
+  if (parts.length < 4) return false;
+  const alpha = Number(parts[3]);
+  return Number.isFinite(alpha) && alpha > 0 && alpha < 0.2;
 }
 
 // ── Program Card Recipe ─────────────────────────────────────────────────
@@ -441,6 +480,7 @@ function applyContentMediaSplitRecipe(
 ): TransformationOperation {
   const blocks = { ...op.section.blocks };
   const blockOrder = [...(op.section.block_order || [])];
+  const settings = { ...op.section.settings } as Record<string, any>;
 
   // Detect if visual side is missing — generate a branded panel fallback
   const hasImageBlock = blockOrder.some(bid => {
@@ -529,9 +569,37 @@ function applyContentMediaSplitRecipe(
     }
   }
 
+  settings.full_width = false;
+  settings.multiple_columns_on_desktop = 'yes';
+  settings.column_one_width = settings.column_one_width || '4';
+  settings.column_two_width = settings.column_two_width || '4';
+  settings.column_three_width = settings.column_three_width || '4';
+  settings.multiple_column_gap = settings.multiple_column_gap || '0';
+
+  const imageBlockIds = blockOrder.filter(bid => blocks[bid]?.type === 'image');
+  const leftColumnBlockIds = blockOrder.filter(bid => !imageBlockIds.includes(bid));
+
+  for (const bid of leftColumnBlockIds) {
+    const block = blocks[bid];
+    if (!block) continue;
+    block.settings.width = '12';
+    block.settings.block_column = 'first';
+    if ('text_align' in block.settings || block.type === 'text' || block.type === 'cta') {
+      block.settings.text_align = 'left';
+    }
+    block.settings.mobile_text_align = 'left';
+  }
+
+  for (const bid of imageBlockIds) {
+    const block = blocks[bid];
+    if (!block) continue;
+    block.settings.width = '12';
+    block.settings.block_column = 'second';
+  }
+
   return {
     ...op,
-    section: { ...op.section, blocks, block_order: blockOrder },
+    section: { ...op.section, settings, blocks, block_order: blockOrder },
   };
 }
 
