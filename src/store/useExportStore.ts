@@ -13,6 +13,7 @@ import { applyStreamlinedHomeRecipes } from '@/lib/theme-recipes/streamlined-hom
 import { runRefinementPass } from '@/lib/refinement-pass';
 import { runRenderCheck, type RenderCheckOutput } from '@/lib/renderer-integration';
 import { generateRefinementSuggestions, applyDeterministicRefinements, type RefinementResult } from '@/lib/render-check-refinement';
+import { extractStyleIntents, detectRegressions, type RegressionReport } from '@/lib/refinement-guardrails';
 
 interface ExportStore {
   // State
