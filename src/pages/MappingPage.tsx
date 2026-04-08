@@ -9,7 +9,6 @@ import { Separator } from '@/components/ui/separator';
 import { useExportStore } from '@/store/useExportStore';
 import { generateChangeSummary, type ChangeSummaryItem } from '@/lib/kajabi-exporter';
 import AppHeader from '@/components/AppHeader';
-import ThemePreview from '@/components/ThemePreview';
 import RenderCheckPanel from '@/components/RenderCheckPanel';
 
 const OP_TYPE_COLORS: Record<string, string> = {
