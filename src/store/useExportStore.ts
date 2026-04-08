@@ -12,6 +12,7 @@ import { snapshotToSourceFiles, validateSnapshot, BundledProjectAdapter } from '
 import { applyStreamlinedHomeRecipes } from '@/lib/theme-recipes/streamlined-home';
 import { runRefinementPass } from '@/lib/refinement-pass';
 import { runRenderCheck, type RenderCheckOutput } from '@/lib/renderer-integration';
+import { generateRefinementSuggestions, applyDeterministicRefinements, type RefinementResult } from '@/lib/render-check-refinement';
 
 interface ExportStore {
   // State
@@ -30,6 +31,8 @@ interface ExportStore {
   exportValidation: ValidationResult | null;
   renderCheckResult: RenderCheckOutput | null;
   isRenderChecking: boolean;
+  refinementResult: RefinementResult | null;
+  previousScore: number | null;
 
   // Actions
   setWorkspaceProjects: (projects: WorkspaceProject[]) => void;
@@ -50,6 +53,9 @@ interface ExportStore {
   setError: (error: string | null) => void;
   setLoading: (loading: boolean, message?: string) => void;
   runRenderCheck: () => Promise<void>;
+  generateRefinements: () => void;
+  applyRefinement: (suggestionId: string) => void;
+  applyAllSafeRefinements: () => void;
 }
 
 
