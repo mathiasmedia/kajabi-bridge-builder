@@ -216,9 +216,7 @@ export default function TemplatesPage() {
               No saved templates yet. Export a project and click "Save Template" on the mapping page.
             </CardContent>
           </Card>
-        ) : (
-          {/* Full-width layout when template selected */}
-          {selected ? (
+        ) : selected ? (
             <div className="flex gap-4 h-[calc(100vh-160px)]">
               {/* Left sidebar: template list + tweak panel */}
               <div className="w-[340px] shrink-0 flex flex-col gap-3 min-h-0">
