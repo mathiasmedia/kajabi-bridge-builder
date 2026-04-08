@@ -907,7 +907,8 @@ function buildFallbackSection(sourceSection: any, intent: SectionIntent): any | 
       type: "section",
       name: heading,
       settings: {
-        bg_type: "none",
+        bg_type: "color",
+        background_color: "#0b1214",
         padding_desktop: { top: "80", bottom: "80" },
         padding_mobile: { top: "48", bottom: "48" },
         horizontal: "center",
