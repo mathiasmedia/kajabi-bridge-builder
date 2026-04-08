@@ -384,12 +384,20 @@ ${JSON.stringify(sectionToGenerate, null, 2)}
 ${itemsDetail}
 ${imageContext}
 
-## Source section content
+## Semantic intent (PRIMARY DRIVER — follow this)
 - Intent: ${intent}
+- Confidence: ${sectionToGenerate.confidence ?? 'unknown'}
+- Evidence: ${(sectionToGenerate.evidence || []).join('; ') || 'none'}
+- Flags: hasHeading=${sectionToGenerate.hasHeading ?? false}, hasBody=${sectionToGenerate.hasBody ?? false}, hasButtons=${sectionToGenerate.hasButtons ?? false}, hasImages=${sectionToGenerate.hasImages ?? false}, hasStats=${sectionToGenerate.hasStats ?? false}, hasTestimonials=${sectionToGenerate.hasTestimonials ?? false}, hasPricing=${sectionToGenerate.hasPricing ?? false}, hasRepeatedCards=${sectionToGenerate.hasRepeatedCards ?? false}
+- Repeated items: ${sectionToGenerate.repeatedItemCount ?? 0}
+
+## Source section content
 - Heading: ${sectionToGenerate.heading || "none"}
 - Body: ${sectionToGenerate.body || "none"}
 - CTA: ${sectionToGenerate.ctaText || "none"} → ${sectionToGenerate.ctaUrl || "none"}
 - Items count: ${sectionToGenerate.items?.length || 0}
+
+${richnessGuard}
 
 ## Relevant source code
 ${sectionContext}
