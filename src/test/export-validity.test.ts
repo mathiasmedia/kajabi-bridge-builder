@@ -198,19 +198,20 @@ describe('Export Validator', () => {
     expect(settingsData.current.content_for_index).toEqual(['s1', 's2']);
   });
 
-  it('removes link_lists', () => {
+  it('preserves valid link_lists and fixes stringified ones', () => {
     const theme = createBaseTheme();
     const settingsData = {
       current: {
         content_for_index: [],
         sections: {},
-        link_lists: { main: { links: [] } },
+        link_lists: { main: { links: [] }, broken: 'not an object' },
       },
     };
 
     const result = validateAndFix(settingsData, theme);
     expect(result.ready).toBe(true);
-    expect(settingsData.current.link_lists).toBeUndefined();
+    expect(settingsData.current.link_lists.main).toEqual({ links: [] });
+    expect(settingsData.current.link_lists.broken).toBeUndefined();
   });
 
   it('converts block arrays to objects', () => {
