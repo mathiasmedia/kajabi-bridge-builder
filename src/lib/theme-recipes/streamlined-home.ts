@@ -411,7 +411,7 @@ function applyCtaBandRecipe(
     // Inner panel: background, padding, border-radius, box-shadow
     tb.settings.background_color = tb.settings.background_color || (isDark ? darkCardBg : '#FFFFFF');
     tb.settings.box_shadow = tb.settings.box_shadow || (isDark ? 'none' : 'large');
-    tb.settings.box_shadow = tb.settings.box_shadow || 'large';
+    
     tb.settings.border_radius = tb.settings.border_radius || '16';
     tb.settings.padding_desktop = tb.settings.padding_desktop || {
       top: '40', right: '40', bottom: '40', left: '40',
