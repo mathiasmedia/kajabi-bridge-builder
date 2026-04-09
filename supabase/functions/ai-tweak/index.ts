@@ -335,6 +335,12 @@ ${tweakInstruction}`;
     for (const op of result) {
       if (op.type === "addSection" && op.section?.settings) {
         op.section.settings.full_width = false;
+        // Auto-enable multiple_columns_on_desktop if any block uses block_column
+        const blocks = op.section.blocks || {};
+        const hasColumnBlocks = Object.values(blocks).some((b: any) => b?.settings?.block_column && b.settings.block_column !== "");
+        if (hasColumnBlocks && op.section.settings.multiple_columns_on_desktop !== "yes") {
+          op.section.settings.multiple_columns_on_desktop = "yes";
+        }
       }
     }
 
