@@ -293,7 +293,7 @@ Create exactly ONE addSection operation that faithfully recreates a source secti
 CRITICAL KAJABI SCHEMA RULES:
 - Section type MUST be "section" (the only type that supports rich content blocks)
 - Section settings: bg_type ("none"|"color"|"image"), background_color, padding_desktop, padding_mobile, full_width, vertical, horizontal, equal_height, multiple_columns_on_desktop, column_one_width, column_two_width, column_three_width, multiple_column_gap
-- Default full_width to false. Only use full_width=true if the user explicitly wants a full-bleed section.
+- **NEVER set full_width to true.** Always use full_width: false. The only exception is a full-bleed background image section with no text.
 - Do NOT set background_color on every section.
 - For normal light sections, use bg_type="none" and leave background_color empty/omitted.
 - If you use background_color, it must be clearly intentional and visibly opaque — never a faint low-alpha wash.

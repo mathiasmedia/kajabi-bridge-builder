@@ -174,13 +174,13 @@ ${imageBase64 ? '- When matching an image: be THOROUGH. Use addCssOverride for c
 - If the tweak is about section layout or Kajabi builder settings, prefer modifying existing addSection operation settings/blocks rather than trying to fake it in CSS.
 
 ## LAYOUT / READABILITY RULES
-- Default full_width to false. Only set full_width to true if the user explicitly requests a full-width section.
+- **CRITICAL: NEVER set full_width to true.** Always set full_width: false. The only exception is a section whose sole purpose is displaying a full-bleed background image with no text content. If unsure, use false.
 - If a heading introduces cards below it, keep them in the SAME section: heading block width "12", then card blocks width "4" each.
 - For split content/image sections on desktop, use REAL Kajabi column settings:
   - section.settings.multiple_columns_on_desktop = "yes"
   - section.settings.column_one_width = "4"
   - section.settings.column_two_width = "4"
-  - section.settings.full_width = false
+  - section.settings.full_width = false (ALWAYS false)
   - left-side text and CTA blocks: width "12", block_column "first", text_align "left", mobile_text_align "left"
   - right-side image block: width "12", block_column "second"
 - For light/white sections, use bg_type = "none" and remove section background_color instead of using barely-visible translucent backgrounds.
@@ -328,6 +328,13 @@ ${tweakInstruction}`;
     // 4. Add new operations
     if (patch.add && Array.isArray(patch.add)) {
       result.push(...patch.add);
+    }
+
+    // 5. Post-process: force full_width to false on all addSection ops
+    for (const op of result) {
+      if (op.type === "addSection" && op.section?.settings) {
+        op.section.settings.full_width = false;
+      }
     }
 
     return respond({

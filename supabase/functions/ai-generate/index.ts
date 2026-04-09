@@ -258,9 +258,8 @@ Return valid JSON:
 
 ### DO NOT generate header or footer sections. Skip them entirely.
 
-### Section width
-- NEVER set full_width: true unless the user explicitly asks for a full-bleed section.
-- Default to full_width: false for hero, intro, split-content, testimonial, and CTA sections.
+### Section width — CRITICAL
+- **NEVER set full_width: true.** Always use full_width: false. The only exception is a section whose sole purpose is a full-bleed background image with no text. If unsure, use false.
 
 ### Background Colors — BE VERY CAREFUL
 - Do NOT set background_color on sections UNLESS you are intentionally creating a dark/colored section (e.g. a hero with dark overlay, a dark CTA section).
