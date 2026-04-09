@@ -11,6 +11,60 @@ const respond = (body: Record<string, unknown>) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+function normalizeSectionColumns(op: any) {
+  if (op.type !== "addSection" || !op.section?.settings) return;
+
+  op.section.settings.full_width = false;
+
+  const blocks = op.section.blocks || {};
+  const blockOrder = op.section.block_order || Object.keys(blocks);
+  const orderedBlocks = blockOrder
+    .map((id: string) => ({ id, block: blocks[id] }))
+    .filter(({ block }: any) => block?.settings);
+
+  const hasColumnBlocks = orderedBlocks.some(({ block }: any) => block.settings?.block_column);
+  const nonFullWidth = orderedBlocks.filter(({ block }: any) => {
+    const w = block.settings?.width;
+    return w && w !== "12";
+  });
+  const hasSideBySideLayout = nonFullWidth.length >= 2;
+
+  if (!hasColumnBlocks && !hasSideBySideLayout) return;
+
+  op.section.settings.multiple_columns_on_desktop = "yes";
+  if (!op.section.settings.column_one_width) op.section.settings.column_one_width = "4";
+  if (!op.section.settings.column_two_width) op.section.settings.column_two_width = "4";
+
+  if (hasColumnBlocks) return;
+
+  const imageBlocks = orderedBlocks.filter(({ block }: any) => block.type === "image");
+  const contentBlocks = orderedBlocks.filter(({ block }: any) => block.type !== "image");
+
+  if (imageBlocks.length === 1 && contentBlocks.length >= 1) {
+    for (const { block } of contentBlocks) {
+      block.settings.block_column = "first";
+      block.settings.width = "12";
+      if (block.type === "text" || block.type === "cta") {
+        if (!block.settings.text_align) block.settings.text_align = "left";
+        if (!block.settings.mobile_text_align) block.settings.mobile_text_align = "left";
+      }
+    }
+    imageBlocks[0].block.settings.block_column = "second";
+    imageBlocks[0].block.settings.width = "12";
+    return;
+  }
+
+  const splitIndex = Math.ceil(nonFullWidth.length / 2);
+  nonFullWidth.forEach(({ block }: any, index: number) => {
+    block.settings.block_column = index < splitIndex ? "first" : "second";
+    block.settings.width = "12";
+    if ((block.type === "text" || block.type === "cta") && block.settings.block_column === "first") {
+      if (!block.settings.text_align) block.settings.text_align = "left";
+      if (!block.settings.mobile_text_align) block.settings.mobile_text_align = "left";
+    }
+  });
+}
+
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
@@ -588,48 +642,9 @@ Return ONLY valid JSON. No markdown.`;
       if (cssFonts.body) extractedDesign.bodyFont = cssFonts.body;
     }
 
-    // Post-process: enforce full_width=false and auto-enable multiple_columns_on_desktop
+    // Post-process: normalize Kajabi column settings
     for (const op of operations) {
-      if (op.type === "addSection" && op.section?.settings) {
-        op.section.settings.full_width = false;
-        const blocks = op.section.blocks || {};
-        const blockList = Object.values(blocks) as any[];
-        
-        const hasColumnBlocks = blockList.some((b: any) => b?.settings?.block_column && b.settings.block_column !== "");
-        
-        // Detect width-based side-by-side patterns (e.g. width "6" + "6")
-        const blockOrder = op.section.block_order || Object.keys(blocks);
-        const nonFullWidthBlocks = blockOrder.filter((id: string) => {
-          const w = blocks[id]?.settings?.width;
-          return w && w !== "12";
-        });
-        const hasSideBySideLayout = nonFullWidthBlocks.length >= 2;
-        
-        if ((hasColumnBlocks || hasSideBySideLayout) && op.section.settings.multiple_columns_on_desktop !== "yes") {
-          op.section.settings.multiple_columns_on_desktop = "yes";
-          if (!op.section.settings.column_one_width) op.section.settings.column_one_width = "4";
-          if (!op.section.settings.column_two_width) op.section.settings.column_two_width = "4";
-          
-          if (!hasColumnBlocks && hasSideBySideLayout) {
-            let assignedFirst = false;
-            for (const id of blockOrder) {
-              const block = blocks[id];
-              if (!block?.settings) continue;
-              const w = block.settings.width;
-              if (w && w !== "12") {
-                if (!assignedFirst) {
-                  block.settings.block_column = "first";
-                  block.settings.width = "12";
-                  assignedFirst = true;
-                } else {
-                  block.settings.block_column = "second";
-                  block.settings.width = "12";
-                }
-              }
-            }
-          }
-        }
-      }
+      normalizeSectionColumns(op);
     }
 
     // Add the final CSS override
