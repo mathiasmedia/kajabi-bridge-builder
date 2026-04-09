@@ -132,6 +132,12 @@ function sanitizeBlockDefaults(op: any) {
   // Force full_width false — prevents flex:unset inline styles on blocks
   settings.full_width = false;
 
+  // Validate multiple_columns_on_desktop — only "yes" or "no" are valid
+  if (settings.multiple_columns_on_desktop && settings.multiple_columns_on_desktop !== "yes" && settings.multiple_columns_on_desktop !== "no") {
+    // Coerce truthy values like "two", "true", "2" to "yes"
+    settings.multiple_columns_on_desktop = "yes";
+  }
+
   // Ensure padding values are proper objects with defaults if set
   if (settings.padding_desktop && typeof settings.padding_desktop === "object") {
     const pd = settings.padding_desktop;
