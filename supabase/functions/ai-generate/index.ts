@@ -344,6 +344,11 @@ Return valid JSON:
 - addSection: { type, sectionId, section: { type: "section", settings, blocks, block_order }, label }
 - hideSection: { type, sectionId }
 
+## KAJABI ID FORMAT — CRITICAL
+- Section IDs MUST be 13-digit numeric strings (timestamp format), e.g. "1596053476562". NEVER use word-based IDs like "hero_section".
+- Block IDs MUST follow the pattern "{sectionId}_{index}", e.g. "1596053476562_0", "1596053476562_1".
+- Generate unique numeric IDs for each section using Date.now()-like values.
+
 ## CRITICAL RULES — READ CAREFULLY
 
 ### DO NOT generate header or footer sections. Skip them entirely.
