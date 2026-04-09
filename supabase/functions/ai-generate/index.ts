@@ -697,13 +697,27 @@ Return ONLY valid JSON. No markdown.`;
       normalizeSectionColumns(op);
     }
 
-    // Add the final CSS override
+    // Add the final CSS override (fix any word-based IDs in CSS)
     if (cssOverride) {
+      let fixedCss = cssOverride;
+      for (const [oldId, newId] of Object.entries(allIdMaps)) {
+        fixedCss = fixedCss.replaceAll(oldId, newId);
+      }
       operations.push({
         type: "addCssOverride",
-        css: cssOverride,
+        css: fixedCss,
         label: "AI-generated CSS overrides" + (visionData ? " (vision-enhanced)" : ""),
       });
+    }
+    // Also fix CSS in any existing addCssOverride ops
+    if (Object.keys(allIdMaps).length > 0) {
+      for (const op of operations) {
+        if (op.type === "addCssOverride" && op.css) {
+          for (const [oldId, newId] of Object.entries(allIdMaps)) {
+            op.css = op.css.replaceAll(oldId, newId);
+          }
+        }
+      }
     }
 
     const passCount = 1 + (cssOverride ? 1 : 0) + (visionData ? 1 : 0);
