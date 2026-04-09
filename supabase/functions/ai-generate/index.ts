@@ -64,6 +64,12 @@ function normalizeKajabiIds(op: any): Record<string, string> {
   return idMap;
 }
 
+/**
+ * Validate section column settings — only keep multiple_columns_on_desktop
+ * if blocks actually use block_column. Kajabi's Bootstrap grid handles
+ * side-by-side blocks natively via width (e.g. three blocks at width "4").
+ * Multiple columns should ONLY be used when blocks explicitly set block_column.
+ */
 function normalizeSectionColumns(op: any) {
   if (op.type !== "addSection" || !op.section?.settings) return;
   op.section.settings.full_width = false;
@@ -74,47 +80,36 @@ function normalizeSectionColumns(op: any) {
     .map((id: string) => ({ id, block: blocks[id] }))
     .filter(({ block }: any) => block?.settings);
 
-  const hasColumnBlocks = orderedBlocks.some(({ block }: any) => block.settings?.block_column);
-  const nonFullWidth = orderedBlocks.filter(({ block }: any) => {
-    const w = block.settings?.width;
-    return w && w !== "12";
+  // Check if any block explicitly uses block_column (second/third)
+  const hasExplicitColumnAssignment = orderedBlocks.some(({ block }: any) => {
+    const col = block.settings?.block_column;
+    return col && col !== "first";
   });
-  const hasSideBySideLayout = nonFullWidth.length >= 2;
 
-  if (!hasColumnBlocks && !hasSideBySideLayout) return;
-
-  op.section.settings.multiple_columns_on_desktop = "two";
-  if (!op.section.settings.column_one_width) op.section.settings.column_one_width = "4";
-  if (!op.section.settings.column_two_width) op.section.settings.column_two_width = "4";
-
-  if (hasColumnBlocks) return;
-
-  const imageBlocks = orderedBlocks.filter(({ block }: any) => block.type === "image");
-  const contentBlocks = orderedBlocks.filter(({ block }: any) => block.type !== "image");
-
-  if (imageBlocks.length === 1 && contentBlocks.length >= 1) {
-    for (const { block } of contentBlocks) {
-      block.settings.block_column = "first";
-      block.settings.width = "12";
-      if (block.type === "text" || block.type === "cta") {
-        if (!block.settings.text_align) block.settings.text_align = "left";
-        if (!block.settings.mobile_text_align) block.settings.mobile_text_align = "left";
+  if (hasExplicitColumnAssignment) {
+    // Blocks use column assignment — ensure multi-column is enabled
+    if (!op.section.settings.multiple_columns_on_desktop || op.section.settings.multiple_columns_on_desktop === "no") {
+      op.section.settings.multiple_columns_on_desktop = "two";
+    }
+    if (!op.section.settings.column_one_width) op.section.settings.column_one_width = "4";
+    if (!op.section.settings.column_two_width) op.section.settings.column_two_width = "4";
+  } else {
+    // No block_column usage — force single column, remove any block_column settings
+    if (op.section.settings.multiple_columns_on_desktop && op.section.settings.multiple_columns_on_desktop !== "no") {
+      console.log(`[normalizeSectionColumns] Removing unnecessary multi-column from section ${op.sectionId}`);
+      op.section.settings.multiple_columns_on_desktop = "no";
+      delete op.section.settings.column_one_width;
+      delete op.section.settings.column_two_width;
+      delete op.section.settings.column_three_width;
+      delete op.section.settings.multiple_column_gap;
+    }
+    // Clean up any stray block_column = "first" (it's the default, unnecessary)
+    for (const { block } of orderedBlocks) {
+      if (block.settings?.block_column === "first") {
+        delete block.settings.block_column;
       }
     }
-    imageBlocks[0].block.settings.block_column = "second";
-    imageBlocks[0].block.settings.width = "12";
-    return;
   }
-
-  const splitIndex = Math.ceil(nonFullWidth.length / 2);
-  nonFullWidth.forEach(({ block }: any, index: number) => {
-    block.settings.block_column = index < splitIndex ? "first" : "second";
-    block.settings.width = "12";
-    if ((block.type === "text" || block.type === "cta") && block.settings.block_column === "first") {
-      if (!block.settings.text_align) block.settings.text_align = "left";
-      if (!block.settings.mobile_text_align) block.settings.mobile_text_align = "left";
-    }
-  });
 }
 
 /** Sanitize block and section settings to match what Kajabi templates expect.
@@ -389,23 +384,15 @@ Return valid JSON:
   - heading/introduction block width "12"
   - 3 card/feature blocks width "4" each below it
 
-### Multi-Column / Side-by-Side Layouts
-- **CRITICAL: If ANY block in a section uses block_column ("first"/"second"/"third"), you MUST set multiple_columns_on_desktop = "two" (or "three" for 3 columns) on the section.** Without this, Kajabi ignores block_column and stacks everything vertically.
-- Kajabi supports desktop columns using REAL section settings:
-  - multiple_columns_on_desktop: "no" | "two" | "three"
-  - column_one_width, column_two_width, column_three_width
-  - multiple_column_gap
-- Kajabi also supports REAL block placement using block settings:
-  - block_column: "first" | "second" | "third"
-- For a split content/image section like "Your Brand, Elevated":
-  - section.settings.multiple_columns_on_desktop = "two" (REQUIRED!)
-  - section.settings.column_one_width = "4"
-  - section.settings.column_two_width = "4"
-  - section.settings.full_width = false
-  - text/intro block width = "12", block_column = "first", text_align = "left", mobile_text_align = "left"
-  - CTA block width = "12", block_column = "first", text_align = "left", mobile_text_align = "left"
-  - image block width = "12", block_column = "second"
-- For card rows under a centered heading, do NOT use desktop multi-column section settings unless needed; keep the heading block width "12" and the cards width "4" each in the same section.
+### Multiple Columns — USE SPARINGLY (90% of sections should be single-column!)
+- **DEFAULT: multiple_columns_on_desktop = "no"** — Kajabi's Bootstrap grid handles side-by-side blocks automatically via block width.
+  - Example: 3 cards at width "4" each will appear side-by-side in one row WITHOUT needing multiple_columns_on_desktop.
+  - Example: A heading at width "12" + 3 feature blocks at width "4" = perfectly laid out in a SINGLE-column section.
+- **Do NOT use block_column** unless you genuinely need a true side-by-side split (e.g. text on left, image on right as separate columns).
+- **Do NOT set multiple_columns_on_desktop = "two" just to put blocks in a grid.** The grid layout works automatically.
+- ONLY use multiple_columns_on_desktop when blocks MUST be in physically separate columns (content+image split layouts).
+- If you use block_column on any block, you MUST set multiple_columns_on_desktop = "two" on the section.
+- When using multi-column: set column_one_width and column_two_width, set all blocks to width "12", and assign block_column appropriately.
 
 ### Block Width
 - Width is "1" to "12" (Bootstrap grid) — controls how many of 12 columns the block occupies

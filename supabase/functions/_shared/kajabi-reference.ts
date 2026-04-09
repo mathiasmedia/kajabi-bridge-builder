@@ -326,20 +326,15 @@ export const LAYOUT_RULES = `## LAYOUT & STRUCTURAL RULES
 - NEVER set full_width to true. Always false.
 - Only exception: a section whose sole purpose is a full-bleed background image with no text.
 
-### Block Column Assignment (CRITICAL)
-- ALWAYS default block_column to "first" (or omit it entirely — "first" is default)
-- A block assigned to "second" or "third" in a single-column section will DISAPPEAR
-- Only use "second"/"third" when the section has multiple_columns_on_desktop = "two" or "three"
-- Even in multi-column sections, most blocks should stay in "first" — only move a block
-  to another column when you specifically need side-by-side layout
-
-### Multiple Columns
-- Valid values: "no" | "two" | "three" (NOT "yes")
-- The default section is single-column (multiple_columns_on_desktop = "no")
-- If ANY block uses block_column "second" or "third", the section MUST have
-  multiple_columns_on_desktop = "two" (or "three" for 3 columns).
-  Without this, those blocks will be invisible.
-- For two-column content/image splits:
+### Block Column Assignment (USE SPARINGLY — 90% of sections should be single-column!)
+- Kajabi's Bootstrap grid handles side-by-side blocks automatically via block width.
+  - Example: 3 cards at width "4" each appear side-by-side WITHOUT needing multiple_columns_on_desktop.
+  - Example: heading at width "12" + 3 feature blocks at width "4" = one single-column section.
+- Do NOT use block_column unless you genuinely need a true column split (e.g. text left, image right).
+- Do NOT set multiple_columns_on_desktop = "two" just to put blocks in a grid — the grid works automatically.
+- ONLY use multiple_columns_on_desktop for true side-by-side column layouts (content+image splits).
+- If you use block_column on any block, you MUST set multiple_columns_on_desktop on the section.
+- When using multi-column:
     section: multiple_columns_on_desktop = "two", column_one_width = "4", column_two_width = "4"
     text/CTA blocks: width "12", block_column "first", text_align "left"
     image block: width "12", block_column "second"
