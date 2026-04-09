@@ -454,9 +454,9 @@ Return valid JSON:
   - 3 card/feature blocks width "4" each below it
 
 ### Multi-Column / Side-by-Side Layouts
-- **CRITICAL: If ANY block in a section uses block_column ("first"/"second"/"third"), you MUST set multiple_columns_on_desktop = "yes" on the section.** Without this, Kajabi ignores block_column and stacks everything vertically.
+- **CRITICAL: If ANY block in a section uses block_column ("first"/"second"/"third"), you MUST set multiple_columns_on_desktop = "two" (or "three" for 3 columns) on the section.** Without this, Kajabi ignores block_column and stacks everything vertically.
 - Kajabi supports desktop columns using REAL section settings:
-  - multiple_columns_on_desktop: "yes" | "no"
+  - multiple_columns_on_desktop: "no" | "two" | "three"
   - column_one_width, column_two_width, column_three_width
   - multiple_column_gap
 - Kajabi also supports REAL block placement using block settings:
