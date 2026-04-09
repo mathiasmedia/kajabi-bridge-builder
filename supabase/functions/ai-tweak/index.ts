@@ -432,9 +432,21 @@ ${tweakInstruction}`;
     }
 
     // 5. Post-process: normalize Kajabi IDs and column settings
+    const allIdMaps: Record<string, string> = {};
     for (const op of result) {
-      normalizeKajabiIds(op);
+      const idMap = normalizeKajabiIds(op);
+      Object.assign(allIdMaps, idMap);
       normalizeSectionColumns(op);
+    }
+    // Fix CSS overrides that reference old word-based IDs
+    if (Object.keys(allIdMaps).length > 0) {
+      for (const op of result) {
+        if (op.type === "addCssOverride" && op.css) {
+          for (const [oldId, newId] of Object.entries(allIdMaps)) {
+            op.css = op.css.replaceAll(oldId, newId);
+          }
+        }
+      }
     }
 
     return respond({
