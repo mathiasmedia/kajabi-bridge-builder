@@ -478,21 +478,23 @@ Return valid JSON:
 - For full-width text: width "12"
 - For 2-column layout: use "6" + "6", or "5" + "7", etc.
 
-## SECTION SETTINGS
-All sections use type: "section". Available settings:
-- padding_desktop: { top: number, bottom: number, left: number, right: number }
-- padding_mobile: { top: number, bottom: number, left: number, right: number }
-- vertical: "top" | "center" | "bottom" | "stretch" (row vertical alignment)
-- horizontal: "left" | "center" | "right" (row horizontal alignment)
-- background_color: hex color (ONLY for intentionally dark/colored sections — see rules above)
-- bg_type: "color" | "image" | "video"
-- bg_image: URL for background image
-- full_width: boolean
-- multiple_columns_on_desktop: "no" | "two" | "three"
-- column_one_width: string
-- column_two_width: string
-- column_three_width: string
-- multiple_column_gap: string
+## SECTION SETTINGS REFERENCE (from section.liquid schema — ONLY valid settings)
+### Background
+- bg_type: "none" | "image" | "video" (default: "none"), bg_position: "top"|"center"|"bottom"
+- background_color: color (sets .section__overlay), background_fixed: checkbox
+
+### Desktop Layout
+- padding_desktop: { top, right, bottom, left } (defaults: 100, 40, 100, 40)
+- vertical: "start"|"center"|"end", horizontal: "left"|"center"|"right"|"between"|"around"
+- full_width: NEVER true, full_height: checkbox, equal_height: checkbox
+
+### Mobile Layout
+- padding_mobile: { top, right, bottom, left } (defaults: 40, 10, 40, 10)
+
+### Columns
+- multiple_columns_on_desktop: "no" | "two" | "three" (default: "no")
+- column_one_width / column_two_width / column_three_width: grid 1-12 (default: "4")
+- multiple_column_gap: range 0-150 (default: "0")
 
 ## BLOCK TYPES & SETTINGS
 All blocks go in section.blocks as { "block-id": { type, settings } } with section.block_order listing IDs.
