@@ -436,6 +436,16 @@ ${tweakInstruction}`;
       });
     }
 
+    // Log the patch for debugging
+    console.log("[ai-tweak] Patch received:", JSON.stringify({
+      modifyCount: patch.modify?.length || 0,
+      addCount: patch.add?.length || 0,
+      removeCount: patch.remove?.length || 0,
+      hasReplaceCss: !!patch.replaceCss,
+      changelog: patch.changelog,
+      modifyIndices: patch.modify?.map((m: any) => m.index),
+    }));
+
     // Apply patches to operations
     let result = [...operations];
 
