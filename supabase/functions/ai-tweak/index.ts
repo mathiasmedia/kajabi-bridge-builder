@@ -258,7 +258,22 @@ serve(async (req) => {
       blockMapStr = lines.join("\n");
     }
 
-    const systemPrompt = `You are a Kajabi theme editor. You receive an existing transformation plan and a tweak instruction. Return ONLY the changes needed as patches.
+    const systemPrompt = `You are a Kajabi theme editor assistant. You receive an existing transformation plan and a user message. 
+
+## RESPONSE MODES
+You have TWO response modes:
+
+### 1. CONVERSATION MODE — if the user is asking a question, requesting info, or discussing (NOT requesting changes)
+Return JSON: { "conversation": "your helpful answer here", "changelog": null }
+- Answer questions about section settings, layout, colors, structure, etc.
+- Explain what current settings do
+- Suggest improvements without applying them
+- NEVER apply patches when the user is just asking a question
+
+### 2. PATCH MODE — if the user is requesting a specific change to the template
+Return a patch JSON object (see PATCH FORMAT below)
+
+**How to decide:** If the message contains "?", asks "what", "why", "how", "can you explain", "tell me about", "what are the settings", or is clearly a question — use CONVERSATION MODE. If it says "change", "make", "update", "set", "add", "remove", "fix" — use PATCH MODE.
 
 ${imageBase64 ? `## IMAGE ANALYSIS
 An image is attached. Analyze it thoroughly:
@@ -363,7 +378,7 @@ ${imageBase64 ? '- When matching an image: be THOROUGH. Use addCssOverride for c
 - Section IDs MUST be 13-digit numeric strings (timestamp format), e.g. "1596053476562". NEVER use words like "hero_section".
 - Block IDs MUST follow "{sectionId}_{index}" pattern, e.g. "1596053476562_0".
 
-Return ONLY valid JSON. No markdown fences.`;
+Return ONLY valid JSON. No markdown fences. Remember: if the user is asking a question, return { "conversation": "your answer" } — do NOT patch.`;
 
     // Build vision design context if available
     const visionContext = visionDesign ? `
