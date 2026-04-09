@@ -215,25 +215,23 @@ serve(async (req) => {
     }).join("\n");
 
     // Only send full details of non-addSection operations (those are huge)
+    // Send FULL addSection details so the AI can make targeted block-level edits
     const compactOps = operations.map((op: any, i: number) => {
       if (op.type === "addSection") {
-        // Only send section name, id, and block names — not full block content
-        const blockNames = op.section?.block_order || Object.keys(op.section?.blocks || {});
+        // Send full section with all block settings so AI can target specific blocks
         return {
           _index: i,
           type: op.type,
           label: op.label,
           sectionId: op.sectionId,
-          blockCount: blockNames.length,
-          blockIds: blockNames,
-          bgColor: op.section?.settings?.background_color,
+          section: op.section,
         };
       }
       if (op.type === "addCssOverride") {
-        return { _index: i, type: op.type, label: op.label, cssLen: op.css?.length || 0 };
+        // Send full CSS so AI can append/modify it
+        return { _index: i, type: op.type, label: op.label, css: op.css };
       }
-      const { _index: _ig, ...rest } = { _index: i, ...op };
-      return { _index: i, ...rest };
+      return { _index: i, ...op };
     });
 
     // Build section map string for the prompt
@@ -313,14 +311,20 @@ Return a JSON object with these optional arrays:
 
 ## PATCH RULES
 - "modify": change specific fields of an existing operation by its index. Only include the fields that change.
+  - Changes are DEEP MERGED — you only need to specify the nested keys you want to change.
+  - Example: to add padding to a specific block in an addSection operation:
+    { "index": 5, "changes": { "section": { "blocks": { "1234567890123_0": { "settings": { "block_padding": "40px" } } } } } }
+  - This will merge into the existing block settings without wiping other settings.
+  - IMPORTANT: Use the EXACT block IDs from the operation details. Do NOT invent new block IDs.
 - "add": add new operations (same format as operation types below)
 - "remove": array of indices to remove
 - "replaceCss": if the addCssOverride needs changes, provide the COMPLETE new CSS string. This replaces the existing one.
-${imageBase64 ? '- When matching an image: be THOROUGH. Use addCssOverride for colors, fonts, spacing, button styles. Use replaceText for changing heading/body text content.' : '- Keep patches minimal — only change what the tweak instruction asks for'}
+${imageBase64 ? '- When matching an image: be THOROUGH. Use addCssOverride for colors, fonts, spacing, button styles. Use replaceText for changing heading/body text content.' : '- Keep patches minimal — only change what the tweak instruction asks for. Do NOT restructure sections or change block_order unless explicitly asked.'}
 - Do NOT return unchanged operations
 - CSS selectors MUST use real Kajabi classes and section IDs (see above)
 - Prefer addCssOverride for visual styling — it's the most reliable way to change appearance
 - If the tweak is about section layout or Kajabi builder settings, prefer modifying existing addSection operation settings/blocks rather than trying to fake it in CSS.
+- NEVER replace entire section.blocks objects — always target specific block IDs within the blocks object.
 
 ${LAYOUT_RULES}
 
@@ -341,11 +345,12 @@ Text Content: ${JSON.stringify(visionDesign.textContent || {})}
 Effects: ${JSON.stringify(visionDesign.effects || {})}
 USE THESE EXACT VALUES for colors, fonts, and text. This is the ground truth from the screenshot.` : '';
 
+    const opsJson = JSON.stringify(compactOps);
     const textPart = `## Current Plan Summary (${operations.length} operations)
 ${opSummary}
 
-## Operation Details
-${JSON.stringify(compactOps).slice(0, 6000)}
+## Full Operation Details
+${opsJson.slice(0, 30000)}
 
 ## Design Context
 Colors: ${JSON.stringify(extractedDesign?.colors?.slice(0, 6))}
