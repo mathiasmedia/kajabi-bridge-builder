@@ -192,6 +192,13 @@ export default function BuilderPage() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
+      // Conversation mode — AI answered a question without making changes
+      if (data?.message) {
+        setTweakLog(prev => [...prev, `💬 ${data.message}`]);
+        toast.info('AI responded — no changes applied');
+        return;
+      }
+
       const updatedPlan = { ...template.plan_json, operations: data.operations };
       await supabase.from('saved_templates')
         .update({ plan_json: updatedPlan, ai_critique: null })
