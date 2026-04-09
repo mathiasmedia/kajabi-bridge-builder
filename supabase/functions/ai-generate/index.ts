@@ -73,7 +73,7 @@ function normalizeSectionColumns(op: any) {
 
   if (!hasColumnBlocks && !hasSideBySideLayout) return;
 
-  op.section.settings.multiple_columns_on_desktop = "yes";
+  op.section.settings.multiple_columns_on_desktop = "two";
   if (!op.section.settings.column_one_width) op.section.settings.column_one_width = "4";
   if (!op.section.settings.column_two_width) op.section.settings.column_two_width = "4";
 
@@ -120,9 +120,10 @@ function sanitizeBlockDefaults(op: any) {
   // Force full_width false — prevents flex:unset inline styles on blocks
   settings.full_width = false;
 
-  // Validate multiple_columns_on_desktop — only "yes" or "no" are valid
-  if (settings.multiple_columns_on_desktop && settings.multiple_columns_on_desktop !== "yes" && settings.multiple_columns_on_desktop !== "no") {
-    settings.multiple_columns_on_desktop = "yes";
+  // Validate multiple_columns_on_desktop — valid values: "no", "two", "three"
+  const validColValues = ["no", "two", "three"];
+  if (settings.multiple_columns_on_desktop && !validColValues.includes(settings.multiple_columns_on_desktop)) {
+    settings.multiple_columns_on_desktop = "two";
   }
 
   // Ensure padding values are proper objects with defaults if set
@@ -453,15 +454,15 @@ Return valid JSON:
   - 3 card/feature blocks width "4" each below it
 
 ### Multi-Column / Side-by-Side Layouts
-- **CRITICAL: If ANY block in a section uses block_column ("first"/"second"/"third"), you MUST set multiple_columns_on_desktop = "yes" on the section.** Without this, Kajabi ignores block_column and stacks everything vertically.
+- **CRITICAL: If ANY block in a section uses block_column ("first"/"second"/"third"), you MUST set multiple_columns_on_desktop = "two" (or "three" for 3 columns) on the section.** Without this, Kajabi ignores block_column and stacks everything vertically.
 - Kajabi supports desktop columns using REAL section settings:
-  - multiple_columns_on_desktop: "yes" | "no"
+  - multiple_columns_on_desktop: "no" | "two" | "three"
   - column_one_width, column_two_width, column_three_width
   - multiple_column_gap
 - Kajabi also supports REAL block placement using block settings:
   - block_column: "first" | "second" | "third"
 - For a split content/image section like "Your Brand, Elevated":
-  - section.settings.multiple_columns_on_desktop = "yes" (REQUIRED!)
+  - section.settings.multiple_columns_on_desktop = "two" (REQUIRED!)
   - section.settings.column_one_width = "4"
   - section.settings.column_two_width = "4"
   - section.settings.full_width = false
@@ -487,7 +488,7 @@ All sections use type: "section". Available settings:
 - bg_type: "color" | "image" | "video"
 - bg_image: URL for background image
 - full_width: boolean
-- multiple_columns_on_desktop: "yes" | "no"
+- multiple_columns_on_desktop: "no" | "two" | "three"
 - column_one_width: string
 - column_two_width: string
 - column_three_width: string

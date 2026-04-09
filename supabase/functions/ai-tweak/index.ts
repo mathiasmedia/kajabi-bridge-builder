@@ -84,7 +84,7 @@ function normalizeSectionColumns(op: any) {
 
   if (!hasColumnBlocks && !hasSideBySideLayout) return;
 
-  op.section.settings.multiple_columns_on_desktop = "yes";
+  op.section.settings.multiple_columns_on_desktop = "two";
   if (!op.section.settings.column_one_width) op.section.settings.column_one_width = "4";
   if (!op.section.settings.column_two_width) op.section.settings.column_two_width = "4";
 
@@ -132,10 +132,11 @@ function sanitizeBlockDefaults(op: any) {
   // Force full_width false — prevents flex:unset inline styles on blocks
   settings.full_width = false;
 
-  // Validate multiple_columns_on_desktop — only "yes" or "no" are valid
-  if (settings.multiple_columns_on_desktop && settings.multiple_columns_on_desktop !== "yes" && settings.multiple_columns_on_desktop !== "no") {
-    // Coerce truthy values like "two", "true", "2" to "yes"
-    settings.multiple_columns_on_desktop = "yes";
+  // Validate multiple_columns_on_desktop — valid values: "no", "two", "three"
+  const validColValues = ["no", "two", "three"];
+  if (settings.multiple_columns_on_desktop && !validColValues.includes(settings.multiple_columns_on_desktop)) {
+    // Coerce legacy "yes" or other invalid values to "two"
+    settings.multiple_columns_on_desktop = "two";
   }
 
   // Ensure padding values are proper objects with defaults if set
@@ -319,7 +320,7 @@ These section settings are rendered via Liquid and actually affect the output:
 - \`padding_desktop\`: { top, bottom, left, right } in px
 - \`padding_mobile\`: { top, bottom, left, right } in px
 - \`full_width\`: boolean
-- \`multiple_columns_on_desktop\`: "yes" | "no"
+- \`multiple_columns_on_desktop\`: "no" | "two" | "three"
 - \`column_one_width\`, \`column_two_width\`, \`column_three_width\`: desktop column widths
 - \`multiple_column_gap\`: desktop column gap setting
 - \`btn_background_color\`, \`btn_text_color\`, \`btn_border_radius\`, \`btn_style\`, \`btn_size\`
@@ -358,9 +359,9 @@ ${imageBase64 ? '- When matching an image: be THOROUGH. Use addCssOverride for c
 ## LAYOUT / READABILITY RULES
 - **CRITICAL: NEVER set full_width to true.** Always set full_width: false. The only exception is a section whose sole purpose is displaying a full-bleed background image with no text content. If unsure, use false.
 - If a heading introduces cards below it, keep them in the SAME section: heading block width "12", then card blocks width "4" each.
-- **CRITICAL: For ANY section that uses block_column ("first"/"second"/"third") on its blocks, you MUST set multiple_columns_on_desktop = "yes" on the section settings.** Without this, Kajabi ignores block_column and stacks everything vertically.
+- **CRITICAL: For ANY section that uses block_column ("first"/"second"/"third") on its blocks, you MUST set multiple_columns_on_desktop = "two" (or "three" for 3 columns) on the section settings.** Without this, Kajabi ignores block_column and stacks everything vertically.
 - For split content/image sections on desktop, use REAL Kajabi column settings:
-  - section.settings.multiple_columns_on_desktop = "yes" (REQUIRED — without this columns don't work!)
+  - section.settings.multiple_columns_on_desktop = "two" (REQUIRED — without this columns don't work!)
   - section.settings.column_one_width = "4"
   - section.settings.column_two_width = "4"
   - section.settings.full_width = false (ALWAYS false)
