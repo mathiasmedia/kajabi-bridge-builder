@@ -1,4 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import {
+  SECTION_SETTINGS_REFERENCE,
+  BLOCK_TYPES_REFERENCE,
+  SHARED_BLOCK_SETTINGS,
+  KAJABI_HTML_STRUCTURE,
+  KAJABI_ID_RULES,
+  LAYOUT_RULES,
+  OPERATION_TYPES,
+  GLOBAL_SETTINGS_REFERENCE,
+} from "../_shared/kajabi-reference.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
