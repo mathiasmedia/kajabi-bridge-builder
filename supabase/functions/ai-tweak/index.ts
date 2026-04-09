@@ -335,11 +335,46 @@ ${tweakInstruction}`;
     for (const op of result) {
       if (op.type === "addSection" && op.section?.settings) {
         op.section.settings.full_width = false;
-        // Auto-enable multiple_columns_on_desktop if any block uses block_column
         const blocks = op.section.blocks || {};
-        const hasColumnBlocks = Object.values(blocks).some((b: any) => b?.settings?.block_column && b.settings.block_column !== "");
-        if (hasColumnBlocks && op.section.settings.multiple_columns_on_desktop !== "yes") {
+        const blockList = Object.values(blocks) as any[];
+        
+        // Auto-enable multiple_columns_on_desktop if any block uses block_column
+        const hasColumnBlocks = blockList.some((b: any) => b?.settings?.block_column && b.settings.block_column !== "");
+        
+        // Also detect width-based side-by-side patterns (e.g. two blocks with width "6", or "5"+"7")
+        // where the AI intended columns but forgot to set multiple_columns_on_desktop
+        const blockOrder = op.section.block_order || Object.keys(blocks);
+        const nonFullWidthBlocks = blockOrder.filter((id: string) => {
+          const w = blocks[id]?.settings?.width;
+          return w && w !== "12";
+        });
+        const hasSideBySideLayout = nonFullWidthBlocks.length >= 2;
+        
+        if ((hasColumnBlocks || hasSideBySideLayout) && op.section.settings.multiple_columns_on_desktop !== "yes") {
+          // Convert to proper column layout
           op.section.settings.multiple_columns_on_desktop = "yes";
+          if (!op.section.settings.column_one_width) op.section.settings.column_one_width = "4";
+          if (!op.section.settings.column_two_width) op.section.settings.column_two_width = "4";
+          
+          // Auto-assign block_column if missing: first half → "first", second half → "second"
+          if (!hasColumnBlocks && hasSideBySideLayout) {
+            let assignedFirst = false;
+            for (const id of blockOrder) {
+              const block = blocks[id];
+              if (!block?.settings) continue;
+              const w = block.settings.width;
+              if (w && w !== "12") {
+                if (!assignedFirst) {
+                  block.settings.block_column = "first";
+                  block.settings.width = "12";
+                  assignedFirst = true;
+                } else {
+                  block.settings.block_column = "second";
+                  block.settings.width = "12";
+                }
+              }
+            }
+          }
         }
       }
     }
