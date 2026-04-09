@@ -593,9 +593,41 @@ Return ONLY valid JSON. No markdown.`;
       if (op.type === "addSection" && op.section?.settings) {
         op.section.settings.full_width = false;
         const blocks = op.section.blocks || {};
-        const hasColumnBlocks = Object.values(blocks).some((b: any) => b?.settings?.block_column && b.settings.block_column !== "");
-        if (hasColumnBlocks && op.section.settings.multiple_columns_on_desktop !== "yes") {
+        const blockList = Object.values(blocks) as any[];
+        
+        const hasColumnBlocks = blockList.some((b: any) => b?.settings?.block_column && b.settings.block_column !== "");
+        
+        // Detect width-based side-by-side patterns (e.g. width "6" + "6")
+        const blockOrder = op.section.block_order || Object.keys(blocks);
+        const nonFullWidthBlocks = blockOrder.filter((id: string) => {
+          const w = blocks[id]?.settings?.width;
+          return w && w !== "12";
+        });
+        const hasSideBySideLayout = nonFullWidthBlocks.length >= 2;
+        
+        if ((hasColumnBlocks || hasSideBySideLayout) && op.section.settings.multiple_columns_on_desktop !== "yes") {
           op.section.settings.multiple_columns_on_desktop = "yes";
+          if (!op.section.settings.column_one_width) op.section.settings.column_one_width = "4";
+          if (!op.section.settings.column_two_width) op.section.settings.column_two_width = "4";
+          
+          if (!hasColumnBlocks && hasSideBySideLayout) {
+            let assignedFirst = false;
+            for (const id of blockOrder) {
+              const block = blocks[id];
+              if (!block?.settings) continue;
+              const w = block.settings.width;
+              if (w && w !== "12") {
+                if (!assignedFirst) {
+                  block.settings.block_column = "first";
+                  block.settings.width = "12";
+                  assignedFirst = true;
+                } else {
+                  block.settings.block_column = "second";
+                  block.settings.width = "12";
+                }
+              }
+            }
+          }
         }
       }
     }
