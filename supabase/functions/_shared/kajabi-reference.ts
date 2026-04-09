@@ -350,6 +350,12 @@ export const LAYOUT_RULES = `## LAYOUT & STRUCTURAL RULES
 - Then use addCssOverride with ".my-hero h1 { font-size: 3rem; }" to target only that section
 - This is the preferred way to apply section-specific CSS without relying on section IDs
 
+### Where Custom CSS Lives
+- All custom CSS goes in settings_data.json under the global "css" key (from settings_schema.json "Custom Code" section)
+- The "css" field is a textarea — raw CSS only, NO <style> tags
+- When using addCssOverride operations, the CSS is appended to this global "css" field
+- Default value: "/* CSS Overrides go here */"
+
 ### Section Structure
 - Related content belongs in the SAME section (heading + cards below = one section, not two)
 - Pattern: heading block width "12" + card blocks width "4" each in the same section
