@@ -313,22 +313,67 @@ All sections render via section.liquid with this HTML:
 - Target real classes: .section, .sizer, .container, .block, .btn, .feature
 - To change text color per section: \`#section-{id} h1, #section-{id} h2, #section-{id} p { color: #xxx; }\`
 
-## SECTION SETTINGS THAT WORK
-These section settings are rendered via Liquid and actually affect the output:
-- \`background_color\`: sets the .section__overlay background (e.g. "RGBA(22,30,42,0.86)" or "#10293E")
-- \`bg_type\`: "none" | "color" | "image" | "video"
-- \`padding_desktop\`: { top, bottom, left, right } in px
-- \`padding_mobile\`: { top, bottom, left, right } in px
-- \`full_width\`: boolean
-- \`multiple_columns_on_desktop\`: "no" | "two" | "three"
-- \`column_one_width\`, \`column_two_width\`, \`column_three_width\`: desktop column widths
-- \`multiple_column_gap\`: desktop column gap setting
-- \`btn_background_color\`, \`btn_text_color\`, \`btn_border_radius\`, \`btn_style\`, \`btn_size\`
+## SECTION SETTINGS REFERENCE (from section.liquid schema — these are the ONLY valid settings)
+### Background
+- bg_type: "none" | "image" | "video" (default: "none")
+- bg_image: image picker
+- bg_position: "top" | "center" | "bottom" (default: "center")
+- background_fixed: checkbox (default: "false")
+- background_color: color (allow_blank, sets .section__overlay)
 
-## BLOCK SETTINGS THAT WORK
-- \`width\`: block width within Kajabi's row/grid
-- \`block_column\`: "first" | "second" | "third"
-- \`text_align\`, \`mobile_text_align\`
+### Desktop Layout
+- hide_on_desktop: checkbox (default: "false")
+- padding_desktop: { top, right, bottom, left } in px (defaults: 100, 40, 100, 40)
+- vertical: "start" | "center" | "end" (default: "center")
+- horizontal: "left" | "center" | "right" | "between" | "around" (default: "center")
+- equal_height: checkbox (default: "false")
+- full_width: checkbox (default: "" = false) — NEVER set to true
+- full_height: checkbox (default: "")
+
+### Mobile Layout
+- hide_on_mobile: checkbox (default: "false")
+- padding_mobile: { top, right, bottom, left } in px (defaults: 40, 10, 40, 10)
+
+### Columns
+- multiple_columns_on_desktop: "no" | "two" | "three" (default: "no")
+- column_one_width: grid 1-12 (default: "4")
+- column_two_width: grid 1-12 (default: "4")
+- column_three_width: grid 1-12 (default: "4")
+- multiple_column_gap: range 0-150 (default: "0")
+- slider_column: "first" | "second" | "third" (default: "first")
+
+### CSS Class
+- custom_css_class: text (default: "")
+
+## BLOCK SETTINGS REFERENCE (from section.liquid schema)
+All blocks share: width (grid, default varies), plus type-specific settings.
+
+### Block: text
+- text: rich_text (HTML), text_align, mobile_text_align
+
+### Block: cta (Call to Action)
+- btn_text, btn_action (URL), new_tab
+- btn_background_color, btn_text_color
+- btn_width: "full" | "auto", btn_style: "solid" | "outline" | "text"
+- btn_size: "small" | "medium" | "large", btn_border_radius
+
+### Block: image
+- image: image picker, img_action: URL, img_alt
+
+### Block: feature
+- text: rich_text, image: image picker
+- image_position: "left" | "right" | "top" | "bottom" (default: "left")
+- image_width: range 1-11 (default: 5)
+
+### Block: feature_icon
+- text: rich_text, feature_icon_code: SVG HTML
+- feature_icon_size: range 10-200 (default: 48), feature_icon_color: color
+
+### Shared block settings (all types)
+- width: grid 1-12
+- block_column: "first" | "second" | "third" (requires section multiple_columns_on_desktop != "no")
+- background_color, border_style: "none"|"solid"|"dashed"|"dotted", box_shadow: "none"|"small"|"medium"|"large"
+- text_align / mobile_text_align: "left" | "center" | "right"
 
 ## PATCH FORMAT
 Return a JSON object with these optional arrays:
