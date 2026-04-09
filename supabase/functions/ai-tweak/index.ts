@@ -307,82 +307,13 @@ ${sectionMapStr}
 Use these to target specific blocks when changing text content:
 ${blockMapStr}
 
-## KAJABI HTML STRUCTURE
-All sections render via section.liquid with this HTML:
-- Section wrapper: \`#section-{sectionId} > section.section > .sizer > .section__overlay + .container > .row\`
-- Background color is on \`.section__overlay\` (absolute positioned, covers section)
-- Padding is on \`.sizer\`
-- Blocks: \`#block-{blockId}.block-type--{type}.col-{width} > .block\`
-- Text blocks render HTML directly inside \`.block\` (contains h1, h2, p tags)
-- Feature blocks: \`.feature > .feature__image + .feature__text\`
-- Feature icon blocks: \`.feature > .feature-icon + .feature__text\`
-- Buttons: \`.btn.btn--{size}.btn--{style}\`
-- NEVER use made-up classes like .hero__heading, .text-column__heading
-- NEVER use made-up section IDs like "hero" — use the real numeric IDs listed above
-- Target real classes: .section, .sizer, .container, .block, .btn, .feature
-- To change text color per section: \`#section-{id} h1, #section-{id} h2, #section-{id} p { color: #xxx; }\`
+${KAJABI_HTML_STRUCTURE}
 
-## SECTION SETTINGS REFERENCE (from section.liquid schema — these are the ONLY valid settings)
-### Background
-- bg_type: "none" | "image" | "video" (default: "none")
-- bg_image: image picker
-- bg_position: "top" | "center" | "bottom" (default: "center")
-- background_fixed: checkbox (default: "false")
-- background_color: color (allow_blank, sets .section__overlay)
+${SECTION_SETTINGS_REFERENCE}
 
-### Desktop Layout
-- hide_on_desktop: checkbox (default: "false")
-- padding_desktop: { top, right, bottom, left } in px (defaults: 100, 40, 100, 40)
-- vertical: "start" | "center" | "end" (default: "center")
-- horizontal: "left" | "center" | "right" | "between" | "around" (default: "center")
-- equal_height: checkbox (default: "false")
-- full_width: checkbox (default: "" = false) — NEVER set to true
-- full_height: checkbox (default: "")
+${BLOCK_TYPES_REFERENCE}
 
-### Mobile Layout
-- hide_on_mobile: checkbox (default: "false")
-- padding_mobile: { top, right, bottom, left } in px (defaults: 40, 10, 40, 10)
-
-### Columns
-- multiple_columns_on_desktop: "no" | "two" | "three" (default: "no")
-- column_one_width: grid 1-12 (default: "4")
-- column_two_width: grid 1-12 (default: "4")
-- column_three_width: grid 1-12 (default: "4")
-- multiple_column_gap: range 0-150 (default: "0")
-- slider_column: "first" | "second" | "third" (default: "first")
-
-### CSS Class
-- custom_css_class: text (default: "")
-
-## BLOCK SETTINGS REFERENCE (from section.liquid schema)
-All blocks share: width (grid, default varies), plus type-specific settings.
-
-### Block: text
-- text: rich_text (HTML), text_align, mobile_text_align
-
-### Block: cta (Call to Action)
-- btn_text, btn_action (URL), new_tab
-- btn_background_color, btn_text_color
-- btn_width: "full" | "auto", btn_style: "solid" | "outline" | "text"
-- btn_size: "small" | "medium" | "large", btn_border_radius
-
-### Block: image
-- image: image picker, img_action: URL, img_alt
-
-### Block: feature
-- text: rich_text, image: image picker
-- image_position: "left" | "right" | "top" | "bottom" (default: "left")
-- image_width: range 1-11 (default: 5)
-
-### Block: feature_icon
-- text: rich_text, feature_icon_code: SVG HTML
-- feature_icon_size: range 10-200 (default: 48), feature_icon_color: color
-
-### Shared block settings (all types)
-- width: grid 1-12
-- block_column: "first" | "second" | "third" (requires section multiple_columns_on_desktop != "no")
-- background_color, border_style: "none"|"solid"|"dashed"|"dotted", box_shadow: "none"|"small"|"medium"|"large"
-- text_align / mobile_text_align: "left" | "center" | "right"
+${SHARED_BLOCK_SETTINGS}
 
 ## PATCH FORMAT
 Return a JSON object with these optional arrays:
@@ -410,34 +341,11 @@ ${imageBase64 ? '- When matching an image: be THOROUGH. Use addCssOverride for c
 - Prefer addCssOverride for visual styling — it's the most reliable way to change appearance
 - If the tweak is about section layout or Kajabi builder settings, prefer modifying existing addSection operation settings/blocks rather than trying to fake it in CSS.
 
-## LAYOUT / READABILITY RULES
-- **CRITICAL: NEVER set full_width to true.** Always set full_width: false. The only exception is a section whose sole purpose is displaying a full-bleed background image with no text content. If unsure, use false.
-- If a heading introduces cards below it, keep them in the SAME section: heading block width "12", then card blocks width "4" each.
-- **CRITICAL: For ANY section that uses block_column ("first"/"second"/"third") on its blocks, you MUST set multiple_columns_on_desktop = "two" (or "three" for 3 columns) on the section settings.** Without this, Kajabi ignores block_column and stacks everything vertically.
-- For split content/image sections on desktop, use REAL Kajabi column settings:
-  - section.settings.multiple_columns_on_desktop = "two" (REQUIRED — without this columns don't work!)
-  - section.settings.column_one_width = "4"
-  - section.settings.column_two_width = "4"
-  - section.settings.full_width = false (ALWAYS false)
-  - left-side text and CTA blocks: width "12", block_column "first", text_align "left", mobile_text_align "left"
-  - right-side image block: width "12", block_column "second"
-- For light/white sections, use bg_type = "none" and remove section background_color instead of using barely-visible translucent backgrounds.
-- NEVER use faint section backgrounds with near-zero alpha.
-- On light sections, body text must be dark and readable. Never use very light or washed-out paragraph text.
+${LAYOUT_RULES}
 
-## OPERATION TYPES (for "add")
-- updateGlobalSetting: { type, key, value, label }
-- updateSectionSetting: { type, sectionId, key, value, label }
-- updateBlockSetting: { type, sectionId, blockId, key, value, label }
-- replaceText: { type, sectionId, blockId, key:"text", value:"<html>", label }
-- hideSection / showSection: { type, sectionId }
-- addCssOverride: { type, css, label }
-- updateNavigation: { type, menuId, links:[{name,url}] }
-- addSection: { type, sectionId, section:{ type:"section", settings, blocks, block_order }, label }
+${OPERATION_TYPES}
 
-## KAJABI ID FORMAT
-- Section IDs MUST be 13-digit numeric strings (timestamp format), e.g. "1596053476562". NEVER use words like "hero_section".
-- Block IDs MUST follow "{sectionId}_{index}" pattern, e.g. "1596053476562_0".
+${KAJABI_ID_RULES}
 
 Return ONLY valid JSON. No markdown fences. Remember: if the user is asking a question, return { "conversation": "your answer" } — do NOT patch.`;
 
