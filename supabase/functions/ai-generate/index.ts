@@ -335,7 +335,25 @@ Return valid JSON:
   Keys: primary_font, secondary_font, heading_color, body_color, accent_color, color_primary, color_body,
         btn_background_color, btn_text_color, btn_border_radius, btn_style, btn_size,
         dark_accent_color_primary, dark_accent_color_secondary, light_accent_color_primary, light_accent_color_secondary
-- addSection: { type, sectionId, section: { type: "section", settings, blocks, block_order }, label }
+- addSection: { type, sectionId, section: { type: "section", settings: {...}, blocks: {...}, block_order: [...] }, label }
+  **CRITICAL**: The "blocks" object MUST contain the actual block definitions keyed by block ID.
+  Each block: { type: "text"|"cta"|"image"|"feature"|"feature_icon"|"card"|"accordion"|etc, settings: {...} }
+  Example addSection:
+  {
+    "type": "addSection",
+    "sectionId": "1678886400000",
+    "label": "Hero Section",
+    "section": {
+      "type": "section",
+      "settings": { "background_color": "#1A2C47", "padding_desktop": { "top": 100, "right": 40, "bottom": 100, "left": 40 } },
+      "block_order": ["1678886400000_0", "1678886400000_1"],
+      "blocks": {
+        "1678886400000_0": { "type": "text", "settings": { "width": "8", "text": "<h1>Welcome</h1><p>Your brand story starts here.</p>", "text_align": "center" } },
+        "1678886400000_1": { "type": "cta", "settings": { "width": "4", "btn_text": "Get Started", "btn_action": "#", "btn_style": "solid" } }
+      }
+    }
+  }
+  DO NOT leave blocks as {} — every ID in block_order MUST have a corresponding entry in blocks.
 - hideSection: { type, sectionId }
 
 ## KAJABI ID FORMAT — CRITICAL
