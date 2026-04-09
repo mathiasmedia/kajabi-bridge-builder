@@ -484,15 +484,24 @@ ${tweakInstruction}`;
       result.push(...patch.add);
     }
 
-    // 5. Post-process: sanitize block defaults, normalize Kajabi IDs and column settings
+    // 5. Post-process ONLY NEWLY ADDED operations — existing ops already have valid IDs
+    const originalCount = operations.length - (patch.remove?.length || 0);
     const allIdMaps: Record<string, string> = {};
-    for (const op of result) {
-      sanitizeBlockDefaults(op);
-      const idMap = normalizeKajabiIds(op);
-      Object.assign(allIdMaps, idMap);
-      normalizeSectionColumns(op);
+    for (let i = 0; i < result.length; i++) {
+      const op = result[i];
+      // Only sanitize and normalize IDs for new operations (added by the patch)
+      if (i >= originalCount) {
+        sanitizeBlockDefaults(op);
+        const idMap = normalizeKajabiIds(op);
+        Object.assign(allIdMaps, idMap);
+        normalizeSectionColumns(op);
+      }
+      // Always run sanitizeBlockDefaults on modified ops to fix any bad values the AI introduced
+      if (patch.modify?.some((m: any) => m.index === i)) {
+        sanitizeBlockDefaults(op);
+      }
     }
-    // Fix CSS overrides that reference old word-based IDs
+    // Fix CSS overrides that reference old word-based IDs (only for newly added ops)
     if (Object.keys(allIdMaps).length > 0) {
       for (const op of result) {
         if (op.type === "addCssOverride" && op.css) {
