@@ -311,14 +311,20 @@ Return a JSON object with these optional arrays:
 
 ## PATCH RULES
 - "modify": change specific fields of an existing operation by its index. Only include the fields that change.
+  - Changes are DEEP MERGED — you only need to specify the nested keys you want to change.
+  - Example: to add padding to a specific block in an addSection operation:
+    { "index": 5, "changes": { "section": { "blocks": { "1234567890123_0": { "settings": { "block_padding": "40px" } } } } } }
+  - This will merge into the existing block settings without wiping other settings.
+  - IMPORTANT: Use the EXACT block IDs from the operation details. Do NOT invent new block IDs.
 - "add": add new operations (same format as operation types below)
 - "remove": array of indices to remove
 - "replaceCss": if the addCssOverride needs changes, provide the COMPLETE new CSS string. This replaces the existing one.
-${imageBase64 ? '- When matching an image: be THOROUGH. Use addCssOverride for colors, fonts, spacing, button styles. Use replaceText for changing heading/body text content.' : '- Keep patches minimal — only change what the tweak instruction asks for'}
+${imageBase64 ? '- When matching an image: be THOROUGH. Use addCssOverride for colors, fonts, spacing, button styles. Use replaceText for changing heading/body text content.' : '- Keep patches minimal — only change what the tweak instruction asks for. Do NOT restructure sections or change block_order unless explicitly asked.'}
 - Do NOT return unchanged operations
 - CSS selectors MUST use real Kajabi classes and section IDs (see above)
 - Prefer addCssOverride for visual styling — it's the most reliable way to change appearance
 - If the tweak is about section layout or Kajabi builder settings, prefer modifying existing addSection operation settings/blocks rather than trying to fake it in CSS.
+- NEVER replace entire section.blocks objects — always target specific block IDs within the blocks object.
 
 ${LAYOUT_RULES}
 
