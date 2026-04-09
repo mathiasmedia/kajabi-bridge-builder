@@ -290,6 +290,10 @@ ${imageBase64 ? '- When matching an image: be THOROUGH. Use addCssOverride for c
 - updateNavigation: { type, menuId, links:[{name,url}] }
 - addSection: { type, sectionId, section:{ type:"section", settings, blocks, block_order }, label }
 
+## KAJABI ID FORMAT
+- Section IDs MUST be 13-digit numeric strings (timestamp format), e.g. "1596053476562". NEVER use words like "hero_section".
+- Block IDs MUST follow "{sectionId}_{index}" pattern, e.g. "1596053476562_0".
+
 Return ONLY valid JSON. No markdown fences.`;
 
     // Build vision design context if available
