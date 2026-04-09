@@ -73,7 +73,7 @@ function normalizeSectionColumns(op: any) {
 
   if (!hasColumnBlocks && !hasSideBySideLayout) return;
 
-  op.section.settings.multiple_columns_on_desktop = "yes";
+  op.section.settings.multiple_columns_on_desktop = "two";
   if (!op.section.settings.column_one_width) op.section.settings.column_one_width = "4";
   if (!op.section.settings.column_two_width) op.section.settings.column_two_width = "4";
 
@@ -120,9 +120,10 @@ function sanitizeBlockDefaults(op: any) {
   // Force full_width false — prevents flex:unset inline styles on blocks
   settings.full_width = false;
 
-  // Validate multiple_columns_on_desktop — only "yes" or "no" are valid
-  if (settings.multiple_columns_on_desktop && settings.multiple_columns_on_desktop !== "yes" && settings.multiple_columns_on_desktop !== "no") {
-    settings.multiple_columns_on_desktop = "yes";
+  // Validate multiple_columns_on_desktop — valid values: "no", "two", "three"
+  const validColValues = ["no", "two", "three"];
+  if (settings.multiple_columns_on_desktop && !validColValues.includes(settings.multiple_columns_on_desktop)) {
+    settings.multiple_columns_on_desktop = "two";
   }
 
   // Ensure padding values are proper objects with defaults if set
