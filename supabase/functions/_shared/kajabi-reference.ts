@@ -326,11 +326,19 @@ export const LAYOUT_RULES = `## LAYOUT & STRUCTURAL RULES
 - NEVER set full_width to true. Always false.
 - Only exception: a section whose sole purpose is a full-bleed background image with no text.
 
+### Block Column Assignment (CRITICAL)
+- ALWAYS default block_column to "first" (or omit it entirely — "first" is default)
+- A block assigned to "second" or "third" in a single-column section will DISAPPEAR
+- Only use "second"/"third" when the section has multiple_columns_on_desktop = "two" or "three"
+- Even in multi-column sections, most blocks should stay in "first" — only move a block
+  to another column when you specifically need side-by-side layout
+
 ### Multiple Columns
 - Valid values: "no" | "two" | "three" (NOT "yes")
-- If ANY block uses block_column ("first"/"second"/"third"), the section MUST have
+- The default section is single-column (multiple_columns_on_desktop = "no")
+- If ANY block uses block_column "second" or "third", the section MUST have
   multiple_columns_on_desktop = "two" (or "three" for 3 columns).
-  Without this, Kajabi ignores block_column and stacks vertically.
+  Without this, those blocks will be invisible.
 - For two-column content/image splits:
     section: multiple_columns_on_desktop = "two", column_one_width = "4", column_two_width = "4"
     text/CTA blocks: width "12", block_column "first", text_align "left"
