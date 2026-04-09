@@ -176,8 +176,9 @@ ${imageBase64 ? '- When matching an image: be THOROUGH. Use addCssOverride for c
 ## LAYOUT / READABILITY RULES
 - **CRITICAL: NEVER set full_width to true.** Always set full_width: false. The only exception is a section whose sole purpose is displaying a full-bleed background image with no text content. If unsure, use false.
 - If a heading introduces cards below it, keep them in the SAME section: heading block width "12", then card blocks width "4" each.
+- **CRITICAL: For ANY section that uses block_column ("first"/"second"/"third") on its blocks, you MUST set multiple_columns_on_desktop = "yes" on the section settings.** Without this, Kajabi ignores block_column and stacks everything vertically.
 - For split content/image sections on desktop, use REAL Kajabi column settings:
-  - section.settings.multiple_columns_on_desktop = "yes"
+  - section.settings.multiple_columns_on_desktop = "yes" (REQUIRED — without this columns don't work!)
   - section.settings.column_one_width = "4"
   - section.settings.column_two_width = "4"
   - section.settings.full_width = false (ALWAYS false)
