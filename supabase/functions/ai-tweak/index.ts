@@ -215,25 +215,23 @@ serve(async (req) => {
     }).join("\n");
 
     // Only send full details of non-addSection operations (those are huge)
+    // Send FULL addSection details so the AI can make targeted block-level edits
     const compactOps = operations.map((op: any, i: number) => {
       if (op.type === "addSection") {
-        // Only send section name, id, and block names — not full block content
-        const blockNames = op.section?.block_order || Object.keys(op.section?.blocks || {});
+        // Send full section with all block settings so AI can target specific blocks
         return {
           _index: i,
           type: op.type,
           label: op.label,
           sectionId: op.sectionId,
-          blockCount: blockNames.length,
-          blockIds: blockNames,
-          bgColor: op.section?.settings?.background_color,
+          section: op.section,
         };
       }
       if (op.type === "addCssOverride") {
-        return { _index: i, type: op.type, label: op.label, cssLen: op.css?.length || 0 };
+        // Send full CSS so AI can append/modify it
+        return { _index: i, type: op.type, label: op.label, css: op.css };
       }
-      const { _index: _ig, ...rest } = { _index: i, ...op };
-      return { _index: i, ...rest };
+      return { _index: i, ...op };
     });
 
     // Build section map string for the prompt
