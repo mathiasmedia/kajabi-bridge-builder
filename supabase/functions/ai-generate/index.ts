@@ -588,6 +588,18 @@ Return ONLY valid JSON. No markdown.`;
       if (cssFonts.body) extractedDesign.bodyFont = cssFonts.body;
     }
 
+    // Post-process: enforce full_width=false and auto-enable multiple_columns_on_desktop
+    for (const op of operations) {
+      if (op.type === "addSection" && op.section?.settings) {
+        op.section.settings.full_width = false;
+        const blocks = op.section.blocks || {};
+        const hasColumnBlocks = Object.values(blocks).some((b: any) => b?.settings?.block_column && b.settings.block_column !== "");
+        if (hasColumnBlocks && op.section.settings.multiple_columns_on_desktop !== "yes") {
+          op.section.settings.multiple_columns_on_desktop = "yes";
+        }
+      }
+    }
+
     // Add the final CSS override
     if (cssOverride) {
       operations.push({
