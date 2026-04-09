@@ -1,4 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import {
+  SECTION_SETTINGS_REFERENCE,
+  BLOCK_TYPES_REFERENCE,
+  SHARED_BLOCK_SETTINGS,
+  KAJABI_HTML_STRUCTURE,
+  KAJABI_ID_RULES,
+  LAYOUT_RULES,
+  OPERATION_TYPES,
+  GLOBAL_SETTINGS_REFERENCE,
+} from "../_shared/kajabi-reference.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -258,99 +268,7 @@ function parseJSON(content: string): any {
 
 // ── KAJABI MARKUP REFERENCE ─────────────────────────────────────────────
 // This teaches the AI exactly how Kajabi renders HTML so CSS overrides target real selectors.
-const KAJABI_MARKUP_REFERENCE = `
-## KAJABI HTML STRUCTURE (how the theme actually renders)
-
-All sections use a generic section.liquid template. The rendered HTML structure is:
-
-\`\`\`html
-<div id="section-{sectionId}" class="kajabi-section" data-section-type="section">
-  <!-- section_styles.liquid generates: -->
-  <style>
-    #section-{sectionId} .section__overlay { background-color: {background_color}; }
-    #section-{sectionId} .sizer { padding-top: {top}px; padding-bottom: {bottom}px; }
-  </style>
-
-  <section class="section background-{scheme}">
-    <div class="sizer">
-      <div class="section__overlay"></div>
-      <div class="container">
-        <div class="row align-items-{vertical} justify-content-{horizontal}">
-          <!-- Each block renders here -->
-        </div>
-      </div>
-    </div>
-  </section>
-</div>
-\`\`\`
-
-### BLOCK HTML (block.liquid wraps each block):
-\`\`\`html
-<div id="block-{blockId}" class="block-type--{type} text-{align} col-{width}">
-  <div class="block box-shadow-{shadow} background-{scheme}">
-    <!-- block content from block_{type}.liquid -->
-  </div>
-</div>
-\`\`\`
-
-### BLOCK TYPE: text (block_text.liquid)
-\`\`\`html
-<div class="text-element">{{ block.settings.text }}</div>
-<!-- If use_btn is true, includes block_cta.liquid -->
-\`\`\`
-
-### BLOCK TYPE: feature (block_feature.liquid)
-\`\`\`html
-<div class="feature">
-  <img class="feature__image" src="..." />
-  <div class="feature__text">{{ block.settings.text }}</div>
-  <!-- If use_btn, includes block_cta.liquid -->
-</div>
-\`\`\`
-
-### BLOCK TYPE: feature_icon (block_feature_icon.liquid)
-\`\`\`html
-<div class="feature">
-  <div class="feature-icon">{SVG icon}</div>
-  <div class="feature__text">{{ block.settings.text }}</div>
-</div>
-\`\`\`
-
-### BLOCK TYPE: image (block_image.liquid)
-\`\`\`html
-<div class="image">
-  <img class="image__image" src="..." />
-  <div class="image__overlay"><!-- overlay content --></div>
-</div>
-\`\`\`
-
-### BLOCK TYPE: cta (block_cta.liquid — also included by text/feature when use_btn=true)
-\`\`\`html
-<a class="btn btn--{size} btn--{width} btn--{style}" href="{url}" 
-   style="background-color: {bg}; color: {text}; border-radius: {radius};">
-  {button text}
-</a>
-\`\`\`
-
-## CSS TARGETING RULES
-- Target sections by ID: \`#section-{sectionId} .sizer { ... }\`
-- Target blocks by ID: \`#block-{blockId} .block { ... }\`
-- Target block types within a section: \`#section-{sectionId} .block-type--text { ... }\`
-- Target features: \`#section-{sectionId} .feature { ... }\`
-- Target images: \`#section-{sectionId} .image { ... }\`
-- Target buttons: \`.btn { ... }\` or \`#section-{sectionId} .btn { ... }\`
-- The overlay (\`.section__overlay\`) renders the background_color. To override: \`#section-{sectionId} .section__overlay { background-color: ...; }\`
-- Section padding is on \`.sizer\`: \`#section-{sectionId} .sizer { padding-top: ...; padding-bottom: ...; }\`
-
-## IMPORTANT DETAILS
-- Section \`background_color\` is applied via the \`.section__overlay\` element (absolute positioned overlay)
-- Block \`background_color\` is applied as inline \`background-color\` on the \`.block\` div
-- Block \`width\` is set via \`col-{n}\` class (1-12 grid) on the outer wrapper
-- Block \`text_align\` is set via \`text-{left|center|right}\` class
-- Button colors come from global settings but can be overridden per-block via \`btn_background_color\` and \`btn_text_color\`
-- The header section uses \`header.liquid\` (not section.liquid) with class \`.header\`
-- The footer uses \`footer.liquid\` / \`footer_pro.liquid\`
-`;
+const KAJABI_MARKUP_REFERENCE = KAJABI_HTML_STRUCTURE;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -478,41 +396,11 @@ Return valid JSON:
 - For full-width text: width "12"
 - For 2-column layout: use "6" + "6", or "5" + "7", etc.
 
-## SECTION SETTINGS REFERENCE (from section.liquid schema — ONLY valid settings)
-### Background
-- bg_type: "none" | "image" | "video" (default: "none"), bg_position: "top"|"center"|"bottom"
-- background_color: color (sets .section__overlay), background_fixed: checkbox
+${SECTION_SETTINGS_REFERENCE}
 
-### Desktop Layout
-- padding_desktop: { top, right, bottom, left } (defaults: 100, 40, 100, 40)
-- vertical: "start"|"center"|"end", horizontal: "left"|"center"|"right"|"between"|"around"
-- full_width: NEVER true, full_height: checkbox, equal_height: checkbox
+${BLOCK_TYPES_REFERENCE}
 
-### Mobile Layout
-- padding_mobile: { top, right, bottom, left } (defaults: 40, 10, 40, 10)
-
-### Columns
-- multiple_columns_on_desktop: "no" | "two" | "three" (default: "no")
-- column_one_width / column_two_width / column_three_width: grid 1-12 (default: "4")
-- multiple_column_gap: range 0-150 (default: "0")
-
-## BLOCK TYPES & SETTINGS
-All blocks go in section.blocks as { "block-id": { type, settings } } with section.block_order listing IDs.
-
-### text block:
-{ type: "text", settings: { text: "<h1>Heading</h1><p>Paragraph text</p>", width: "12", text_align: "center", mobile_text_align: "center", block_column: "first", use_btn: true/false, btn_text: "Click", btn_action: "#", btn_style: "solid", btn_background_color: "#hex", btn_text_color: "#hex" } }
-
-### feature block:
-{ type: "feature", settings: { text: "<h3>Title</h3><p>Description</p>", width: "4", text_align: "center", mobile_text_align: "center", block_column: "first", image: "", image_width: "80", hide_image: true, use_btn: false } }
-
-### feature_icon block:
-{ type: "feature_icon", settings: { text: "<h3>Title</h3><p>Description</p>", width: "4", text_align: "center", mobile_text_align: "center", block_column: "first", feature_icon_code: "<svg>...</svg>", feature_icon_color: "#hex", feature_icon_size: "50", use_btn: false } }
-
-### image block:
-{ type: "image", settings: { image: "https://placehold.co/800x400/hex1/hex2?text=...", width: "12", block_column: "second", image_width: "", image_border_radius: "4" } }
-
-### cta block:
-{ type: "cta", settings: { btn_text: "Button Label", btn_action: "#", width: "12", block_column: "first", text_align: "left", mobile_text_align: "left", btn_style: "solid", btn_size: "medium", btn_width: "auto", btn_background_color: "#hex", btn_text_color: "#hex", btn_border_radius: "4px" } }
+${SHARED_BLOCK_SETTINGS}
 
 ## ADDITIONAL RULES
 - Use EXACT TEXT from reference if visible
