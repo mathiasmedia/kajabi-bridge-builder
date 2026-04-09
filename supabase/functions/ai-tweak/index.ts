@@ -463,6 +463,14 @@ ${tweakInstruction}`;
       patch = null;
     }
 
+    // Check if AI returned a conversation response (question/discussion mode)
+    if (patch?.conversation) {
+      return respond({
+        message: patch.conversation,
+        changelog: null,
+      });
+    }
+
     if (!patch || (!patch.modify && !patch.add && !patch.remove && !patch.replaceCss)) {
       const truncated = finishReason === "length" || finishReason === "MAX_TOKENS";
       return respond({
