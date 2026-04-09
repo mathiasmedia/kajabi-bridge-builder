@@ -21,13 +21,17 @@ function isKajabiId(id: string): boolean {
   return /^\d{13,}$/.test(id);
 }
 
-/** Normalize all IDs in an addSection operation to 13-digit numeric format */
-function normalizeKajabiIds(op: any) {
-  if (op.type !== "addSection") return;
+/** Normalize all IDs in an addSection operation to 13-digit numeric format.
+ *  Returns a map of oldId → newId for CSS fixup. */
+function normalizeKajabiIds(op: any): Record<string, string> {
+  const idMap: Record<string, string> = {};
+  if (op.type !== "addSection") return idMap;
 
   const oldSectionId = op.sectionId;
   if (!isKajabiId(oldSectionId)) {
-    op.sectionId = kajabiId();
+    const newId = kajabiId();
+    idMap[oldSectionId] = newId;
+    op.sectionId = newId;
   }
   const sectionId = op.sectionId;
 
@@ -39,6 +43,7 @@ function normalizeKajabiIds(op: any) {
 
     oldOrder.forEach((oldId: string, idx: number) => {
       const newId = `${sectionId}_${idx}`;
+      if (oldId !== newId) idMap[oldId] = newId;
       newBlocks[newId] = oldBlocks[oldId];
       newOrder.push(newId);
     });
@@ -46,6 +51,7 @@ function normalizeKajabiIds(op: any) {
     op.section.blocks = newBlocks;
     op.section.block_order = newOrder;
   }
+  return idMap;
 }
 
 function normalizeSectionColumns(op: any) {
