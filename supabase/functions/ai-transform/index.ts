@@ -127,6 +127,7 @@ Do NOT add new sections in this step. Do NOT output addSection operations.
 KAJABI SCHEMA RULES:
 - Sections do NOT have heading/subheading/text settings. All content goes in BLOCKS.
 - Section settings: bg_type, background_color, bg_image, full_width, padding_desktop, padding_mobile, vertical, horizontal, multiple_columns_on_desktop, column_one_width, column_two_width, column_three_width, multiple_column_gap
+- **CRITICAL: If ANY block uses block_column, the section MUST have multiple_columns_on_desktop = "yes". Without it, columns don't work.**
 - Block types: text, feature, card, cta, image (use these exact names)
 - Text block settings: text (rich HTML), width, text_align, use_btn, btn_text, btn_action, background_color
 - CTA block settings: btn_text, btn_action, btn_text_color, btn_background_color
