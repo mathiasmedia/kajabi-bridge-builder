@@ -25,13 +25,34 @@ export default function NewProjectDialog({ open, onOpenChange, onCreated }: Prop
   const [progress, setProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const uploadToStorage = async (file: File): Promise<string> => {
+    const ext = file.name.split('.').pop() || 'png';
+    const path = `ref-images/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from('theme-assets').upload(path, file, { contentType: file.type });
+    if (error) throw error;
+    const { data: urlData } = supabase.storage.from('theme-assets').getPublicUrl(path);
+    return urlData.publicUrl;
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     for (const file of files) {
-      if (file.size > 5 * 1024 * 1024) { toast.error(`${file.name} exceeds 5MB limit`); continue; }
-      const reader = new FileReader();
-      reader.onload = () => setImages(prev => [...prev, reader.result as string]);
-      reader.readAsDataURL(file);
+      if (file.size > 20 * 1024 * 1024) { toast.error(`${file.name} exceeds 20MB limit`); continue; }
+      try {
+        if (file.size > 4 * 1024 * 1024) {
+          // Large file — upload to storage, use public URL
+          toast.info(`Uploading ${file.name}…`);
+          const publicUrl = await uploadToStorage(file);
+          setImages(prev => [...prev, publicUrl]);
+        } else {
+          // Small file — inline as base64
+          const reader = new FileReader();
+          reader.onload = () => setImages(prev => [...prev, reader.result as string]);
+          reader.readAsDataURL(file);
+        }
+      } catch (err) {
+        toast.error(`Upload failed: ${err instanceof Error ? err.message : err}`);
+      }
     }
     if (e.target) e.target.value = '';
   };
