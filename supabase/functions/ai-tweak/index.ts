@@ -158,8 +158,8 @@ function sanitizeBlockDefaults(op: any) {
     // Fix box_shadow — must be "none" if not set, otherwise class becomes "box-shadow-"
     if (!bs.box_shadow) bs.box_shadow = "none";
 
-    // Remove explicit zero padding overrides — they cause "padding: 20px" then "padding-*: 0px"
-    // which is wrong. Better to not set them at all and let Kajabi use defaults.
+    // Only remove explicit zero padding overrides that would override Kajabi defaults incorrectly
+    // Do NOT strip intentional padding values set by the user/AI
     const paddingKeys = ["padding_top", "padding_right", "padding_bottom", "padding_left",
                          "desktop_padding_top", "desktop_padding_right", "desktop_padding_bottom", "desktop_padding_left"];
     for (const pk of paddingKeys) {
@@ -168,10 +168,7 @@ function sanitizeBlockDefaults(op: any) {
       }
     }
 
-    // Remove block_padding if it's "20px" (that's the default, no need to set it)
-    if (bs.block_padding === "20px" || bs.block_padding === "30px") {
-      delete bs.block_padding;
-    }
+    // Don't strip block_padding — let the AI set whatever value it wants
 
     // Remove flush setting if not intentionally set
     if (bs.flush === "" || bs.flush === undefined) {
