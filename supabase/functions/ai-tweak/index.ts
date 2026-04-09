@@ -118,6 +118,72 @@ function normalizeSectionColumns(op: any) {
   });
 }
 
+/** Sanitize block and section settings to match what Kajabi templates expect.
+ *  Fixes missing defaults that cause broken HTML output (empty background-color, 
+ *  missing border_style, broken box-shadow classes, excessive padding, etc.) */
+function sanitizeBlockDefaults(op: any) {
+  if (op.type !== "addSection" || !op.section) return;
+
+  const settings = op.section.settings || {};
+  // Remove slider-related settings that AI shouldn't generate
+  delete settings.slider_preset;
+  delete settings.desktop_chunk;
+  delete settings.mobile_chunk;
+  delete settings.autoplay;
+  delete settings.loop;
+  delete settings.effect;
+
+  // Ensure padding values are proper objects with defaults if set
+  if (settings.padding_desktop && typeof settings.padding_desktop === "object") {
+    const pd = settings.padding_desktop;
+    if (!pd.left && pd.left !== 0) pd.left = 20;
+    if (!pd.right && pd.right !== 0) pd.right = 20;
+  }
+  if (settings.padding_mobile && typeof settings.padding_mobile === "object") {
+    const pm = settings.padding_mobile;
+    if (!pm.left && pm.left !== 0) pm.left = 0;
+    if (!pm.right && pm.right !== 0) pm.right = 0;
+  }
+
+  const blocks = op.section.blocks || {};
+  for (const blockId of Object.keys(blocks)) {
+    const block = blocks[blockId];
+    if (!block?.settings) continue;
+    const bs = block.settings;
+
+    // Fix border_style — must be "none" if not set, otherwise Liquid renders "border: 4px  black"
+    if (!bs.border_style) bs.border_style = "none";
+
+    // Remove empty background_color — Liquid renders "background-color: ;" if empty string
+    if (bs.background_color === "" || bs.background_color === undefined) {
+      delete bs.background_color;
+    }
+
+    // Fix box_shadow — must be "none" if not set, otherwise class becomes "box-shadow-"
+    if (!bs.box_shadow) bs.box_shadow = "none";
+
+    // Remove explicit zero padding overrides — they cause "padding: 20px" then "padding-*: 0px"
+    // which is wrong. Better to not set them at all and let Kajabi use defaults.
+    const paddingKeys = ["padding_top", "padding_right", "padding_bottom", "padding_left",
+                         "desktop_padding_top", "desktop_padding_right", "desktop_padding_bottom", "desktop_padding_left"];
+    for (const pk of paddingKeys) {
+      if (bs[pk] === "0px" || bs[pk] === "0" || bs[pk] === 0) {
+        delete bs[pk];
+      }
+    }
+
+    // Remove block_padding if it's "20px" (that's the default, no need to set it)
+    if (bs.block_padding === "20px" || bs.block_padding === "30px") {
+      delete bs.block_padding;
+    }
+
+    // Remove flush setting if not intentionally set
+    if (bs.flush === "" || bs.flush === undefined) {
+      delete bs.flush;
+    }
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -431,9 +497,10 @@ ${tweakInstruction}`;
       result.push(...patch.add);
     }
 
-    // 5. Post-process: normalize Kajabi IDs and column settings
+    // 5. Post-process: sanitize block defaults, normalize Kajabi IDs and column settings
     const allIdMaps: Record<string, string> = {};
     for (const op of result) {
+      sanitizeBlockDefaults(op);
       const idMap = normalizeKajabiIds(op);
       Object.assign(allIdMaps, idMap);
       normalizeSectionColumns(op);

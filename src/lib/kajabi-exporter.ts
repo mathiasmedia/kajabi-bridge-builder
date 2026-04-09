@@ -200,6 +200,26 @@ function sanitizeSettingsData(current: Record<string, any>) {
           // Ensure width default
           if (!b.settings.width) b.settings.width = "12";
 
+          // Fix border_style — must be "none" if not set
+          if (!b.settings.border_style) b.settings.border_style = "none";
+
+          // Remove empty background_color
+          if (b.settings.background_color === "" || b.settings.background_color === undefined) {
+            delete b.settings.background_color;
+          }
+
+          // Fix box_shadow — must be "none" if not set
+          if (!b.settings.box_shadow) b.settings.box_shadow = "none";
+
+          // Remove explicit zero padding overrides
+          const paddingKeys = ["padding_top", "padding_right", "padding_bottom", "padding_left",
+                               "desktop_padding_top", "desktop_padding_right", "desktop_padding_bottom", "desktop_padding_left"];
+          for (const pk of paddingKeys) {
+            if (b.settings[pk] === "0px" || b.settings[pk] === "0" || b.settings[pk] === 0) {
+              delete b.settings[pk];
+            }
+          }
+
           // Fix stringified objects
           for (const [bk, bv] of Object.entries(b.settings)) {
             if (typeof bv === 'string' && (bv.startsWith('{') || bv.startsWith('['))) {
