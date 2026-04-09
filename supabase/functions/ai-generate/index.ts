@@ -667,9 +667,17 @@ Return ONLY valid JSON. No markdown.`;
       if (cssFonts.body) extractedDesign.bodyFont = cssFonts.body;
     }
 
-    // Post-process: sanitize block defaults, normalize Kajabi IDs and column settings
+    // Post-process: validate blocks are populated, sanitize, normalize IDs and columns
     const allIdMaps: Record<string, string> = {};
     for (const op of operations) {
+      // CRITICAL: Warn and skip addSection with empty blocks
+      if (op.type === "addSection" && op.section) {
+        const blocks = op.section.blocks || {};
+        const blockOrder = op.section.block_order || [];
+        if (blockOrder.length > 0 && Object.keys(blocks).length === 0) {
+          console.error(`[WARN] addSection "${op.label}" has block_order but EMPTY blocks object — section will be blank`);
+        }
+      }
       sanitizeBlockDefaults(op);
       const idMap = normalizeKajabiIds(op);
       Object.assign(allIdMaps, idMap);
