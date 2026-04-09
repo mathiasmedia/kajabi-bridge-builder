@@ -126,12 +126,11 @@ function sanitizeBlockDefaults(op: any) {
 
   const settings = op.section.settings || {};
   // Remove slider-related settings that AI shouldn't generate
-  delete settings.slider_preset;
-  delete settings.desktop_chunk;
-  delete settings.mobile_chunk;
-  delete settings.autoplay;
-  delete settings.loop;
-  delete settings.effect;
+  const sliderKeys = ['slider_preset', 'desktop_chunk', 'mobile_chunk', 'autoplay', 'loop', 'effect'];
+  for (const k of sliderKeys) delete settings[k];
+
+  // Force full_width false — prevents flex:unset inline styles on blocks
+  settings.full_width = false;
 
   // Ensure padding values are proper objects with defaults if set
   if (settings.padding_desktop && typeof settings.padding_desktop === "object") {

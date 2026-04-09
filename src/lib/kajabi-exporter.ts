@@ -154,6 +154,11 @@ function sanitizeSettingsData(current: Record<string, any>) {
       for (const key of invalidSectionKeys) {
         delete s.settings[key];
       }
+      // Remove slider-related settings that cause broken HTML
+      const sliderKeys = ['slider_preset', 'desktop_chunk', 'mobile_chunk', 'autoplay', 'loop', 'effect'];
+      for (const k of sliderKeys) delete s.settings[k];
+      // Force full_width false to prevent flex:unset inline styles
+      s.settings.full_width = false;
       // Fix stringified objects
       for (const [sk, sv] of Object.entries(s.settings)) {
         if (typeof sv === 'string' && (sv.startsWith('{') || sv.startsWith('['))) {
