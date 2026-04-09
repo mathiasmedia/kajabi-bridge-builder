@@ -441,6 +441,12 @@ ${tweakInstruction}`;
       hasReplaceCss: !!patch.replaceCss,
       changelog: patch.changelog,
       modifyIndices: patch.modify?.map((m: any) => m.index),
+      // Log full modify changes so we can debug what the AI is actually doing
+      modifyDetails: patch.modify?.map((m: any) => ({
+        index: m.index,
+        changedKeys: Object.keys(m.changes || {}),
+        changes: JSON.stringify(m.changes).slice(0, 2000),
+      })),
     }));
 
     // Apply patches to operations
