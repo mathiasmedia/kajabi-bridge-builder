@@ -11,9 +11,51 @@ const respond = (body: Record<string, unknown>) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+/** Generate a 13-digit numeric ID like Kajabi uses */
+function kajabiId(): string {
+  return String(Date.now()) + String(Math.floor(Math.random() * 100)).padStart(2, '0');
+}
+
+/** Check if an ID is already in valid Kajabi numeric format */
+function isKajabiId(id: string): boolean {
+  return /^\d{13,}$/.test(id);
+}
+
+/** Normalize all IDs in an addSection operation to 13-digit numeric format.
+ *  Returns a map of oldId → newId for CSS fixup. */
+function normalizeKajabiIds(op: any): Record<string, string> {
+  const idMap: Record<string, string> = {};
+  if (op.type !== "addSection") return idMap;
+
+  const oldSectionId = op.sectionId;
+  if (!isKajabiId(oldSectionId)) {
+    const newId = kajabiId();
+    idMap[oldSectionId] = newId;
+    op.sectionId = newId;
+  }
+  const sectionId = op.sectionId;
+
+  if (op.section?.blocks) {
+    const oldBlocks = op.section.blocks;
+    const oldOrder = op.section.block_order || Object.keys(oldBlocks);
+    const newBlocks: Record<string, any> = {};
+    const newOrder: string[] = [];
+
+    oldOrder.forEach((oldId: string, idx: number) => {
+      const newId = `${sectionId}_${idx}`;
+      if (oldId !== newId) idMap[oldId] = newId;
+      newBlocks[newId] = oldBlocks[oldId];
+      newOrder.push(newId);
+    });
+
+    op.section.blocks = newBlocks;
+    op.section.block_order = newOrder;
+  }
+  return idMap;
+}
+
 function normalizeSectionColumns(op: any) {
   if (op.type !== "addSection" || !op.section?.settings) return;
-
   op.section.settings.full_width = false;
 
   const blocks = op.section.blocks || {};
@@ -307,6 +349,11 @@ Return valid JSON:
         dark_accent_color_primary, dark_accent_color_secondary, light_accent_color_primary, light_accent_color_secondary
 - addSection: { type, sectionId, section: { type: "section", settings, blocks, block_order }, label }
 - hideSection: { type, sectionId }
+
+## KAJABI ID FORMAT — CRITICAL
+- Section IDs MUST be 13-digit numeric strings (timestamp format), e.g. "1596053476562". NEVER use word-based IDs like "hero_section".
+- Block IDs MUST follow the pattern "{sectionId}_{index}", e.g. "1596053476562_0", "1596053476562_1".
+- Generate unique numeric IDs for each section using Date.now()-like values.
 
 ## CRITICAL RULES — READ CAREFULLY
 
@@ -642,18 +689,35 @@ Return ONLY valid JSON. No markdown.`;
       if (cssFonts.body) extractedDesign.bodyFont = cssFonts.body;
     }
 
-    // Post-process: normalize Kajabi column settings
+    // Post-process: normalize Kajabi IDs and column settings
+    const allIdMaps: Record<string, string> = {};
     for (const op of operations) {
+      const idMap = normalizeKajabiIds(op);
+      Object.assign(allIdMaps, idMap);
       normalizeSectionColumns(op);
     }
 
-    // Add the final CSS override
+    // Add the final CSS override (fix any word-based IDs in CSS)
     if (cssOverride) {
+      let fixedCss = cssOverride;
+      for (const [oldId, newId] of Object.entries(allIdMaps)) {
+        fixedCss = fixedCss.replaceAll(oldId, newId);
+      }
       operations.push({
         type: "addCssOverride",
-        css: cssOverride,
+        css: fixedCss,
         label: "AI-generated CSS overrides" + (visionData ? " (vision-enhanced)" : ""),
       });
+    }
+    // Also fix CSS in any existing addCssOverride ops
+    if (Object.keys(allIdMaps).length > 0) {
+      for (const op of operations) {
+        if (op.type === "addCssOverride" && op.css) {
+          for (const [oldId, newId] of Object.entries(allIdMaps)) {
+            op.css = op.css.replaceAll(oldId, newId);
+          }
+        }
+      }
     }
 
     const passCount = 1 + (cssOverride ? 1 : 0) + (visionData ? 1 : 0);

@@ -22,9 +22,51 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+/** Generate a 13-digit numeric ID like Kajabi uses */
+function kajabiId(): string {
+  return String(Date.now()) + String(Math.floor(Math.random() * 100)).padStart(2, '0');
+}
+
+/** Check if an ID is already in valid Kajabi numeric format */
+function isKajabiId(id: string): boolean {
+  return /^\d{13,}$/.test(id);
+}
+
+/** Normalize all IDs in an addSection operation to 13-digit numeric format.
+ *  Returns a map of oldId → newId for CSS fixup. */
+function normalizeKajabiIds(op: any): Record<string, string> {
+  const idMap: Record<string, string> = {};
+  if (op.type !== "addSection") return idMap;
+
+  const oldSectionId = op.sectionId;
+  if (!isKajabiId(oldSectionId)) {
+    const newId = kajabiId();
+    idMap[oldSectionId] = newId;
+    op.sectionId = newId;
+  }
+  const sectionId = op.sectionId;
+
+  if (op.section?.blocks) {
+    const oldBlocks = op.section.blocks;
+    const oldOrder = op.section.block_order || Object.keys(oldBlocks);
+    const newBlocks: Record<string, any> = {};
+    const newOrder: string[] = [];
+
+    oldOrder.forEach((oldId: string, idx: number) => {
+      const newId = `${sectionId}_${idx}`;
+      if (oldId !== newId) idMap[oldId] = newId;
+      newBlocks[newId] = oldBlocks[oldId];
+      newOrder.push(newId);
+    });
+
+    op.section.blocks = newBlocks;
+    op.section.block_order = newOrder;
+  }
+  return idMap;
+}
+
 function normalizeSectionColumns(op: any) {
   if (op.type !== "addSection" || !op.section?.settings) return;
-
   op.section.settings.full_width = false;
 
   const blocks = op.section.blocks || {};
@@ -252,6 +294,10 @@ ${imageBase64 ? '- When matching an image: be THOROUGH. Use addCssOverride for c
 - updateNavigation: { type, menuId, links:[{name,url}] }
 - addSection: { type, sectionId, section:{ type:"section", settings, blocks, block_order }, label }
 
+## KAJABI ID FORMAT
+- Section IDs MUST be 13-digit numeric strings (timestamp format), e.g. "1596053476562". NEVER use words like "hero_section".
+- Block IDs MUST follow "{sectionId}_{index}" pattern, e.g. "1596053476562_0".
+
 Return ONLY valid JSON. No markdown fences.`;
 
     // Build vision design context if available
@@ -385,9 +431,22 @@ ${tweakInstruction}`;
       result.push(...patch.add);
     }
 
-    // 5. Post-process: normalize Kajabi column settings
+    // 5. Post-process: normalize Kajabi IDs and column settings
+    const allIdMaps: Record<string, string> = {};
     for (const op of result) {
+      const idMap = normalizeKajabiIds(op);
+      Object.assign(allIdMaps, idMap);
       normalizeSectionColumns(op);
+    }
+    // Fix CSS overrides that reference old word-based IDs
+    if (Object.keys(allIdMaps).length > 0) {
+      for (const op of result) {
+        if (op.type === "addCssOverride" && op.css) {
+          for (const [oldId, newId] of Object.entries(allIdMaps)) {
+            op.css = op.css.replaceAll(oldId, newId);
+          }
+        }
+      }
     }
 
     return respond({
