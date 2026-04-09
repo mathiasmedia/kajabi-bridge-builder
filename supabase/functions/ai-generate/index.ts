@@ -462,7 +462,7 @@ Return valid JSON:
 - Kajabi also supports REAL block placement using block settings:
   - block_column: "first" | "second" | "third"
 - For a split content/image section like "Your Brand, Elevated":
-  - section.settings.multiple_columns_on_desktop = "yes" (REQUIRED!)
+  - section.settings.multiple_columns_on_desktop = "two" (REQUIRED!)
   - section.settings.column_one_width = "4"
   - section.settings.column_two_width = "4"
   - section.settings.full_width = false
@@ -488,7 +488,7 @@ All sections use type: "section". Available settings:
 - bg_type: "color" | "image" | "video"
 - bg_image: URL for background image
 - full_width: boolean
-- multiple_columns_on_desktop: "yes" | "no"
+- multiple_columns_on_desktop: "no" | "two" | "three"
 - column_one_width: string
 - column_two_width: string
 - column_three_width: string
