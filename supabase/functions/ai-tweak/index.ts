@@ -497,9 +497,10 @@ ${tweakInstruction}`;
       result.push(...patch.add);
     }
 
-    // 5. Post-process: normalize Kajabi IDs and column settings
+    // 5. Post-process: sanitize block defaults, normalize Kajabi IDs and column settings
     const allIdMaps: Record<string, string> = {};
     for (const op of result) {
+      sanitizeBlockDefaults(op);
       const idMap = normalizeKajabiIds(op);
       Object.assign(allIdMaps, idMap);
       normalizeSectionColumns(op);

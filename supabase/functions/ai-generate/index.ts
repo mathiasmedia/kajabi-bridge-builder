@@ -755,9 +755,10 @@ Return ONLY valid JSON. No markdown.`;
       if (cssFonts.body) extractedDesign.bodyFont = cssFonts.body;
     }
 
-    // Post-process: normalize Kajabi IDs and column settings
+    // Post-process: sanitize block defaults, normalize Kajabi IDs and column settings
     const allIdMaps: Record<string, string> = {};
     for (const op of operations) {
+      sanitizeBlockDefaults(op);
       const idMap = normalizeKajabiIds(op);
       Object.assign(allIdMaps, idMap);
       normalizeSectionColumns(op);
