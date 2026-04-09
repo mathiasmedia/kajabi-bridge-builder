@@ -11,9 +11,45 @@ const respond = (body: Record<string, unknown>) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+/** Generate a 13-digit numeric ID like Kajabi uses */
+function kajabiId(): string {
+  return String(Date.now()) + String(Math.floor(Math.random() * 100)).padStart(2, '0');
+}
+
+/** Check if an ID is already in valid Kajabi numeric format */
+function isKajabiId(id: string): boolean {
+  return /^\d{13,}$/.test(id);
+}
+
+/** Normalize all IDs in an addSection operation to 13-digit numeric format */
+function normalizeKajabiIds(op: any) {
+  if (op.type !== "addSection") return;
+
+  const oldSectionId = op.sectionId;
+  if (!isKajabiId(oldSectionId)) {
+    op.sectionId = kajabiId();
+  }
+  const sectionId = op.sectionId;
+
+  if (op.section?.blocks) {
+    const oldBlocks = op.section.blocks;
+    const oldOrder = op.section.block_order || Object.keys(oldBlocks);
+    const newBlocks: Record<string, any> = {};
+    const newOrder: string[] = [];
+
+    oldOrder.forEach((oldId: string, idx: number) => {
+      const newId = `${sectionId}_${idx}`;
+      newBlocks[newId] = oldBlocks[oldId];
+      newOrder.push(newId);
+    });
+
+    op.section.blocks = newBlocks;
+    op.section.block_order = newOrder;
+  }
+}
+
 function normalizeSectionColumns(op: any) {
   if (op.type !== "addSection" || !op.section?.settings) return;
-
   op.section.settings.full_width = false;
 
   const blocks = op.section.blocks || {};
