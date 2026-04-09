@@ -339,11 +339,12 @@ Text Content: ${JSON.stringify(visionDesign.textContent || {})}
 Effects: ${JSON.stringify(visionDesign.effects || {})}
 USE THESE EXACT VALUES for colors, fonts, and text. This is the ground truth from the screenshot.` : '';
 
+    const opsJson = JSON.stringify(compactOps);
     const textPart = `## Current Plan Summary (${operations.length} operations)
 ${opSummary}
 
-## Operation Details
-${JSON.stringify(compactOps).slice(0, 6000)}
+## Full Operation Details
+${opsJson.slice(0, 30000)}
 
 ## Design Context
 Colors: ${JSON.stringify(extractedDesign?.colors?.slice(0, 6))}
