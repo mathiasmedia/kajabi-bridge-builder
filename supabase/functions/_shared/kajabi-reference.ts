@@ -344,6 +344,12 @@ export const LAYOUT_RULES = `## LAYOUT & STRUCTURAL RULES
     text/CTA blocks: width "12", block_column "first", text_align "left"
     image block: width "12", block_column "second"
 
+### Custom CSS Targeting
+- Each section has a custom_css_class setting — set it to a class name WITHOUT the leading dot
+  Example: custom_css_class: "my-hero"
+- Then use addCssOverride with ".my-hero h1 { font-size: 3rem; }" to target only that section
+- This is the preferred way to apply section-specific CSS without relying on section IDs
+
 ### Section Structure
 - Related content belongs in the SAME section (heading + cards below = one section, not two)
 - Pattern: heading block width "12" + card blocks width "4" each in the same section
