@@ -423,8 +423,9 @@ ${tweakInstruction}`;
       result.push(...patch.add);
     }
 
-    // 5. Post-process: normalize Kajabi column settings
+    // 5. Post-process: normalize Kajabi IDs and column settings
     for (const op of result) {
+      normalizeKajabiIds(op);
       normalizeSectionColumns(op);
     }
 

@@ -678,8 +678,9 @@ Return ONLY valid JSON. No markdown.`;
       if (cssFonts.body) extractedDesign.bodyFont = cssFonts.body;
     }
 
-    // Post-process: normalize Kajabi column settings
+    // Post-process: normalize Kajabi IDs and column settings
     for (const op of operations) {
+      normalizeKajabiIds(op);
       normalizeSectionColumns(op);
     }
 
