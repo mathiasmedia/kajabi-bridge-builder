@@ -396,41 +396,11 @@ Return valid JSON:
 - For full-width text: width "12"
 - For 2-column layout: use "6" + "6", or "5" + "7", etc.
 
-## SECTION SETTINGS REFERENCE (from section.liquid schema — ONLY valid settings)
-### Background
-- bg_type: "none" | "image" | "video" (default: "none"), bg_position: "top"|"center"|"bottom"
-- background_color: color (sets .section__overlay), background_fixed: checkbox
+${SECTION_SETTINGS_REFERENCE}
 
-### Desktop Layout
-- padding_desktop: { top, right, bottom, left } (defaults: 100, 40, 100, 40)
-- vertical: "start"|"center"|"end", horizontal: "left"|"center"|"right"|"between"|"around"
-- full_width: NEVER true, full_height: checkbox, equal_height: checkbox
+${BLOCK_TYPES_REFERENCE}
 
-### Mobile Layout
-- padding_mobile: { top, right, bottom, left } (defaults: 40, 10, 40, 10)
-
-### Columns
-- multiple_columns_on_desktop: "no" | "two" | "three" (default: "no")
-- column_one_width / column_two_width / column_three_width: grid 1-12 (default: "4")
-- multiple_column_gap: range 0-150 (default: "0")
-
-## BLOCK TYPES & SETTINGS
-All blocks go in section.blocks as { "block-id": { type, settings } } with section.block_order listing IDs.
-
-### text block:
-{ type: "text", settings: { text: "<h1>Heading</h1><p>Paragraph text</p>", width: "12", text_align: "center", mobile_text_align: "center", block_column: "first", use_btn: true/false, btn_text: "Click", btn_action: "#", btn_style: "solid", btn_background_color: "#hex", btn_text_color: "#hex" } }
-
-### feature block:
-{ type: "feature", settings: { text: "<h3>Title</h3><p>Description</p>", width: "4", text_align: "center", mobile_text_align: "center", block_column: "first", image: "", image_width: "80", hide_image: true, use_btn: false } }
-
-### feature_icon block:
-{ type: "feature_icon", settings: { text: "<h3>Title</h3><p>Description</p>", width: "4", text_align: "center", mobile_text_align: "center", block_column: "first", feature_icon_code: "<svg>...</svg>", feature_icon_color: "#hex", feature_icon_size: "50", use_btn: false } }
-
-### image block:
-{ type: "image", settings: { image: "https://placehold.co/800x400/hex1/hex2?text=...", width: "12", block_column: "second", image_width: "", image_border_radius: "4" } }
-
-### cta block:
-{ type: "cta", settings: { btn_text: "Button Label", btn_action: "#", width: "12", block_column: "first", text_align: "left", mobile_text_align: "left", btn_style: "solid", btn_size: "medium", btn_width: "auto", btn_background_color: "#hex", btn_text_color: "#hex", btn_border_radius: "4px" } }
+${SHARED_BLOCK_SETTINGS}
 
 ## ADDITIONAL RULES
 - Use EXACT TEXT from reference if visible
